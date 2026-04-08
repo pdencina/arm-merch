@@ -6,16 +6,9 @@ import ProductsTable from '@/components/products/products-table'
 export default async function ProductsPage() {
   const supabase = await createClient()
 
-  const [{ data: products }, { data: categories }] = await Promise.all([
-    supabase
-      .from('products_with_stock')
-      .select('*')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('categories')
-      .select('id, name')
-      .eq('active', true)
-      .order('name'),
+  const [{ data: productsRaw }, { data: categoriesRaw }] = await Promise.all([
+    supabase.from('products_with_stock').select('*').order('created_at', { ascending: false }),
+    supabase.from('categories').select('id, name').eq('active', true).order('name'),
   ])
 
   return (
@@ -23,7 +16,7 @@ export default async function ProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-white">Productos</h1>
-          <p className="text-xs text-zinc-500 mt-0.5">{products?.length ?? 0} productos registrados</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{productsRaw?.length ?? 0} productos registrados</p>
         </div>
         <Link
           href="/products/new"
@@ -34,8 +27,10 @@ export default async function ProductsPage() {
           Nuevo producto
         </Link>
       </div>
-
-      <ProductsTable products={products ?? []} categories={categories ?? []} />
+      <ProductsTable
+        products={(productsRaw ?? []) as any[]}
+        categories={(categoriesRaw ?? []) as { id: string; name: string }[]}
+      />
     </div>
   )
 }

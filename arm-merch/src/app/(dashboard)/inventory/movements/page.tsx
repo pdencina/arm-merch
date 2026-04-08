@@ -16,44 +16,54 @@ const TYPE_CONFIG = {
   ajuste:  { label: 'Ajuste',  icon: RefreshCw,    color: 'text-blue-400',   bg: 'bg-blue-500/10'  },
 }
 
+type MovementType = 'entrada' | 'salida' | 'ajuste'
+
+interface Movement {
+  id: string
+  type: MovementType
+  quantity: number
+  notes: string | null
+  created_at: string
+  product: { name: string; sku: string | null } | null
+  created_by_profile: { full_name: string } | null
+}
+
 export default async function MovementsPage() {
   const supabase = await createClient()
 
-  const { data: movements } = await supabase
+  const { data: raw } = await supabase
     .from('inventory_movements')
     .select(`
-      *,
+      id, type, quantity, notes, created_at,
       product:products(name, sku),
       created_by_profile:profiles(full_name)
     `)
     .order('created_at', { ascending: false })
     .limit(200)
 
+  const movements = (raw ?? []) as unknown as Movement[]
+
   return (
     <div className="flex flex-col gap-5">
 
-      {/* Header */}
       <div>
         <h1 className="text-lg font-semibold text-white">Historial de movimientos</h1>
         <p className="text-xs text-zinc-500 mt-0.5">Registro de entradas, salidas y ajustes de stock</p>
       </div>
 
-      {/* Tabla */}
       <div className="bg-zinc-800/30 rounded-xl border border-zinc-700/40 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-700/60">
                 {['Fecha', 'Producto', 'Tipo', 'Cantidad', 'Responsable', 'Notas'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">
-                    {h}
-                  </th>
+                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {(movements ?? []).map(m => {
-                const cfg = TYPE_CONFIG[m.type as keyof typeof TYPE_CONFIG]
+              {movements.map(m => {
+                const cfg = TYPE_CONFIG[m.type] ?? TYPE_CONFIG.ajuste
                 const Icon = cfg.icon
                 return (
                   <tr key={m.id} className="border-b border-zinc-700/30 hover:bg-zinc-700/20 transition">
@@ -61,12 +71,8 @@ export default async function MovementsPage() {
                       {fmtDate(m.created_at)}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-zinc-200 text-xs font-medium">
-                        {(m.product as any)?.name ?? '—'}
-                      </p>
-                      <p className="text-zinc-600 text-[10px] font-mono">
-                        {(m.product as any)?.sku ?? ''}
-                      </p>
+                      <p className="text-zinc-200 text-xs font-medium">{m.product?.name ?? '—'}</p>
+                      <p className="text-zinc-600 text-[10px] font-mono">{m.product?.sku ?? ''}</p>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold
@@ -84,7 +90,7 @@ export default async function MovementsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-500">
-                      {(m.created_by_profile as any)?.full_name ?? '—'}
+                      {m.created_by_profile?.full_name ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-600 max-w-[200px] truncate">
                       {m.notes ?? '—'}
@@ -96,7 +102,7 @@ export default async function MovementsPage() {
           </table>
         </div>
 
-        {(!movements || movements.length === 0) && (
+        {movements.length === 0 && (
           <div className="py-14 text-center">
             <p className="text-zinc-600 text-sm">No hay movimientos registrados</p>
           </div>

@@ -43,14 +43,16 @@ export default async function DashboardPage() {
       .limit(8),
   ])
 
+  // Cast explícito para evitar tipo 'never' del inferidor de Supabase
   type OrderRow = { total: number; created_at: string }
-  const todayOrders = (todayOrdersRaw  as OrderRow[] | null) ?? []
-  const monthOrders = (monthOrdersRaw  as OrderRow[] | null) ?? []
+  const todayOrders  = (todayOrdersRaw  ?? []) as OrderRow[]
+  const monthOrders  = (monthOrdersRaw  ?? []) as OrderRow[]
 
   const todayTotal = todayOrders.reduce((s, o) => s + Number(o.total), 0)
   const todayCount = todayOrders.length
   const monthTotal = monthOrders.reduce((s, o) => s + Number(o.total), 0)
 
+  // Ventas por hora para gráfico del día
   const hourlyMap: Record<number, number> = {}
   for (let h = 8; h <= 20; h++) hourlyMap[h] = 0
   todayOrders.forEach(o => {
@@ -62,6 +64,7 @@ export default async function DashboardPage() {
     total,
   }))
 
+  // Ventas por día del mes
   const dailyMap: Record<string, number> = {}
   monthOrders.forEach(o => {
     const d = new Date(o.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })
@@ -74,9 +77,9 @@ export default async function DashboardPage() {
       todayTotal={todayTotal}
       todayCount={todayCount}
       monthTotal={monthTotal}
-      lowStock={(lowStock ?? []) as any[]}
-      topProducts={(topProducts ?? []) as any[]}
-      recentOrders={(recentOrders ?? []) as any[]}
+      lowStock={lowStock ?? []}
+      topProducts={topProducts ?? []}
+      recentOrders={recentOrders ?? []}
       hourlyData={hourlyData}
       dailyData={dailyData}
     />
