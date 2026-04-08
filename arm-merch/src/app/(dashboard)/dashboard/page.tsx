@@ -4,19 +4,19 @@ import DashboardClient from './dashboard-client'
 export default async function DashboardPage() {
   const supabase = await createClient()
   const today = new Date()
-  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
+  const startOfDay   = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
 
   const [
-    { data: todayOrders },
-    { data: monthOrders },
+    { data: todayOrdersRaw },
+    { data: monthOrdersRaw },
     { data: lowStock },
     { data: topProducts },
     { data: recentOrders },
   ] = await Promise.all([
     supabase
       .from('orders')
-      .select('total, status')
+      .select('total, status, created_at')
       .gte('created_at', startOfDay)
       .eq('status', 'completada'),
     supabase
@@ -43,15 +43,18 @@ export default async function DashboardPage() {
       .limit(8),
   ])
 
-  const todayTotal = (todayOrders ?? []).reduce((s, o) => s + Number(o.total), 0)
-  const todayCount = (todayOrders ?? []).length
-  const monthTotal = (monthOrders ?? []).reduce((s, o) => s + Number(o.total), 0)
+  type OrderRow = { total: number; created_at: string }
+  const todayOrders = (todayOrdersRaw  as OrderRow[] | null) ?? []
+  const monthOrders = (monthOrdersRaw  as OrderRow[] | null) ?? []
 
-  // Ventas por hora para gráfico del día
+  const todayTotal = todayOrders.reduce((s, o) => s + Number(o.total), 0)
+  const todayCount = todayOrders.length
+  const monthTotal = monthOrders.reduce((s, o) => s + Number(o.total), 0)
+
   const hourlyMap: Record<number, number> = {}
   for (let h = 8; h <= 20; h++) hourlyMap[h] = 0
-  ;(todayOrders ?? []).forEach(o => {
-    const h = new Date((o as any).created_at).getHours()
+  todayOrders.forEach(o => {
+    const h = new Date(o.created_at).getHours()
     if (h in hourlyMap) hourlyMap[h] = (hourlyMap[h] || 0) + Number(o.total)
   })
   const hourlyData = Object.entries(hourlyMap).map(([hour, total]) => ({
@@ -59,10 +62,9 @@ export default async function DashboardPage() {
     total,
   }))
 
-  // Ventas por día del mes
   const dailyMap: Record<string, number> = {}
-  ;(monthOrders ?? []).forEach(o => {
-    const d = new Date((o as any).created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })
+  monthOrders.forEach(o => {
+    const d = new Date(o.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })
     dailyMap[d] = (dailyMap[d] || 0) + Number(o.total)
   })
   const dailyData = Object.entries(dailyMap).map(([day, total]) => ({ day, total }))
@@ -72,9 +74,9 @@ export default async function DashboardPage() {
       todayTotal={todayTotal}
       todayCount={todayCount}
       monthTotal={monthTotal}
-      lowStock={lowStock ?? []}
-      topProducts={topProducts ?? []}
-      recentOrders={recentOrders ?? []}
+      lowStock={(lowStock ?? []) as any[]}
+      topProducts={(topProducts ?? []) as any[]}
+      recentOrders={(recentOrders ?? []) as any[]}
       hourlyData={hourlyData}
       dailyData={dailyData}
     />
