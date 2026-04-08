@@ -17,7 +17,7 @@ interface CreateOrderInput {
 }
 
 export async function createOrder(input: CreateOrderInput) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
@@ -66,7 +66,7 @@ export async function createOrder(input: CreateOrderInput) {
 }
 
 export async function getOrders() {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data, error } = await supabase
     .from('orders')

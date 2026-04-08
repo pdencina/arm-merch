@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import ProductForm from '@/components/products/product-form'
 
 export default async function NewProductPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: categoriesRaw } = await supabase
     .from('categories').select('id, name').eq('active', true).order('name')
 

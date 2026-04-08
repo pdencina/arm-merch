@@ -29,7 +29,7 @@ interface Movement {
 }
 
 export default async function MovementsPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data: raw } = await supabase
     .from('inventory_movements')

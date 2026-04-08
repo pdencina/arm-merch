@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import InventoryClient from './inventory-client'
 
 export default async function InventoryPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const [{ data: productsRaw }, { data: categoriesRaw }] = await Promise.all([
     supabase.from('products_with_stock').select('*').order('name'),

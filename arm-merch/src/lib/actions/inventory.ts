@@ -11,7 +11,7 @@ interface MovementInput {
 }
 
 export async function registerMovement(input: MovementInput) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
@@ -48,7 +48,7 @@ export async function registerMovement(input: MovementInput) {
 }
 
 export async function getMovements(productId?: string) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   let query = supabase
     .from('inventory_movements')

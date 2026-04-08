@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import DashboardClient from './dashboard-client'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
   const today = new Date()
   const startOfDay   = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString()
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()

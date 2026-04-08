@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import ProductsTable from '@/components/products/products-table'
 
 export default async function ProductsPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const [{ data: productsRaw }, { data: categoriesRaw }] = await Promise.all([
     supabase.from('products_with_stock').select('*').order('created_at', { ascending: false }),

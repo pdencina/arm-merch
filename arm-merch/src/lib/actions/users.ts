@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 type Role = 'super_admin' | 'admin' | 'voluntario'
 
 export async function updateUserRole(userId: string, role: Role) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
@@ -25,7 +25,7 @@ export async function updateUserRole(userId: string, role: Role) {
 }
 
 export async function toggleUserActive(userId: string, active: boolean) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import ReportsClient from './reports-client'
 
 export default async function ReportsPage() {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const [{ data: ordersRaw }, { data: products }, { data: sellers }] = await Promise.all([
     supabase

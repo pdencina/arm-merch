@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function upsertProduct(formData: FormData) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
 
@@ -83,7 +83,7 @@ export async function upsertProduct(formData: FormData) {
 }
 
 export async function toggleProductActive(id: string, active: boolean) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { error } = await supabase.from('products').update({ active }).eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/products')
@@ -91,7 +91,7 @@ export async function toggleProductActive(id: string, active: boolean) {
 }
 
 export async function deleteProduct(id: string) {
-  const supabase = await createClient()
+  const supabase = createClient()
   const { error } = await supabase.from('products').update({ active: false }).eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/products')

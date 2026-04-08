@@ -3,7 +3,7 @@ import ProductForm from '@/components/products/product-form'
 import { notFound } from 'next/navigation'
 
 export default async function EditProductPage({ params }: { params: { id: string } }) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const [{ data: productRaw }, { data: categoriesRaw }] = await Promise.all([
     supabase.from('products_with_stock').select('*').eq('id', params.id).single(),
