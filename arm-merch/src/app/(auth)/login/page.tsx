@@ -1,94 +1,382 @@
 'use client'
 
-import { useState } from 'react'
-import { login } from '@/lib/actions/auth'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [mounted, setMounted]   = useState(false)
+  const router = useRouter()
+
+  useEffect(() => { setMounted(true) }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-
-    const result = await login(email, password)
-    if (result?.error) {
-      setError(result.error)
+    const supabase = createClient()
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    if (authError) {
+      setError('Credenciales incorrectas')
       setLoading(false)
+      return
     }
+    router.push('/dashboard')
+    router.refresh()
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
 
-        {/* Logo / Brand */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500 mb-4">
-            <span className="text-2xl font-black text-zinc-950">A</span>
+        .login-root {
+          min-height: 100vh;
+          background: #080808;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'DM Sans', sans-serif;
+          overflow: hidden;
+          position: relative;
+        }
+
+        /* Geometric background */
+        .bg-grid {
+          position: fixed;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(245,158,11,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(245,158,11,0.03) 1px, transparent 1px);
+          background-size: 60px 60px;
+          pointer-events: none;
+        }
+
+        .bg-glow {
+          position: fixed;
+          width: 600px;
+          height: 600px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%);
+          top: -150px;
+          right: -150px;
+          pointer-events: none;
+        }
+
+        .bg-glow-2 {
+          position: fixed;
+          width: 400px;
+          height: 400px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(245,158,11,0.04) 0%, transparent 70%);
+          bottom: -100px;
+          left: -100px;
+          pointer-events: none;
+        }
+
+        /* Decorative vertical line */
+        .deco-line {
+          position: fixed;
+          left: 60px;
+          top: 0;
+          bottom: 0;
+          width: 1px;
+          background: linear-gradient(to bottom, transparent, rgba(245,158,11,0.15) 30%, rgba(245,158,11,0.15) 70%, transparent);
+        }
+
+        .deco-line-right {
+          position: fixed;
+          right: 60px;
+          top: 0;
+          bottom: 0;
+          width: 1px;
+          background: linear-gradient(to bottom, transparent, rgba(245,158,11,0.08) 30%, rgba(245,158,11,0.08) 70%, transparent);
+        }
+
+        /* Corner marks */
+        .corner {
+          position: fixed;
+          width: 20px;
+          height: 20px;
+        }
+        .corner-tl { top: 24px; left: 24px; border-top: 1px solid rgba(245,158,11,0.3); border-left: 1px solid rgba(245,158,11,0.3); }
+        .corner-tr { top: 24px; right: 24px; border-top: 1px solid rgba(245,158,11,0.3); border-right: 1px solid rgba(245,158,11,0.3); }
+        .corner-bl { bottom: 24px; left: 24px; border-bottom: 1px solid rgba(245,158,11,0.3); border-left: 1px solid rgba(245,158,11,0.3); }
+        .corner-br { bottom: 24px; right: 24px; border-bottom: 1px solid rgba(245,158,11,0.3); border-right: 1px solid rgba(245,158,11,0.3); }
+
+        /* Main card */
+        .card {
+          position: relative;
+          width: 100%;
+          max-width: 420px;
+          padding: 0 24px;
+          opacity: ${mounted ? 1 : 0};
+          transform: ${mounted ? 'translateY(0)' : 'translateY(16px)'};
+          transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        /* Brand section */
+        .brand {
+          margin-bottom: 52px;
+        }
+
+        .brand-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 20px;
+        }
+
+        .brand-dot {
+          width: 6px;
+          height: 6px;
+          background: #f59e0b;
+          border-radius: 50%;
+          animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .brand-label {
+          font-size: 10px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: rgba(245,158,11,0.7);
+          font-weight: 500;
+        }
+
+        .brand-title {
+          font-family: 'DM Serif Display', serif;
+          font-size: 52px;
+          line-height: 1;
+          color: #fff;
+          letter-spacing: -0.02em;
+          margin: 0 0 8px 0;
+        }
+
+        .brand-title em {
+          font-style: italic;
+          color: #f59e0b;
+        }
+
+        .brand-sub {
+          font-size: 13px;
+          color: rgba(255,255,255,0.3);
+          font-weight: 300;
+          letter-spacing: 0.02em;
+        }
+
+        /* Form */
+        .form { display: flex; flex-direction: column; gap: 20px; }
+
+        .field { display: flex; flex-direction: column; gap: 8px; }
+
+        .field-label {
+          font-size: 10px;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.35);
+          font-weight: 500;
+        }
+
+        .field-input {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 2px;
+          padding: 14px 16px;
+          color: #fff;
+          font-size: 14px;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 300;
+          outline: none;
+          transition: border-color 0.2s, background 0.2s;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .field-input::placeholder { color: rgba(255,255,255,0.15); }
+
+        .field-input:focus {
+          border-color: rgba(245,158,11,0.4);
+          background: rgba(245,158,11,0.03);
+        }
+
+        /* Divider */
+        .divider {
+          height: 1px;
+          background: linear-gradient(to right, transparent, rgba(255,255,255,0.06), transparent);
+          margin: 4px 0;
+        }
+
+        /* Error */
+        .error-msg {
+          font-size: 12px;
+          color: #f87171;
+          background: rgba(248,113,113,0.05);
+          border: 1px solid rgba(248,113,113,0.15);
+          border-radius: 2px;
+          padding: 10px 14px;
+          letter-spacing: 0.01em;
+        }
+
+        /* Submit button */
+        .btn-submit {
+          position: relative;
+          background: #f59e0b;
+          color: #080808;
+          border: none;
+          border-radius: 2px;
+          padding: 16px 24px;
+          font-size: 12px;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          cursor: pointer;
+          overflow: hidden;
+          transition: background 0.2s, transform 0.1s;
+          width: 100%;
+          margin-top: 8px;
+        }
+
+        .btn-submit:hover { background: #fbbf24; }
+        .btn-submit:active { transform: scale(0.99); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-submit::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%);
+          transform: translateX(-100%);
+          transition: transform 0.4s ease;
+        }
+
+        .btn-submit:hover::after { transform: translateX(100%); }
+
+        /* Footer */
+        .footer {
+          margin-top: 40px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .footer-line {
+          flex: 1;
+          height: 1px;
+          background: rgba(255,255,255,0.06);
+        }
+
+        .footer-text {
+          font-size: 11px;
+          color: rgba(255,255,255,0.2);
+          letter-spacing: 0.05em;
+        }
+
+        /* Loading spinner */
+        .spinner {
+          display: inline-block;
+          width: 12px;
+          height: 12px;
+          border: 1.5px solid rgba(0,0,0,0.3);
+          border-top-color: #080808;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+          margin-right: 8px;
+          vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Year tag */
+        .year-tag {
+          position: fixed;
+          bottom: 28px;
+          right: 28px;
+          font-size: 10px;
+          color: rgba(255,255,255,0.1);
+          letter-spacing: 0.1em;
+          font-family: 'DM Sans', sans-serif;
+        }
+      `}</style>
+
+      <div className="login-root">
+        <div className="bg-grid" />
+        <div className="bg-glow" />
+        <div className="bg-glow-2" />
+        <div className="deco-line" />
+        <div className="deco-line-right" />
+        <div className="corner corner-tl" />
+        <div className="corner corner-tr" />
+        <div className="corner corner-bl" />
+        <div className="corner corner-br" />
+
+        <div className="card">
+          <div className="brand">
+            <div className="brand-tag">
+              <div className="brand-dot" />
+              <span className="brand-label">Iglesia ARM · Sistema de Merch</span>
+            </div>
+            <h1 className="brand-title">
+              ARM <em>Merch</em>
+            </h1>
+            <p className="brand-sub">Acceso a la plataforma de merchandising</p>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">ARM Merch</h1>
-          <p className="text-zinc-400 text-sm mt-1">Sistema de Merchandising · Iglesia ARM</p>
+
+          <form onSubmit={handleSubmit} className="form">
+            <div className="field">
+              <label className="field-label">Correo electrónico</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="tu@iglesia.cl"
+                required
+                autoComplete="email"
+                className="field-input"
+              />
+            </div>
+
+            <div className="field">
+              <label className="field-label">Contraseña</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+                className="field-input"
+              />
+            </div>
+
+            <div className="divider" />
+
+            {error && <div className="error-msg">{error}</div>}
+
+            <button type="submit" disabled={loading} className="btn-submit">
+              {loading && <span className="spinner" />}
+              {loading ? 'Verificando...' : 'Ingresar'}
+            </button>
+          </form>
+
+          <div className="footer">
+            <div className="footer-line" />
+            <span className="footer-text">Acceso restringido al equipo autorizado</span>
+            <div className="footer-line" />
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-widest">
-              Correo electrónico
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              placeholder="tu@iglesia.cl"
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-600
-                         rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500
-                         focus:ring-1 focus:ring-amber-500 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5 uppercase tracking-widest">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="w-full bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-600
-                         rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500
-                         focus:ring-1 focus:ring-amber-500 transition"
-            />
-          </div>
-
-          {error && (
-            <p className="text-red-400 text-sm bg-red-950/50 border border-red-900 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed
-                       text-zinc-950 font-bold rounded-xl px-4 py-3 text-sm transition-all
-                       active:scale-[0.98]"
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
-        </form>
-
-        <p className="text-center text-zinc-600 text-xs mt-8">
-          ¿Sin acceso? Contacta al administrador de tu iglesia.
-        </p>
+        <div className="year-tag">ARM © 2025</div>
       </div>
-    </main>
+    </>
   )
 }
