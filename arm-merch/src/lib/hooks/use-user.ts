@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Database } from '@/types/database.types'
-
-type Profile = Database['public']['Tables']['profiles']['Row']
-type UserRole = Database['public']['Enums']['user_role']
+import type { Profile, UserRole } from '@/types'
 
 interface UseUserReturn {
   profile: Profile | null
@@ -32,7 +29,7 @@ export function useUser(): UseUserReturn {
         .eq('id', user.id)
         .single()
 
-      setProfile(data)
+      setProfile(data as Profile | null)
       setLoading(false)
     }
 

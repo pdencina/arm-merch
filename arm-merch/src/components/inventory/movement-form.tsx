@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { X, TrendingUp, TrendingDown, RefreshCw, Loader2 } from 'lucide-react'
 import { registerMovement } from '@/lib/actions/inventory'
-import type { Database } from '@/types/database.types'
+import type { Product } from '@/types'
 
-type Product = Database['public']['Views']['products_with_stock']['Row']
 type MovType = 'entrada' | 'salida' | 'ajuste'
 
 interface Props {

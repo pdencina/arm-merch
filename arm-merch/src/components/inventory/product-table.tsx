@@ -4,9 +4,8 @@ import Image from 'next/image'
 import { ArrowUpDown, ArrowDownUp } from 'lucide-react'
 import { useState } from 'react'
 import StockBadge from './stock-badge'
-import type { Database } from '@/types/database.types'
+import type { Product } from '@/types'
 
-type Product = Database['public']['Views']['products_with_stock']['Row']
 type SortKey = 'name' | 'stock' | 'price'
 type SortDir = 'asc' | 'desc'
 

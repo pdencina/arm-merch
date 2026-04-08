@@ -5,9 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/lib/hooks/use-cart'
 import ProductGrid from '@/components/pos/product-grid'
 import Cart from '@/components/pos/cart'
-import type { Database } from '@/types/database.types'
-
-type Product = Database['public']['Views']['products_with_stock']['Row']
+import type { Product } from '@/types'
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([])

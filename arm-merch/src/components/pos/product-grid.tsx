@@ -2,9 +2,19 @@
 
 import Image from 'next/image'
 import { useCart } from '@/lib/hooks/use-cart'
-import type { Database } from '@/types/database.types'
 
-type Product = Database['public']['Views']['products_with_stock']['Row']
+interface Product {
+  id: string
+  name: string
+  price: number
+  image_url: string | null
+  stock: number | null
+  low_stock_alert: number | null
+  category_id: string | null
+  sku: string | null
+  active: boolean
+  [key: string]: any
+}
 
 interface Props {
   products: Product[]
@@ -63,34 +73,19 @@ export default function ProductGrid({ products, loading }: Props) {
                   : 'border-zinc-800 hover:border-amber-500/50 cursor-pointer'}
             `}
           >
-            {/* Imagen del producto */}
             <div className="w-full aspect-square bg-zinc-800 rounded-lg mb-2.5 overflow-hidden flex items-center justify-center">
               {product.image_url ? (
-                <Image
-                  src={product.image_url}
-                  alt={product.name}
-                  width={120}
-                  height={120}
-                  className="object-cover w-full h-full"
-                />
+                <Image src={product.image_url} alt={product.name} width={120} height={120} className="object-cover w-full h-full" />
               ) : (
                 <span className="text-3xl text-zinc-700">📦</span>
               )}
             </div>
-
-            {/* Info */}
-            <p className="text-xs font-medium text-zinc-200 leading-tight mb-1 line-clamp-2">
-              {product.name}
-            </p>
+            <p className="text-xs font-medium text-zinc-200 leading-tight mb-1 line-clamp-2">{product.name}</p>
             <p className="text-sm font-bold text-amber-400">
               {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(product.price)}
             </p>
-
-            {/* Stock badge */}
             <div className="mt-1.5 flex items-center justify-between">
-              <span className={`text-[10px] font-medium ${
-                outOfStock ? 'text-red-400' : lowStock ? 'text-orange-400' : 'text-zinc-500'
-              }`}>
+              <span className={`text-[10px] font-medium ${outOfStock ? 'text-red-400' : lowStock ? 'text-orange-400' : 'text-zinc-500'}`}>
                 {outOfStock ? 'Sin stock' : `Stock: ${product.stock}`}
               </span>
               {inCart && (
@@ -99,11 +94,7 @@ export default function ProductGrid({ products, loading }: Props) {
                 </span>
               )}
             </div>
-
-            {/* Low stock indicator */}
-            {lowStock && (
-              <div className="absolute top-2 right-2 w-2 h-2 bg-orange-400 rounded-full" />
-            )}
+            {lowStock && <div className="absolute top-2 right-2 w-2 h-2 bg-orange-400 rounded-full" />}
           </button>
         )
       })}

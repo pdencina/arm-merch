@@ -1,9 +1,7 @@
 'use client'
 
 import { AlertTriangle, PackageX } from 'lucide-react'
-import type { Database } from '@/types/database.types'
-
-type Product = Database['public']['Views']['products_with_stock']['Row']
+import type { Product } from '@/types'
 
 interface Props {
   lowStock: Product[]

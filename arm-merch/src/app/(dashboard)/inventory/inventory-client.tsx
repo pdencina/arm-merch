@@ -6,9 +6,7 @@ import { Plus, Search, AlertTriangle } from 'lucide-react'
 import ProductTable from '@/components/inventory/product-table'
 import MovementForm from '@/components/inventory/movement-form'
 import LowStockAlert from '@/components/inventory/low-stock-alert'
-import type { Database } from '@/types/database.types'
-
-type Product = Database['public']['Views']['products_with_stock']['Row']
+import type { Product } from '@/types'
 
 interface Props {
   initialProducts: Product[]
