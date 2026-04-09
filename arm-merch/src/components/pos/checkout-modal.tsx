@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, X, Loader2 } from 'lucide-react'
+import { CheckCircle, X, Loader2, User } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
+  clientName: string
   onClose: () => void
+  onSuccess: () => void
 }
 
 const fmt = (n: number) =>
@@ -14,40 +16,34 @@ const fmt = (n: number) =>
 
 type Step = 'confirm' | 'loading' | 'success'
 
-export default function CheckoutModal({ onClose }: Props) {
+export default function CheckoutModal({ clientName, onClose, onSuccess }: Props) {
   const { items, paymentMethod, subtotal, total, discount, clearCart } = useCart()
-  const [step, setStep]             = useState<Step>('confirm')
+  const [step, setStep]               = useState<Step>('confirm')
   const [orderNumber, setOrderNumber] = useState<number | null>(null)
-  const [error, setError]           = useState('')
+  const [error, setError]             = useState('')
 
   async function handleConfirm() {
     setStep('loading')
     setError('')
 
     const supabase = createClient()
-
-    // Obtener sesión del cliente
     const { data: { session } } = await supabase.auth.getSession()
+
     if (!session) {
-      setError('No autenticado. Recarga la página e intenta de nuevo.')
+      setError('Sesión expirada. Recarga la página.')
       setStep('confirm')
       return
     }
 
-    const userId   = session.user.id
-    const sub      = subtotal()
-    const disc     = discount
-    const tot      = total()
-
-    // 1. Crear orden
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        seller_id:      userId,
+        seller_id:      session.user.id,
         payment_method: paymentMethod,
-        subtotal:       sub,
-        discount:       disc,
-        total:          tot,
+        subtotal:       subtotal(),
+        discount:       discount,
+        total:          total(),
+        notes:          `Cliente: ${clientName}`,
         status:         'pendiente',
       })
       .select()
@@ -59,15 +55,14 @@ export default function CheckoutModal({ onClose }: Props) {
       return
     }
 
-    // 2. Insertar items
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(items.map(i => ({
+    const { error: itemsError } = await supabase.from('order_items').insert(
+      items.map(i => ({
         order_id:   order.id,
         product_id: i.product.id,
         quantity:   i.quantity,
         unit_price: i.product.price,
-      })))
+      }))
+    )
 
     if (itemsError) {
       setError('Error al guardar los items: ' + itemsError.message)
@@ -75,14 +70,11 @@ export default function CheckoutModal({ onClose }: Props) {
       return
     }
 
-    // 3. Completar orden (dispara trigger de stock)
     const { error: completeError } = await supabase
-      .from('orders')
-      .update({ status: 'completada' })
-      .eq('id', order.id)
+      .from('orders').update({ status: 'completada' }).eq('id', order.id)
 
     if (completeError) {
-      setError('Error al completar la orden: ' + completeError.message)
+      setError('Error al completar: ' + completeError.message)
       setStep('confirm')
       return
     }
@@ -93,8 +85,8 @@ export default function CheckoutModal({ onClose }: Props) {
   }
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}
+      onClick={e => { if (e.target === e.currentTarget && step !== 'loading') onClose() }}>
       <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm mx-4 overflow-hidden">
 
         {/* Header */}
@@ -102,15 +94,30 @@ export default function CheckoutModal({ onClose }: Props) {
           <h2 className="text-sm font-semibold text-white">
             {step === 'success' ? 'Venta completada' : 'Confirmar venta'}
           </h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition">
-            <X size={16} />
-          </button>
+          {step !== 'loading' && (
+            <button onClick={onClose} className="text-zinc-500 hover:text-white transition">
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         {/* CONFIRM */}
         {step === 'confirm' && (
           <div className="p-5 flex flex-col gap-4">
-            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+
+            {/* Cliente */}
+            <div className="flex items-center gap-3 bg-zinc-800/60 rounded-xl px-4 py-3">
+              <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                <User size={14} className="text-amber-400" />
+              </div>
+              <div>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Cliente</p>
+                <p className="text-sm font-semibold text-white">{clientName}</p>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div className="flex flex-col gap-2 max-h-44 overflow-y-auto">
               {items.map(item => (
                 <div key={item.product.id} className="flex items-center justify-between text-sm">
                   <span className="text-zinc-300">
@@ -124,6 +131,7 @@ export default function CheckoutModal({ onClose }: Props) {
               ))}
             </div>
 
+            {/* Totales */}
             <div className="border-t border-zinc-800 pt-3 flex flex-col gap-1.5">
               <div className="flex justify-between text-xs text-zinc-500">
                 <span>Subtotal</span><span>{fmt(subtotal())}</span>
@@ -138,18 +146,17 @@ export default function CheckoutModal({ onClose }: Props) {
               </div>
             </div>
 
+            {/* Método */}
             <div className="bg-zinc-800 rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-zinc-500">Método de pago</span>
               <span className="text-xs font-semibold text-amber-400 capitalize">{paymentMethod}</span>
             </div>
 
             {error && (
-              <p className="text-red-400 text-xs bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">
-                {error}
-              </p>
+              <p className="text-red-400 text-xs bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">{error}</p>
             )}
 
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2">
               <button onClick={onClose}
                 className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition">
                 Cancelar
@@ -178,13 +185,14 @@ export default function CheckoutModal({ onClose }: Props) {
             </div>
             <div>
               <p className="text-white font-semibold text-base">¡Venta registrada!</p>
-              {orderNumber && <p className="text-zinc-500 text-xs mt-1">Orden #{orderNumber}</p>}
+              <p className="text-zinc-500 text-xs mt-1">Cliente: {clientName}</p>
+              {orderNumber && <p className="text-zinc-600 text-xs">Orden #{orderNumber}</p>}
             </div>
             <div className="bg-zinc-800 rounded-xl px-5 py-3 w-full">
               <p className="text-xs text-zinc-500 mb-1">Total cobrado</p>
               <p className="text-xl font-bold text-amber-400">{fmt(total())}</p>
             </div>
-            <button onClick={onClose}
+            <button onClick={onSuccess}
               className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition active:scale-[0.98]">
               Nueva venta
             </button>
