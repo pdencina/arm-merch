@@ -9,16 +9,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [msg, setMsg]           = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setMsg('')
 
     const supabase = createClient()
 
     const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     })
 
@@ -28,15 +30,16 @@ export default function LoginPage() {
       return
     }
 
-    if (!data.session) {
-      setError('No se obtuvo sesión. Intenta nuevamente.')
-      setLoading(false)
+    if (data.session) {
+      setMsg('Sesión OK — redirigiendo...')
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 800)
       return
     }
 
-    // Esperar que la cookie se escriba y luego redirigir
-    await new Promise(resolve => setTimeout(resolve, 500))
-    window.location.replace('/dashboard')
+    setError('Sin sesión. Verifica en Supabase que el usuario esté confirmado.')
+    setLoading(false)
   }
 
   return (
@@ -65,24 +68,31 @@ export default function LoginPage() {
           <div className="lfi">
             <label className="lfl">Correo electrónico</label>
             <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="tu@iglesia.cl" required autoComplete="email"
-              className="lfx"
+              type="email" value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="tu@iglesia.cl" required
+              autoComplete="email" className="lfx"
             />
           </div>
           <div className="lfi">
             <label className="lfl">Contraseña</label>
             <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••" required autoComplete="current-password"
-              className="lfx"
+              type="password" value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••" required
+              autoComplete="current-password" className="lfx"
             />
           </div>
           <div className="ldv" />
           {error && <div className="ler">{error}</div>}
+          {msg && (
+            <div style={{fontSize:12,color:'#4ade80',background:'rgba(74,222,128,0.08)',border:'1px solid rgba(74,222,128,0.2)',borderRadius:4,padding:'10px 14px'}}>
+              {msg}
+            </div>
+          )}
           <button type="submit" disabled={loading} className="lbtn">
             {loading && <span className="lsp" />}
-            {loading ? 'Ingresando...' : 'Ingresar'}
+            {loading ? 'Verificando...' : 'Ingresar'}
           </button>
         </form>
 
