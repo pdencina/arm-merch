@@ -6,10 +6,10 @@ import { useCart } from '@/lib/hooks/use-cart'
 import CheckoutModal from './checkout-modal'
 
 const PAYMENT_METHODS = [
-  { value: 'efectivo',      label: 'Efectivo'   },
-  { value: 'transferencia', label: 'Transfer.'  },
-  { value: 'debito',        label: 'Débito'     },
-  { value: 'credito',       label: 'Crédito'    },
+  { value: 'efectivo',      label: 'Efectivo'  },
+  { value: 'transferencia', label: 'Transfer.' },
+  { value: 'debito',        label: 'Débito'    },
+  { value: 'credito',       label: 'Crédito'   },
 ] as const
 
 const fmt = (n: number) =>
@@ -20,6 +20,7 @@ export default function Cart() {
           paymentMethod, clearCart, subtotal, total, itemCount } = useCart()
   const [showCheckout, setShowCheckout] = useState(false)
   const [clientName, setClientName]     = useState('')
+  const [clientEmail, setClientEmail]   = useState('')
 
   const canCheckout = items.length > 0 && clientName.trim().length > 0
 
@@ -35,14 +36,10 @@ export default function Cart() {
           </div>
           <div className="flex items-center gap-2">
             {itemCount() > 0 && (
-              <span className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                {itemCount()}
-              </span>
+              <span className="bg-amber-500 text-zinc-950 text-[10px] font-bold px-2 py-0.5 rounded-full">{itemCount()}</span>
             )}
             {itemCount() > 0 && (
-              <button onClick={clearCart} className="text-zinc-600 hover:text-red-400 transition" title="Limpiar">
-                <Trash2 size={14} />
-              </button>
+              <button onClick={clearCart} className="text-zinc-600 hover:text-red-400 transition"><Trash2 size={14} /></button>
             )}
           </div>
         </div>
@@ -70,9 +67,7 @@ export default function Cart() {
                     disabled={item.quantity >= item.product.stock}
                     className="w-6 h-6 rounded-md bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-30 text-sm flex items-center justify-center transition">+</button>
                 </div>
-                <div className="text-right min-w-[52px]">
-                  <p className="text-xs font-bold text-amber-400">{fmt(item.product.price * item.quantity)}</p>
-                </div>
+                <p className="text-xs font-bold text-amber-400 min-w-[52px] text-right">{fmt(item.product.price * item.quantity)}</p>
               </div>
             ))
           )}
@@ -81,19 +76,26 @@ export default function Cart() {
         {/* Footer */}
         <div className="px-4 py-4 border-t border-zinc-800 flex flex-col gap-3">
 
-          {/* Nombre cliente */}
+          {/* Nombre */}
           <div>
             <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">
-              Nombre del cliente
+              Nombre del cliente <span className="text-red-400">*</span>
             </label>
-            <input
-              type="text"
-              value={clientName}
-              onChange={e => setClientName(e.target.value)}
+            <input type="text" value={clientName} onChange={e => setClientName(e.target.value)}
               placeholder="Ej: Juan Pérez"
               className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
-                         rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition"
-            />
+                         rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition" />
+          </div>
+
+          {/* Email opcional */}
+          <div>
+            <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">
+              Email <span className="text-zinc-600">(voucher por correo)</span>
+            </label>
+            <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)}
+              placeholder="juan@ejemplo.com"
+              className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
+                         rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition" />
           </div>
 
           {/* Método de pago */}
@@ -116,17 +118,11 @@ export default function Cart() {
             <span className="text-xl font-bold text-white">{fmt(total())}</span>
           </div>
 
-          {/* Validación nombre */}
           {items.length > 0 && !clientName.trim() && (
-            <p className="text-[10px] text-amber-500/80 text-center">
-              Ingresa el nombre del cliente para continuar
-            </p>
+            <p className="text-[10px] text-amber-500/80 text-center">Ingresa el nombre del cliente para continuar</p>
           )}
 
-          {/* Botón checkout */}
-          <button
-            onClick={() => setShowCheckout(true)}
-            disabled={!canCheckout}
+          <button onClick={() => setShowCheckout(true)} disabled={!canCheckout}
             className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:cursor-not-allowed
                        text-zinc-950 font-bold rounded-xl py-3 text-sm transition-all active:scale-[0.98]">
             Confirmar venta
@@ -137,11 +133,9 @@ export default function Cart() {
       {showCheckout && (
         <CheckoutModal
           clientName={clientName.trim()}
+          clientEmail={clientEmail.trim()}
           onClose={() => setShowCheckout(false)}
-          onSuccess={() => {
-            setShowCheckout(false)
-            setClientName('')
-          }}
+          onSuccess={() => { setShowCheckout(false); setClientName(''); setClientEmail('') }}
         />
       )}
     </>
