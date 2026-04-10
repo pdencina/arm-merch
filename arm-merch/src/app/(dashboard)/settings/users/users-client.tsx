@@ -63,52 +63,28 @@ export default function UsersClient({ initialUsers }: { initialUsers: any[] }) {
     }
 
     setLoading(true); setError('')
-    const supabase = createClient()
 
-    // Crear usuario via API de admin (requiere service role)
-    // Como no tenemos service role en el cliente, usamos signUp y luego actualizamos el perfil
-    const { data, error: signUpError } = await supabase.auth.admin?.createUser({
-      email: newEmail.trim(),
-      password: newPassword,
-      email_confirm: true,
-      user_metadata: { full_name: newName.trim() },
-    }) ?? { data: null, error: { message: 'No disponible' } }
+    const res = await fetch('/api/admin/create-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:     newEmail.trim(),
+        password:  newPassword,
+        full_name: newName.trim(),
+        role:      newRole,
+        campus_id: newCampus || null,
+      }),
+    })
 
-    // Si admin API no está disponible, usar la API Route
-    if (signUpError) {
-      // Intentar via API Route
-      const res = await fetch('/api/admin/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: newEmail.trim(),
-          password: newPassword,
-          full_name: newName.trim(),
-          role: newRole,
-          campus_id: newCampus || null,
-        }),
-      })
-      const result = await res.json()
-      if (!res.ok) { setError(result.error || 'Error al crear usuario'); setLoading(false); return }
+    const result = await res.json()
 
-      setSuccess(`Usuario ${newEmail} creado exitosamente`)
-      resetForm()
-      reloadUsers()
+    if (!res.ok) {
+      setError(result.error || 'Error al crear usuario')
+      setLoading(false)
       return
     }
 
-    if (data?.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        full_name: newName.trim(),
-        email: newEmail.trim(),
-        role: newRole,
-        campus_id: newCampus || null,
-        active: true,
-      })
-    }
-
-    setSuccess(`Usuario ${newEmail} creado exitosamente`)
+    setSuccess(`✓ Usuario ${newEmail.trim()} creado exitosamente`)
     resetForm()
     reloadUsers()
   }
