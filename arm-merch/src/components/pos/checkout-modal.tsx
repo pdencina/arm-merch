@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { CheckCircle, X, Loader2, User, Printer, Mail, CreditCard, AlertCircle, Wifi } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCircle, X, Loader2, User, Printer, Mail, CreditCard, Smartphone, AlertCircle } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -20,142 +20,86 @@ const fmtDate = (d: Date) =>
   d.toLocaleDateString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' ' +
   d.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' })
 
-type Step = 'confirm' | 'loading' | 'sumup_waiting' | 'success' | 'sumup_error'
+type Step = 'confirm' | 'loading' | 'sumup_waiting' | 'success'
 
 interface OrderSnapshot {
   total: number; subtotal: number; discount: number
-  method: string; orderNumber: number; date: Date
+  method: string; orderNumber: number; orderId: string; date: Date
   items: { name: string; quantity: number; price: number }[]
 }
 
 export default function CheckoutModal({ clientName, clientEmail, onClose, onNewSale }: Props) {
   const { items, paymentMethod, subtotal, total, discount, clearCart } = useCart()
-  const [step, setStep]               = useState<Step>('confirm')
-  const [error, setError]             = useState('')
-  const [snapshot, setSnapshot]       = useState<OrderSnapshot | null>(null)
-  const [emailSent, setEmailSent]     = useState(false)
+  const [step, setStep]             = useState<Step>('confirm')
+  const [snapshot, setSnapshot]     = useState<OrderSnapshot | null>(null)
+  const [emailSent, setEmailSent]   = useState(false)
   const [emailSending, setEmailSending] = useState(false)
-  const [sumupCheckoutId, setSumupId] = useState<string | null>(null)
-  const [sumupStatus, setSumupStatus] = useState<string>('PENDING')
-  const [pollCount, setPollCount]     = useState(0)
 
-  // Polling de estado SumUp
-  useEffect(() => {
-    if (step !== 'sumup_waiting' || !sumupCheckoutId) return
-    const interval = setInterval(async () => {
-      setPollCount(c => c + 1)
-      const res = await fetch(`/api/sumup/status?id=${sumupCheckoutId}`)
-      const data = await res.json()
-      setSumupStatus(data.status)
-
-      if (data.status === 'PAID') {
-        clearInterval(interval)
-        await completeOrder(true)
-      } else if (data.status === 'FAILED' || data.status === 'CANCELLED') {
-        clearInterval(interval)
-        setStep('sumup_error')
-        setError('El pago fue rechazado o cancelado en el terminal SumUp')
-      }
-    }, 3000)
-
-    // Timeout de 3 minutos
-    const timeout = setTimeout(() => {
-      clearInterval(interval)
-      if (step === 'sumup_waiting') {
-        setStep('sumup_error')
-        setError('El pago tardó demasiado. Intenta nuevamente.')
-      }
-    }, 180000)
-
-    return () => { clearInterval(interval); clearTimeout(timeout) }
-  }, [step, sumupCheckoutId])
+  const isSumup = paymentMethod === 'debito' || paymentMethod === 'credito'
 
   async function handleConfirm() {
-    const snap = {
+    setStep('loading')
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { toast.error('Sesión expirada'); setStep('confirm'); return }
+
+    // Crear orden como pendiente
+    const { data: order, error } = await supabase.from('orders').insert({
+      seller_id:      session.user.id,
+      payment_method: paymentMethod,
+      subtotal:       subtotal(),
+      discount,
+      total:          total(),
+      notes:          `Cliente: ${clientName}${clientEmail ? ` | Email: ${clientEmail}` : ''}${isSumup ? ' | SumUp' : ''}`,
+      status:         isSumup ? 'pendiente' : 'completada',
+    }).select().single()
+
+    if (error) { toast.error(error.message); setStep('confirm'); return }
+
+    await supabase.from('order_items').insert(
+      items.map(i => ({ order_id: order.id, product_id: i.product.id, quantity: i.quantity, unit_price: i.product.price }))
+    )
+
+    const snap: OrderSnapshot = {
       total: total(), subtotal: subtotal(), discount,
-      method: paymentMethod, date: new Date(),
+      method: paymentMethod, orderNumber: order.order_number,
+      orderId: order.id, date: new Date(),
       items: items.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.product.price })),
     }
 
-    // Si es débito o crédito, ir por SumUp
-    if (paymentMethod === 'debito' || paymentMethod === 'credito') {
-      setStep('loading')
-      try {
-        const ref = `ARM-${Date.now()}`
-        const res = await fetch('/api/sumup/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: snap.total / 100, // SumUp usa unidades mayores
-            currency: 'CLP',
-            description: `ARM Merch · ${clientName}`,
-            checkout_reference: ref,
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          setError(data.error)
-          setStep('confirm')
-          return
-        }
-        setSumupId(data.checkout_id)
-        setSnapshot({ ...snap, orderNumber: 0 } as any)
-        setStep('sumup_waiting')
-        return
-      } catch (e: any) {
-        setError(e.message)
-        setStep('confirm')
-        return
-      }
-    }
+    clearCart()
+    setSnapshot(snap)
 
-    // Pago en efectivo o transferencia — flujo normal
-    setStep('loading')
-    await completeOrder(false, snap)
+    if (!isSumup) {
+      if (clientEmail?.includes('@')) sendEmail(snap, clientEmail)
+      toast.success(`Venta #${order.order_number} completada — ${fmt(snap.total)}`)
+      setStep('success')
+    } else {
+      setStep('sumup_waiting')
+    }
   }
 
-  async function completeOrder(fromSumup: boolean, snapOverride?: any) {
-    const snap = snapOverride ?? snapshot
-    if (!snap) return
-
+  async function confirmSumupPaid() {
+    if (!snapshot) return
     const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setError('Sesión expirada'); setStep('confirm'); return }
-
-    const { data: order, error: oErr } = await supabase.from('orders').insert({
-      seller_id: session.user.id,
-      payment_method: snap.method,
-      subtotal: snap.subtotal, discount: snap.discount, total: snap.total,
-      notes: `Cliente: ${clientName}${clientEmail ? ` | Email: ${clientEmail}` : ''}${fromSumup ? ' | Pago SumUp' : ''}`,
-      status: 'pendiente',
-    }).select().single()
-
-    if (oErr) { setError(oErr.message); setStep('confirm'); return }
-
-    await supabase.from('order_items').insert(
-      (snap.items ?? items).map((i: any) => ({
-        order_id: order.id,
-        product_id: i.product?.id ?? i.id,
-        quantity: i.quantity,
-        unit_price: i.product?.price ?? i.price,
-      }))
-    )
-
-    await supabase.from('orders').update({ status: 'completada' }).eq('id', order.id)
-
-    const finalSnap = { ...snap, orderNumber: order.order_number }
-    setSnapshot(finalSnap)
-    clearCart()
-
-    if (clientEmail?.includes('@')) sendEmail(finalSnap, clientEmail)
+    await supabase.from('orders').update({ status: 'completada' }).eq('id', snapshot.orderId)
+    if (clientEmail?.includes('@')) sendEmail(snapshot, clientEmail)
+    toast.success(`Venta #${snapshot.orderNumber} completada — ${fmt(snapshot.total)}`)
     setStep('success')
-    toast.success(`Venta #${order.order_number} completada — ${fmt(snap.total)}`)
+  }
+
+  async function cancelSumupPaid() {
+    if (!snapshot) return
+    const supabase = createClient()
+    await supabase.from('orders').update({ status: 'cancelada' }).eq('id', snapshot.orderId)
+    toast.error('Pago cancelado')
+    onClose()
   }
 
   async function sendEmail(snap: OrderSnapshot, email: string) {
     setEmailSending(true)
     try {
-      const res = await fetch('/api/send-voucher', {
+      await fetch('/api/send-voucher', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -165,7 +109,7 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
           paymentMethod: snap.method, date: fmtDate(snap.date),
         }),
       })
-      if (res.ok) setEmailSent(true)
+      setEmailSent(true)
     } catch {}
     setEmailSending(false)
   }
@@ -175,9 +119,12 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
     const win = window.open('', '_blank', 'width=400,height=600')
     if (!win) return
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;width:80mm;padding:4mm;color:#000}
-      .c{text-align:center}.b{font-weight:bold}.xl{font-size:20px}.d{border-top:1px dashed #000;margin:6px 0}
-      .row{display:flex;justify-content:space-between;margin:2px 0}.m{color:#555;font-size:11px}.t{font-size:16px;font-weight:bold}
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Courier New',monospace;font-size:12px;width:80mm;padding:4mm;color:#000}
+      .c{text-align:center}.b{font-weight:bold}.xl{font-size:20px}
+      .d{border-top:1px dashed #000;margin:6px 0}
+      .row{display:flex;justify-content:space-between;margin:2px 0}
+      .m{color:#555;font-size:11px}.t{font-size:16px;font-weight:bold}
       .f{font-size:10px;color:#555;text-align:center;margin-top:8px}
       @media print{body{width:80mm}@page{margin:0;size:80mm auto}}
     </style></head><body>
@@ -186,16 +133,21 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
       <div class="row"><span class="m">Orden</span><span class="b">#${snapshot.orderNumber}</span></div>
       <div class="row"><span class="m">Fecha</span><span>${fmtDate(snapshot.date)}</span></div>
       <div class="row"><span class="m">Cliente</span><span class="b">${clientName}</span></div>
-      <div class="row"><span class="m">Pago</span><span>${snapshot.method}</span></div>
+      <div class="row"><span class="m">Pago</span><span class="b">${snapshot.method}</span></div>
       <div class="d"></div>
       <div class="b" style="margin-bottom:4px">DETALLE</div>
-      ${snapshot.items.map(i => `<div style="margin-bottom:3px"><div class="b">${i.name}</div>
-        <div class="row m"><span>${i.quantity} × ${fmt(i.price)}</span><span class="b" style="color:#000">${fmt(i.price*i.quantity)}</span></div></div>`).join('')}
+      ${snapshot.items.map(i => `<div style="margin-bottom:3px">
+        <div class="b">${i.name}</div>
+        <div class="row m"><span>${i.quantity} × ${fmt(i.price)}</span>
+        <span class="b" style="color:#000">${fmt(i.price * i.quantity)}</span></div></div>`).join('')}
       <div class="d"></div>
-      ${snapshot.discount > 0 ? `<div class="row m"><span>Subtotal</span><span>${fmt(snapshot.subtotal)}</span></div><div class="row m"><span>Descuento</span><span>−${fmt(snapshot.discount)}</span></div>` : ''}
+      ${snapshot.discount > 0 ? `
+        <div class="row m"><span>Subtotal</span><span>${fmt(snapshot.subtotal)}</span></div>
+        <div class="row m"><span>Descuento</span><span>-${fmt(snapshot.discount)}</span></div>` : ''}
       <div class="row"><span class="t">TOTAL</span><span class="t">${fmt(snapshot.total)}</span></div>
       <div class="d"></div>
-      <div class="f"><div>¡Gracias por tu compra!</div><div>Que Dios bendiga tu vida</div><div style="margin-top:4px">— ARM Global —</div></div>
+      <div class="f"><div>¡Gracias por tu compra!</div><div>Que Dios bendiga tu vida</div>
+      <div style="margin-top:4px">— ARM Global —</div></div>
     </body></html>`)
     win.document.close(); win.focus()
     setTimeout(() => { win.print(); win.close() }, 300)
@@ -203,18 +155,18 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}
-      onClick={e => { if (e.target === e.currentTarget && step !== 'loading' && step !== 'sumup_waiting') onClose() }}>
+      onClick={e => { if (e.target === e.currentTarget && step !== 'loading') onClose() }}>
       <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm mx-4 overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
           <h2 className="text-sm font-semibold text-white">
-            {step === 'success' ? '¡Venta completada!' :
-             step === 'sumup_waiting' ? 'Esperando pago SumUp...' :
-             step === 'sumup_error' ? 'Pago rechazado' : 'Confirmar venta'}
+            {step === 'success'       ? '¡Venta completada!' :
+             step === 'sumup_waiting' ? 'Cobrar con SumUp' : 'Confirmar venta'}
           </h2>
-          {(step === 'confirm' || step === 'success' || step === 'sumup_error') && (
-            <button onClick={step === 'success' ? onNewSale : onClose} className="text-zinc-500 hover:text-white transition"><X size={16} /></button>
+          {(step === 'confirm' || step === 'success') && (
+            <button onClick={step === 'success' ? onNewSale : onClose}
+              className="text-zinc-500 hover:text-white transition"><X size={16} /></button>
           )}
         </div>
 
@@ -235,39 +187,47 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
             <div className="flex flex-col gap-2 max-h-44 overflow-y-auto">
               {items.map(item => (
                 <div key={item.product.id} className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-300">{item.product.name}<span className="text-zinc-600 ml-1">×{item.quantity}</span></span>
+                  <span className="text-zinc-300">{item.product.name}
+                    <span className="text-zinc-600 ml-1">×{item.quantity}</span>
+                  </span>
                   <span className="text-zinc-300 font-medium">{fmt(item.product.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
 
             <div className="border-t border-zinc-800 pt-3 flex flex-col gap-1.5">
-              <div className="flex justify-between text-xs text-zinc-500"><span>Subtotal</span><span>{fmt(subtotal())}</span></div>
-              {discount > 0 && <div className="flex justify-between text-xs text-green-400"><span>Descuento</span><span>−{fmt(discount)}</span></div>}
-              <div className="flex justify-between text-base font-bold text-white mt-1"><span>Total</span><span>{fmt(total())}</span></div>
+              {discount > 0 && <>
+                <div className="flex justify-between text-xs text-zinc-500"><span>Subtotal</span><span>{fmt(subtotal())}</span></div>
+                <div className="flex justify-between text-xs text-green-400"><span>Descuento</span><span>−{fmt(discount)}</span></div>
+              </>}
+              <div className="flex justify-between text-base font-bold text-white mt-1">
+                <span>Total</span><span>{fmt(total())}</span>
+              </div>
             </div>
 
             <div className="bg-zinc-800 rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-zinc-500">Método de pago</span>
               <div className="flex items-center gap-1.5">
-                {(paymentMethod === 'debito' || paymentMethod === 'credito') && <CreditCard size={12} className="text-blue-400" />}
+                {isSumup && <CreditCard size={12} className="text-blue-400" />}
                 <span className="text-xs font-semibold text-amber-400 capitalize">{paymentMethod}</span>
-                {(paymentMethod === 'debito' || paymentMethod === 'credito') && <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded font-semibold">SumUp</span>}
+                {isSumup && <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded font-semibold">SumUp</span>}
               </div>
             </div>
 
-            {(paymentMethod === 'debito' || paymentMethod === 'credito') && (
+            {isSumup && (
               <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2">
-                <Wifi size={12} className="text-blue-400 shrink-0" />
-                <p className="text-[11px] text-blue-400">Se enviará el cobro al terminal SumUp Solo</p>
+                <Smartphone size={12} className="text-blue-400 shrink-0" />
+                <p className="text-[11px] text-blue-400">Cobrarás manualmente desde el terminal SumUp Solo</p>
               </div>
             )}
 
-            {error && <p className="text-red-400 text-xs bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">{error}</p>}
-
             <div className="flex gap-2">
-              <button onClick={onClose} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition">Cancelar</button>
-              <button onClick={handleConfirm} className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition active:scale-[0.98]">
+              <button onClick={onClose}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition">
+                Cancelar
+              </button>
+              <button onClick={handleConfirm}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition active:scale-[0.98]">
                 Cobrar {fmt(total())}
               </button>
             </div>
@@ -278,53 +238,56 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
         {step === 'loading' && (
           <div className="p-10 flex flex-col items-center gap-4">
             <Loader2 size={32} className="text-amber-500 animate-spin" />
-            <p className="text-sm text-zinc-400">Procesando...</p>
+            <p className="text-sm text-zinc-400">Registrando venta...</p>
           </div>
         )}
 
-        {/* SUMUP WAITING */}
+        {/* SUMUP WAITING — flujo manual */}
         {step === 'sumup_waiting' && snapshot && (
-          <div className="p-6 flex flex-col items-center gap-4 text-center">
-            <div className="relative w-16 h-16">
-              <div className="absolute inset-0 rounded-full border-4 border-blue-500/20 animate-ping" />
-              <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <CreditCard size={24} className="text-blue-400" />
+          <div className="p-5 flex flex-col gap-4">
+            <div className="flex flex-col items-center text-center gap-3 py-2">
+              <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <CreditCard size={26} className="text-blue-400" />
+              </div>
+              <div>
+                <p className="text-white font-semibold">Cobrar en el terminal</p>
+                <p className="text-zinc-500 text-xs mt-1">Ingresa el monto en el SumUp Solo y pasa la tarjeta</p>
               </div>
             </div>
-            <div>
-              <p className="text-white font-semibold">Esperando pago en terminal</p>
-              <p className="text-zinc-400 text-xs mt-1">Acerca la tarjeta al SumUp Solo</p>
-            </div>
-            <div className="bg-zinc-800 rounded-xl px-5 py-4 w-full">
-              <p className="text-xs text-zinc-500 mb-1">Monto a cobrar</p>
-              <p className="text-2xl font-bold text-amber-400">{fmt(snapshot.total)}</p>
-              <p className="text-xs text-zinc-500 mt-1">Cliente: {clientName}</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <Loader2 size={12} className="animate-spin" />
-              <span>Consultando estado... ({pollCount * 3}s)</span>
-            </div>
-            <button onClick={() => { setStep('confirm'); setSumupId(null) }}
-              className="text-xs text-zinc-600 hover:text-zinc-400 transition">
-              Cancelar cobro
-            </button>
-          </div>
-        )}
 
-        {/* SUMUP ERROR */}
-        {step === 'sumup_error' && (
-          <div className="p-6 flex flex-col items-center gap-4 text-center">
-            <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center">
-              <AlertCircle size={28} className="text-red-400" />
+            {/* Monto grande y visible */}
+            <div className="bg-zinc-800 rounded-2xl px-5 py-5 text-center border border-zinc-700">
+              <p className="text-xs text-zinc-500 mb-1">Monto a cobrar</p>
+              <p className="text-3xl font-black text-amber-400">{fmt(snapshot.total)}</p>
+              <p className="text-xs text-zinc-500 mt-2">Cliente: <span className="text-zinc-300 font-medium">{clientName}</span></p>
+              <p className="text-xs text-zinc-500">Orden: <span className="text-zinc-300 font-medium">#{snapshot.orderNumber}</span></p>
             </div>
-            <div>
-              <p className="text-white font-semibold">Pago no completado</p>
-              <p className="text-zinc-500 text-xs mt-1">{error}</p>
+
+            {/* Pasos */}
+            <div className="flex flex-col gap-2">
+              {[
+                { n:1, text:'Ingresa el monto en el SumUp Solo' },
+                { n:2, text:'El cliente acerca la tarjeta al terminal' },
+                { n:3, text:'Confirma aquí cuando el pago sea aprobado' },
+              ].map(s => (
+                <div key={s.n} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold flex items-center justify-center shrink-0">{s.n}</div>
+                  <p className="text-xs text-zinc-400">{s.text}</p>
+                </div>
+              ))}
             </div>
-            <button onClick={() => { setStep('confirm'); setSumupId(null); setError('') }}
-              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition">
-              Intentar nuevamente
-            </button>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={cancelSumupPaid}
+                className="flex-1 bg-zinc-800 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 border border-zinc-700 text-zinc-400 font-medium rounded-xl py-3 text-sm transition">
+                Cancelar pago
+              </button>
+              <button onClick={confirmSumupPaid}
+                className="flex-1 bg-green-500 hover:bg-green-400 text-zinc-950 font-bold rounded-xl py-3 text-sm transition active:scale-[0.98] flex items-center justify-center gap-2">
+                <CheckCircle size={15} />
+                Pago aprobado
+              </button>
+            </div>
           </div>
         )}
 
@@ -337,12 +300,10 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
               </div>
               <div>
                 <p className="text-white font-semibold">¡Venta registrada!</p>
-                <p className="text-zinc-400 text-xs">Cliente: {clientName} · Orden #{snapshot.orderNumber}</p>
-                {(snapshot.method === 'debito' || snapshot.method === 'credito') && (
-                  <p className="text-blue-400 text-xs mt-0.5">✓ Pago confirmado por SumUp</p>
-                )}
+                <p className="text-zinc-400 text-xs">Orden #{snapshot.orderNumber} · {clientName}</p>
               </div>
             </div>
+
             <div className="bg-zinc-800 rounded-xl px-4 py-3 flex flex-col gap-1.5">
               {snapshot.items.map((item, i) => (
                 <div key={i} className="flex justify-between text-xs">
@@ -350,18 +311,23 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
                   <span className="text-zinc-300">{fmt(item.price * item.quantity)}</span>
                 </div>
               ))}
-              <div className="border-t border-zinc-700 mt-1.5 pt-2 flex justify-between items-center">
+              <div className="border-t border-zinc-700 mt-1.5 pt-2 flex justify-between">
                 <span className="text-xs text-zinc-500 capitalize">{snapshot.method}</span>
                 <span className="text-lg font-bold text-amber-400">{fmt(snapshot.total)}</span>
               </div>
             </div>
+
             {clientEmail && (
-              <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border ${emailSent ? 'bg-green-500/10 border-green-500/20' : 'bg-zinc-800 border-zinc-700'}`}>
-                {emailSending ? <><Loader2 size={13} className="text-zinc-400 animate-spin shrink-0" /><span className="text-xs text-zinc-400">Enviando voucher...</span></>
-                  : emailSent ? <><CheckCircle size={13} className="text-green-400 shrink-0" /><span className="text-xs text-green-400">Voucher enviado a {clientEmail}</span></>
+              <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 border ${
+                emailSent ? 'bg-green-500/10 border-green-500/20' : 'bg-zinc-800 border-zinc-700'}`}>
+                {emailSending
+                  ? <><Loader2 size={13} className="text-zinc-400 animate-spin shrink-0" /><span className="text-xs text-zinc-400">Enviando voucher...</span></>
+                  : emailSent
+                  ? <><CheckCircle size={13} className="text-green-400 shrink-0" /><span className="text-xs text-green-400">Voucher enviado a {clientEmail}</span></>
                   : <><Mail size={13} className="text-zinc-500 shrink-0" /><button onClick={() => sendEmail(snapshot, clientEmail)} className="text-xs text-zinc-400 hover:text-amber-400 transition">Reenviar voucher</button></>}
               </div>
             )}
+
             <button onClick={handlePrint}
               className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white font-medium rounded-xl py-3 text-sm transition">
               <Printer size={15} />Imprimir voucher
