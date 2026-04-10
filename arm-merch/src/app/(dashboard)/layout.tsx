@@ -5,11 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/sidebar'
 import Navbar from '@/components/layout/navbar'
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
@@ -18,15 +14,11 @@ export default function DashboardLayout({
 
     async function init() {
       const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        window.location.href = '/login'
-        return
-      }
+      if (!session) { window.location.href = '/login'; return }
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, active')
+        .select('id, full_name, email, role, active, campus_id, campus:campus(name)')
         .eq('id', session.user.id)
         .single()
 
@@ -36,6 +28,8 @@ export default function DashboardLayout({
         email: session.user.email,
         role: 'voluntario',
         active: true,
+        campus_id: null,
+        campus: null,
       })
       setLoading(false)
     }
@@ -43,9 +37,7 @@ export default function DashboardLayout({
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        window.location.href = '/login'
-      }
+      if (event === 'SIGNED_OUT' || !session) window.location.href = '/login'
     })
 
     return () => subscription.unsubscribe()
@@ -53,18 +45,8 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh', background: '#080808',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexDirection: 'column', gap: 16
-      }}>
-        <div style={{
-          width: 36, height: 36,
-          border: '3px solid #f59e0b',
-          borderTopColor: 'transparent',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
-        }} />
+      <div style={{ minHeight:'100vh', background:'#080808', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div style={{ width:36, height:36, border:'3px solid #f59e0b', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
