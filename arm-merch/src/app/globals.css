@@ -42,3 +42,32 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Modo claro */
+html.light-mode {
+  --background: #f8f8f8;
+  --foreground: #18181b;
+}
+
+html.light-mode body {
+  background: #f8f8f8;
+  color: #18181b;
+}
+
+html.light-mode .bg-zinc-950 { background-color: #ffffff !important; }
+html.light-mode .bg-zinc-900 { background-color: #f4f4f5 !important; }
+html.light-mode .bg-zinc-800 { background-color: #e4e4e7 !important; }
+html.light-mode .bg-zinc-800\/30 { background-color: rgba(228,228,231,0.5) !important; }
+html.light-mode .bg-zinc-800\/50 { background-color: rgba(228,228,231,0.7) !important; }
+html.light-mode .bg-zinc-800\/60 { background-color: rgba(228,228,231,0.8) !important; }
+html.light-mode .text-white { color: #18181b !important; }
+html.light-mode .text-zinc-200 { color: #27272a !important; }
+html.light-mode .text-zinc-300 { color: #3f3f46 !important; }
+html.light-mode .text-zinc-400 { color: #52525b !important; }
+html.light-mode .text-zinc-500 { color: #71717a !important; }
+html.light-mode .text-zinc-600 { color: #a1a1aa !important; }
+html.light-mode .border-zinc-800 { border-color: #d4d4d8 !important; }
+html.light-mode .border-zinc-700 { border-color: #d4d4d8 !important; }
+html.light-mode .border-zinc-800\/60 { border-color: rgba(212,212,216,0.8) !important; }
+html.light-mode .border-zinc-700\/40 { border-color: rgba(212,212,216,0.6) !important; }
+html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
