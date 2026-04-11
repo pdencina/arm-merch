@@ -23,62 +23,49 @@ const TYPES = [
 ]
 
 export default function MovementForm({ product, campus, onClose, onSuccess, userCampusId, isSuperAdmin }: Props) {
-  const [type, setType]           = useState<MovType>('entrada')
-  const [quantity, setQuantity]   = useState('')
-  const [notes, setNotes]         = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [currentStock, setCurrentStock] = useState<number>(0)
+  const [type, setType]         = useState<MovType>('entrada')
+  const [quantity, setQuantity] = useState('')
+  const [notes, setNotes]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [stockData, setStockData] = useState<{ id: string; stock: number } | null>(null)
   const [loadingStock, setLoadingStock] = useState(true)
-  const [inventoryId, setInventoryId]   = useState<string | null>(null)
 
-  // El campus que se usará — SIEMPRE el del usuario logueado para admin
-  // Nunca confiar en product.campus_id
-  const targetCampusId = isSuperAdmin 
-    ? (product.campus_id ?? userCampusId ?? null)
-    : userCampusId ?? null
+  // Campus del usuario — nunca confiar en product.campus_id
+  const myCampusId = userCampusId ?? null
 
-  // Usar inventory_id del product si viene del nuevo cargador, si no buscarlo
   useEffect(() => {
-    async function loadStock() {
+    async function fetchStock() {
       setLoadingStock(true)
-      
-      // Si el product ya tiene inventory_id (nuevo sistema), usarlo directamente
-      if (product.inventory_id) {
-        setCurrentStock(product.stock ?? 0)
-        setInventoryId(product.inventory_id)
-        setLoadingStock(false)
-        return
-      }
-
-      // Fallback: buscar por product_id + campus_id
       const supabase = createClient()
-      let query = supabase.from('inventory')
+
+      // Buscar el registro de inventory de ESTE producto en ESTE campus
+      const { data, error } = await supabase
+        .from('inventory')
         .select('id, stock')
         .eq('product_id', product.id)
+        .eq('campus_id', myCampusId)
+        .limit(1)
 
-      if (targetCampusId) {
-        query = query.eq('campus_id', targetCampusId)
+      if (error || !data || data.length === 0) {
+        console.error('No se encontró inventory para', product.id, myCampusId, error)
+        setStockData(null)
       } else {
-        query = query.is('campus_id', null)
-      }
-
-      const { data, error } = await query.maybeSingle()
-      
-      if (error || !data) {
-        setCurrentStock(0)
-        setInventoryId(null)
-      } else {
-        setCurrentStock(data.stock ?? 0)
-        setInventoryId(data.id)
+        // Tomar siempre el primer resultado
+        setStockData({ id: data[0].id, stock: data[0].stock ?? 0 })
       }
       setLoadingStock(false)
     }
-    
-    if (product.id) loadStock()
-  }, [product.id, product.inventory_id, targetCampusId])
 
-  const qty     = parseInt(quantity) || 0
-  const preview = type === 'entrada' ? currentStock + qty : currentStock - qty
+    if (product.id && myCampusId) {
+      fetchStock()
+    } else {
+      setLoadingStock(false)
+    }
+  }, [product.id, myCampusId])
+
+  const currentStock = stockData?.stock ?? 0
+  const qty          = parseInt(quantity) || 0
+  const preview      = type === 'entrada' ? currentStock + qty : currentStock - qty
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -86,8 +73,8 @@ export default function MovementForm({ product, campus, onClose, onSuccess, user
     if (type !== 'entrada' && qty > currentStock) {
       toast.error(`Stock insuficiente (${currentStock} disponibles)`); return
     }
-    if (!inventoryId) {
-      toast.error('No se encontró el registro de inventario para este campus'); return
+    if (!stockData?.id) {
+      toast.error('No se encontró el registro de inventario'); return
     }
 
     setLoading(true)
@@ -95,32 +82,26 @@ export default function MovementForm({ product, campus, onClose, onSuccess, user
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { toast.error('Sesión expirada'); setLoading(false); return }
 
-    // 1. Registrar movimiento
+    const newStock = type === 'entrada' ? currentStock + qty : currentStock - qty
+
+    // Registrar movimiento
     const { error: movError } = await supabase.from('inventory_movements').insert({
       product_id: product.id,
-      type,
-      quantity: qty,
+      type, quantity: qty,
       notes: notes.trim() || null,
       created_by: session.user.id,
     })
     if (movError) { toast.error(movError.message); setLoading(false); return }
 
-    const newStock = type === 'entrada' ? currentStock + qty : currentStock - qty
-
-    // 2. Actualizar POR ID DEL REGISTRO — no por product_id ni campus_id
-    // Esto garantiza que solo se actualiza exactamente ese registro
-    const { error: invError } = await supabase.from('inventory')
-      .update({
-        stock: newStock,
-        updated_by: session.user.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', inventoryId)  // ← filtro por ID exacto del registro
+    // Actualizar EXACTAMENTE el registro por su ID único
+    const { error: invError } = await supabase
+      .from('inventory')
+      .update({ stock: newStock, updated_at: new Date().toISOString() })
+      .eq('id', stockData.id)
 
     if (invError) { toast.error(invError.message); setLoading(false); return }
 
-    const typeLabel = { entrada:'Entrada', salida:'Salida', ajuste:'Ajuste' }[type]
-    toast.success(`${typeLabel} registrada — Stock: ${newStock} uds.`)
+    toast.success(`Stock actualizado: ${newStock} uds.`)
     onSuccess()
   }
 
@@ -145,26 +126,20 @@ export default function MovementForm({ product, campus, onClose, onSuccess, user
             }
           </div>
 
-          <div>
-            <label className="block text-xs text-zinc-500 mb-2">Tipo de movimiento</label>
-            <div className="grid grid-cols-3 gap-2">
-              {TYPES.map(t => (
-                <button key={t.value} type="button" onClick={() => setType(t.value)}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-medium transition
-                    ${type === t.value ? t.color : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}>
-                  <t.icon size={13} />{t.label}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-3 gap-2">
+            {TYPES.map(t => (
+              <button key={t.value} type="button" onClick={() => setType(t.value)}
+                className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-medium transition
+                  ${type === t.value ? t.color : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}>
+                <t.icon size={13} />{t.label}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <label className="block text-xs text-zinc-500 mb-1.5">Cantidad</label>
-            <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
-              placeholder="0" required
-              className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
-                         rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition text-center text-lg font-bold" />
-          </div>
+          <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
+            placeholder="Cantidad" required
+            className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
+                       rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition text-center text-lg font-bold" />
 
           {qty > 0 && !loadingStock && (
             <div className={`rounded-xl px-4 py-3 flex items-center justify-between border ${
@@ -178,20 +153,17 @@ export default function MovementForm({ product, campus, onClose, onSuccess, user
             </div>
           )}
 
-          <div>
-            <label className="block text-xs text-zinc-500 mb-1.5">Notas <span className="text-zinc-600">(opcional)</span></label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="Ej: Compra para evento, donación..." rows={2}
-              className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
-                         rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition resize-none" />
-          </div>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="Notas opcionales..." rows={2}
+            className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
+                       rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition resize-none" />
 
           <div className="flex gap-2">
             <button type="button" onClick={onClose}
               className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition">
               Cancelar
             </button>
-            <button type="submit" disabled={loading || preview < 0 || loadingStock || !inventoryId}
+            <button type="submit" disabled={loading || preview < 0 || loadingStock || !stockData?.id}
               className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2">
               {loading && <Loader2 size={14} className="animate-spin" />}
               {loading ? 'Guardando...' : 'Registrar'}
