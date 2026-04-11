@@ -69,8 +69,12 @@ export default function DashboardPage() {
     const start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString()
     const end   = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).toISOString()
 
+    // Voluntarios solo ven sus propias ventas
     let query = supabase.from('orders').select('total, status, created_at, order_number, payment_method, seller_id')
       .eq('status', 'completada').gte('created_at', start).lt('created_at', end)
+    if (userRole === 'voluntario' && session.user.id) {
+      query = query.eq('seller_id', session.user.id)
+    }
 
     const [{ data: dayOrders }, { data: lowStock }, { data: recent }] = await Promise.all([
       query.order('created_at', { ascending: false }),
