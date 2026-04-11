@@ -116,41 +116,55 @@ export default function CheckoutModal({ clientName, clientEmail, onClose, onNewS
 
   function handlePrint() {
     if (!snapshot) return
-    const win = window.open('', '_blank', 'width=400,height=600')
-    if (!win) return
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:'Courier New',monospace;font-size:12px;width:80mm;padding:4mm;color:#000}
-      .c{text-align:center}.b{font-weight:bold}.xl{font-size:20px}
-      .d{border-top:1px dashed #000;margin:6px 0}
-      .row{display:flex;justify-content:space-between;margin:2px 0}
-      .m{color:#555;font-size:11px}.t{font-size:16px;font-weight:bold}
-      .f{font-size:10px;color:#555;text-align:center;margin-top:8px}
-      @media print{body{width:80mm}@page{margin:0;size:80mm auto}}
-    </style></head><body>
-      <div class="c"><div class="b xl">ARM MERCH</div><div class="m">ARM Global</div></div>
-      <div class="d"></div>
-      <div class="row"><span class="m">Orden</span><span class="b">#${snapshot.orderNumber}</span></div>
-      <div class="row"><span class="m">Fecha</span><span>${fmtDate(snapshot.date)}</span></div>
-      <div class="row"><span class="m">Cliente</span><span class="b">${clientName}</span></div>
-      <div class="row"><span class="m">Pago</span><span class="b">${snapshot.method}</span></div>
-      <div class="d"></div>
-      <div class="b" style="margin-bottom:4px">DETALLE</div>
-      ${snapshot.items.map(i => `<div style="margin-bottom:3px">
-        <div class="b">${i.name}</div>
-        <div class="row m"><span>${i.quantity} × ${fmt(i.price)}</span>
-        <span class="b" style="color:#000">${fmt(i.price * i.quantity)}</span></div></div>`).join('')}
-      <div class="d"></div>
-      ${snapshot.discount > 0 ? `
-        <div class="row m"><span>Subtotal</span><span>${fmt(snapshot.subtotal)}</span></div>
-        <div class="row m"><span>Descuento</span><span>-${fmt(snapshot.discount)}</span></div>` : ''}
-      <div class="row"><span class="t">TOTAL</span><span class="t">${fmt(snapshot.total)}</span></div>
-      <div class="d"></div>
-      <div class="f"><div>¡Gracias por tu compra!</div><div>Que Dios bendiga tu vida</div>
-      <div style="margin-top:4px">— ARM Global —</div></div>
-    </body></html>`)
-    win.document.close(); win.focus()
-    setTimeout(() => { win.print(); win.close() }, 300)
+
+    const METHOD_LABEL: Record<string, string> = {
+      efectivo:'Efectivo', transferencia:'Transferencia',
+      debito:'Tarjeta débito', credito:'Tarjeta crédito'
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Comprobante ARM Merch #${snapshot.orderNumber}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:12px;width:80mm;padding:5mm;color:#000;background:#fff}
+.c{text-align:center}.b{font-weight:700}.s{font-size:10px;color:#555}
+.d{border-top:1px dashed #ccc;margin:8px 0}.D{border-top:2px solid #000;margin:8px 0}
+.r{display:flex;justify-content:space-between;align-items:baseline;margin:3px 0}
+.T{display:flex;justify-content:space-between;align-items:baseline;margin-top:4px}
+.f{font-size:10px;color:#777;text-align:center;margin-top:8px;line-height:1.6}
+@media print{body{width:80mm}@page{margin:0;size:80mm auto}}
+</style></head><body>
+<div class="c" style="margin-bottom:10px">
+  <div style="font-size:22px;font-weight:900;letter-spacing:-0.5px">ARM MERCH</div>
+  <div class="s" style="margin-top:2px">ARM Global · Sistema de Merch</div>
+</div>
+<div class="D"></div>
+<div style="margin:8px 0">
+  <div class="r"><span class="s">N° Orden</span><span class="b">#${snapshot.orderNumber}</span></div>
+  <div class="r"><span class="s">Fecha</span><span>${fmtDate(snapshot.date)}</span></div>
+  <div class="r"><span class="s">Cliente</span><span class="b">${clientName}</span></div>
+  <div class="r"><span class="s">Pago</span><span>${METHOD_LABEL[snapshot.method] ?? snapshot.method}</span></div>
+</div>
+<div class="d"></div>
+<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;color:#555">Productos</div>
+${snapshot.items.map((i: any) => `<div style="margin-bottom:6px">
+  <div class="b">${i.name}</div>
+  <div class="r s"><span>${i.quantity} x ${fmt(i.price)}</span><span class="b" style="color:#000;font-size:12px">${fmt(i.price * i.quantity)}</span></div>
+</div>`).join('')}
+<div class="d"></div>
+${snapshot.discount > 0 ? `<div class="r s"><span>Subtotal</span><span>${fmt(snapshot.subtotal)}</span></div>
+<div class="r" style="color:#16a34a;font-size:11px"><span>Descuento</span><span>-${fmt(snapshot.discount)}</span></div>
+<div style="border-top:1px solid #eee;margin:4px 0"></div>` : ''}
+<div class="T"><span style="font-size:13px;font-weight:700">TOTAL</span><span style="font-size:18px;font-weight:900">${fmt(snapshot.total)}</span></div>
+<div class="D"></div>
+<div class="f"><div>Gracias por tu compra!</div><div>Que Dios bendiga tu vida</div><div style="margin-top:4px;font-size:9px">ARM Global</div></div>
+</body></html>`
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const url  = URL.createObjectURL(blob)
+    const win  = window.open(url, '_blank', 'width=420,height=650')
+    if (win) setTimeout(() => { win.print() }, 500)
   }
 
   return (
