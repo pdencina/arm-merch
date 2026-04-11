@@ -7,6 +7,9 @@ import InventoryClient from './inventory-client'
 export default function InventoryPage() {
   const [products, setProducts]     = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
+  const [userRole, setUserRole]     = useState('')
+  const [campusId, setCampusId]     = useState<string|null>(null)
+  const [campusName, setCampusName] = useState<string|null>(null)
   const [loaded, setLoaded]         = useState(false)
 
   useEffect(() => {
@@ -16,16 +19,22 @@ export default function InventoryPage() {
       if (!session) return
 
       const { data: profile } = await supabase
-        .from('profiles').select('role, campus_id').eq('id', session.user.id).single()
+        .from('profiles').select('role, campus_id, campus:campus(id, name)')
+        .eq('id', session.user.id).single()
 
-      const role     = profile?.role ?? 'voluntario'
-      const campusId = profile?.campus_id ?? null
+      const role = profile?.role ?? 'voluntario'
+      const cId  = profile?.campus_id ?? null
+      const cName = (profile?.campus as any)?.name ?? null
+
+      setUserRole(role)
+      setCampusId(cId)
+      setCampusName(cName)
 
       let query = supabase.from('products_with_stock').select('*').order('name')
 
-      // Admin de campus ve solo su campus
-      if (role !== 'super_admin' && campusId) {
-        query = query.eq('campus_id', campusId)
+      // Admin y voluntario solo ven su campus
+      if (role !== 'super_admin' && cId) {
+        query = query.eq('campus_id', cId)
       }
 
       const [{ data: p }, { data: c }] = await Promise.all([
@@ -45,5 +54,13 @@ export default function InventoryPage() {
     </div>
   )
 
-  return <InventoryClient initialProducts={products} categories={categories} />
+  return (
+    <InventoryClient
+      initialProducts={products}
+      categories={categories}
+      userRole={userRole}
+      userCampusId={campusId}
+      userCampusName={campusName}
+    />
+  )
 }
