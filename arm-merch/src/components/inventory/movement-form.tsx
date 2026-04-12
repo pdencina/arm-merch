@@ -9,7 +9,7 @@ interface Props {
   product: any
   campus: { id: string; name: string }[]
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (newStock?: number) => void
   userCampusId?: string | null
   isSuperAdmin?: boolean
 }
@@ -102,7 +102,7 @@ export default function MovementForm({ product, campus, onClose, onSuccess, user
     if (invError) { toast.error(invError.message); setLoading(false); return }
 
     toast.success(`Stock actualizado: ${newStock} uds.`)
-    onSuccess()
+    onSuccess(newStock)  // Pasar el nuevo stock para actualizar estado local
   }
 
   return (

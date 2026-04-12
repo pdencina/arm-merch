@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import InventoryClient from './inventory-client'
 
@@ -12,79 +12,96 @@ export default function InventoryPage() {
   const [campusName, setCampusName] = useState<string|null>(null)
   const [loaded, setLoaded]         = useState(false)
 
-  useEffect(() => {
-    loadAll()
-  }, [])
-
-  async function loadAll() {
+  const loadProducts = useCallback(async (cId: string|null, role: string) => {
     const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, campus_id, campus:campus(id, name)')
-      .eq('id', session.user.id)
-      .single()
+    // Obtener todos los productos activos
+    const { data: allProducts } = await supabase
+      .from('products')
+      .select('id, name, description, price, sku, active, image_url, category_id, category:categories(name)')
+      .eq('active', true)
+      .order('name')
 
-    const role  = profile?.role ?? 'voluntario'
-    const cId   = profile?.campus_id ?? null
-    const cName = (profile?.campus as any)?.name ?? null
+    if (!allProducts) return []
 
-    setUserRole(role)
-    setCampusId(cId)
-    setCampusName(cName)
-
-    // Cargar directamente desde inventory JOIN products — sin usar la vista
-    // Filtrar por campus del usuario si no es super_admin
-    let query = supabase
+    // Obtener inventario filtrado por campus
+    let invQuery = supabase
       .from('inventory')
-      .select(`
-        id,
-        stock,
-        low_stock_alert,
-        campus_id,
-        product:products!inner(
-          id, name, description, price, sku, active, image_url, category_id,
-          category:categories(name)
-        ),
-        campus:campus(name)
-      `)
-      .eq('product.active', true)
-      .order('product(name)')
+      .select('id, product_id, stock, low_stock_alert, campus_id, campus:campus(name)')
 
     if (role !== 'super_admin' && cId) {
-      query = query.eq('campus_id', cId)
+      invQuery = invQuery.eq('campus_id', cId)
     }
 
-    const [{ data: inv }, { data: cats }] = await Promise.all([
-      query,
-      supabase.from('categories').select('id, name').eq('active', true).order('name'),
-    ])
+    const { data: inventory } = await invQuery
 
-    // Aplanar para que tenga la misma forma que products_with_stock
-    const flat = (inv ?? []).map((row: any) => ({
-      inventory_id:    row.id,           // ID exacto del registro inventory
-      id:              row.product.id,
-      name:            row.product.name,
-      description:     row.product.description,
-      price:           row.product.price,
-      sku:             row.product.sku,
-      active:          row.product.active,
-      image_url:       row.product.image_url,
-      category_id:     row.product.category_id,
-      category_name:   row.product.category?.name ?? null,
-      stock:           row.stock,
-      low_stock_alert: row.low_stock_alert,
-      campus_id:       row.campus_id,
-      campus_name:     row.campus?.name ?? null,
-      low_stock:       row.stock <= row.low_stock_alert,
-    }))
+    // Combinar manualmente
+    const invMap: Record<string, any> = {}
+    ;(inventory ?? []).forEach((i: any) => {
+      // Si hay múltiples por producto, tomar el del campus correcto
+      if (!invMap[i.product_id] || i.campus_id === cId) {
+        invMap[i.product_id] = i
+      }
+    })
 
-    setProducts(flat)
-    setCategories(cats ?? [])
-    setLoaded(true)
-  }
+    return allProducts.map((p: any) => {
+      const inv = invMap[p.id]
+      return {
+        inventory_id:    inv?.id ?? null,
+        id:              p.id,
+        name:            p.name,
+        description:     p.description,
+        price:           p.price,
+        sku:             p.sku,
+        active:          p.active,
+        image_url:       p.image_url,
+        category_id:     p.category_id,
+        category_name:   p.category?.name ?? null,
+        stock:           inv?.stock ?? 0,
+        low_stock_alert: inv?.low_stock_alert ?? 5,
+        campus_id:       inv?.campus_id ?? null,
+        campus_name:     inv?.campus?.name ?? null,
+        low_stock:       (inv?.stock ?? 0) <= (inv?.low_stock_alert ?? 5),
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, campus_id, campus:campus(id, name)')
+        .eq('id', session.user.id)
+        .single()
+
+      const role  = profile?.role ?? 'voluntario'
+      const cId   = profile?.campus_id ?? null
+      const cName = (profile?.campus as any)?.name ?? null
+
+      setUserRole(role)
+      setCampusId(cId)
+      setCampusName(cName)
+
+      const [prods, { data: cats }] = await Promise.all([
+        loadProducts(cId, role),
+        supabase.from('categories').select('id, name').eq('active', true).order('name'),
+      ])
+
+      setProducts(prods)
+      setCategories(cats ?? [])
+      setLoaded(true)
+    }
+    init()
+  }, [loadProducts])
+
+  const handleReload = useCallback(async () => {
+    const prods = await loadProducts(campusId, userRole)
+    setProducts(prods)
+  }, [campusId, userRole, loadProducts])
 
   if (!loaded) return (
     <div className="flex items-center justify-center h-48">
@@ -99,7 +116,7 @@ export default function InventoryPage() {
       userRole={userRole}
       userCampusId={campusId}
       userCampusName={campusName}
-      onReload={loadAll}
+      onReload={handleReload}
     />
   )
 }
