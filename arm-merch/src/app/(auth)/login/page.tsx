@@ -1,13 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import './login.css'
 
 export default function LoginPage() {
-  const router = useRouter()
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -18,16 +15,12 @@ export default function LoginPage() {
     setError('')
 
     try {
-      console.log('LOGIN_START')
-
       const supabase = createClient()
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       })
-
-      console.log('LOGIN_RESULT', { data, error })
 
       if (error) {
         setError(error.message)
@@ -41,13 +34,8 @@ export default function LoginPage() {
         return
       }
 
-      const { data: sessionData } = await supabase.auth.getSession()
-      console.log('SESSION_AFTER_LOGIN', sessionData)
-
-      router.refresh()
-      router.replace('/dashboard')
+      window.location.href = '/dashboard'
     } catch (err: any) {
-      console.error('LOGIN_CATCH', err)
       setError(err?.message ?? 'Error inesperado al iniciar sesión')
       setLoading(false)
     }
