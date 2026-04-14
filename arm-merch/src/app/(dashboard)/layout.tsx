@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/sidebar'
 import Navbar from '@/components/layout/navbar'
 import { Toaster } from 'sonner'
+import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardLayout({
   children,
@@ -15,19 +14,13 @@ export default async function DashboardLayout({
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*, campus:campus(id, name)')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) {
-    redirect('/login')
-  }
+  const { data: profile } = user
+    ? await supabase
+        .from('profiles')
+        .select('*, campus:campus(id, name)')
+        .eq('id', user.id)
+        .single()
+    : { data: null }
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
