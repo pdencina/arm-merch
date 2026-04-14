@@ -1,15 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, TrendingUp, TrendingDown, RefreshCw, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
 interface Props {
-  product: any  // debe tener inventory_id y stock
-  campus: any[]
+  product: any
+  campus: { id: string; name: string }[]
   onClose: () => void
-  onSuccess: (newStock: number) => void
+  onSuccess: () => void
   userCampusId?: string | null
   isSuperAdmin?: boolean
 }
@@ -22,15 +22,63 @@ const TYPES = [
   { value: 'ajuste'  as MovType, label: 'Ajuste',  icon: RefreshCw,    color: 'text-blue-400 border-blue-500/40 bg-blue-500/10'    },
 ]
 
-export default function MovementForm({ product, onClose, onSuccess, userCampusId }: Props) {
-  const [type, setType]         = useState<MovType>('entrada')
-  const [quantity, setQuantity] = useState('')
-  const [notes, setNotes]       = useState('')
-  const [loading, setLoading]   = useState(false)
+export default function MovementForm({ product, campus, onClose, onSuccess, userCampusId, isSuperAdmin }: Props) {
+  const [type, setType]           = useState<MovType>('entrada')
+  const [quantity, setQuantity]   = useState('')
+  const [notes, setNotes]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [currentStock, setCurrentStock] = useState<number>(0)
+  const [loadingStock, setLoadingStock] = useState(true)
+  const [inventoryId, setInventoryId]   = useState<string | null>(null)
 
-  const currentStock = product.stock ?? 0
-  const qty          = parseInt(quantity) || 0
-  const preview      = type === 'entrada' ? currentStock + qty : currentStock - qty
+  // El campus que se usará — SIEMPRE el del usuario logueado para admin
+  // Nunca confiar en product.campus_id
+  const targetCampusId = isSuperAdmin 
+    ? (product.campus_id ?? userCampusId ?? null)
+    : userCampusId ?? null
+
+  // Usar inventory_id del product si viene del nuevo cargador, si no buscarlo
+  useEffect(() => {
+    async function loadStock() {
+      setLoadingStock(true)
+      
+      // Si el product ya tiene inventory_id (nuevo sistema), usarlo directamente
+      if (product.inventory_id) {
+        setCurrentStock(product.stock ?? 0)
+        setInventoryId(product.inventory_id)
+        setLoadingStock(false)
+        return
+      }
+
+      // Fallback: buscar por product_id + campus_id
+      const supabase = createClient()
+      let query = supabase.from('inventory')
+        .select('id, stock')
+        .eq('product_id', product.id)
+
+      if (targetCampusId) {
+        query = query.eq('campus_id', targetCampusId)
+      } else {
+        query = query.is('campus_id', null)
+      }
+
+      const { data, error } = await query.maybeSingle()
+      
+      if (error || !data) {
+        setCurrentStock(0)
+        setInventoryId(null)
+      } else {
+        setCurrentStock(data.stock ?? 0)
+        setInventoryId(data.id)
+      }
+      setLoadingStock(false)
+    }
+    
+    if (product.id) loadStock()
+  }, [product.id, product.inventory_id, targetCampusId])
+
+  const qty     = parseInt(quantity) || 0
+  const preview = type === 'entrada' ? currentStock + qty : currentStock - qty
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -38,8 +86,8 @@ export default function MovementForm({ product, onClose, onSuccess, userCampusId
     if (type !== 'entrada' && qty > currentStock) {
       toast.error(`Stock insuficiente (${currentStock} disponibles)`); return
     }
-    if (!product.inventory_id) {
-      toast.error('Sin registro de inventario para este campus'); return
+    if (!inventoryId) {
+      toast.error('No se encontró el registro de inventario para este campus'); return
     }
 
     setLoading(true)
@@ -47,36 +95,33 @@ export default function MovementForm({ product, onClose, onSuccess, userCampusId
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { toast.error('Sesión expirada'); setLoading(false); return }
 
-    const newStock = type === 'entrada' ? currentStock + qty : currentStock - qty
-
     // 1. Registrar movimiento
-    await supabase.from('inventory_movements').insert({
+    const { error: movError } = await supabase.from('inventory_movements').insert({
       product_id: product.id,
-      type, quantity: qty,
+      type,
+      quantity: qty,
       notes: notes.trim() || null,
       created_by: session.user.id,
     })
+    if (movError) { toast.error(movError.message); setLoading(false); return }
 
-    // 2. Actualizar stock via API Route (service role - bypasea RLS)
-    const res = await fetch('/api/inventory', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inventory_id: product.inventory_id,
+    const newStock = type === 'entrada' ? currentStock + qty : currentStock - qty
+
+    // 2. Actualizar POR ID DEL REGISTRO — no por product_id ni campus_id
+    // Esto garantiza que solo se actualiza exactamente ese registro
+    const { error: invError } = await supabase.from('inventory')
+      .update({
         stock: newStock,
+        updated_by: session.user.id,
+        updated_at: new Date().toISOString(),
       })
-    })
+      .eq('id', inventoryId)  // ← filtro por ID exacto del registro
 
-    const result = await res.json()
-    setLoading(false)
+    if (invError) { toast.error(invError.message); setLoading(false); return }
 
-    if (!res.ok) {
-      toast.error(result.error ?? 'Error al actualizar stock')
-      return
-    }
-
-    toast.success(`Stock actualizado: ${newStock} uds.`)
-    onSuccess(newStock)
+    const typeLabel = { entrada:'Entrada', salida:'Salida', ajuste:'Ajuste' }[type]
+    toast.success(`${typeLabel} registrada — Stock: ${newStock} uds.`)
+    onSuccess()
   }
 
   return (
@@ -93,26 +138,35 @@ export default function MovementForm({ product, onClose, onSuccess, userCampusId
 
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
           <div className="bg-zinc-800 rounded-xl px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-zinc-500">Stock actual</span>
-            <span className="text-lg font-bold text-white">{currentStock} uds.</span>
+            <span className="text-xs text-zinc-500">Stock actual en tu campus</span>
+            {loadingStock
+              ? <Loader2 size={16} className="text-zinc-500 animate-spin" />
+              : <span className="text-lg font-bold text-white">{currentStock} uds.</span>
+            }
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {TYPES.map(t => (
-              <button key={t.value} type="button" onClick={() => setType(t.value)}
-                className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-medium transition
-                  ${type === t.value ? t.color : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}>
-                <t.icon size={13} />{t.label}
-              </button>
-            ))}
+          <div>
+            <label className="block text-xs text-zinc-500 mb-2">Tipo de movimiento</label>
+            <div className="grid grid-cols-3 gap-2">
+              {TYPES.map(t => (
+                <button key={t.value} type="button" onClick={() => setType(t.value)}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-medium transition
+                    ${type === t.value ? t.color : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}>
+                  <t.icon size={13} />{t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
-            placeholder="Cantidad" required
-            className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
-                       rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition text-center text-lg font-bold" />
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1.5">Cantidad</label>
+            <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
+              placeholder="0" required
+              className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
+                         rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition text-center text-lg font-bold" />
+          </div>
 
-          {qty > 0 && (
+          {qty > 0 && !loadingStock && (
             <div className={`rounded-xl px-4 py-3 flex items-center justify-between border ${
               preview < 0 ? 'bg-red-500/10 border-red-500/20' :
               preview <= 5 ? 'bg-orange-500/10 border-orange-500/20' :
@@ -124,17 +178,20 @@ export default function MovementForm({ product, onClose, onSuccess, userCampusId
             </div>
           )}
 
-          <textarea value={notes} onChange={e => setNotes(e.target.value)}
-            placeholder="Notas opcionales..." rows={2}
-            className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
-                       rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition resize-none" />
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1.5">Notas <span className="text-zinc-600">(opcional)</span></label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="Ej: Compra para evento, donación..." rows={2}
+              className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600
+                         rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition resize-none" />
+          </div>
 
           <div className="flex gap-2">
             <button type="button" onClick={onClose}
               className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition">
               Cancelar
             </button>
-            <button type="submit" disabled={loading || preview < 0}
+            <button type="submit" disabled={loading || preview < 0 || loadingStock || !inventoryId}
               className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2">
               {loading && <Loader2 size={14} className="animate-spin" />}
               {loading ? 'Guardando...' : 'Registrar'}
