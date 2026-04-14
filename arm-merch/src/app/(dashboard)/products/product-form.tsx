@@ -35,6 +35,9 @@ export default function ProductForm({ categories, campuses }: Props) {
     }))
   )
 
+  const fieldClassName =
+    'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-black placeholder-zinc-500 focus:outline-none focus:border-amber-500'
+
   const handleSubmit = async () => {
     setLoading(true)
 
@@ -70,15 +73,14 @@ export default function ProductForm({ categories, campuses }: Props) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Nuevo Producto</h2>
+      <h2 className="text-xl font-bold text-white">Nuevo Producto</h2>
 
-      {/* DATOS DEL PRODUCTO */}
       <div className="grid grid-cols-2 gap-4">
         <input
           placeholder="Nombre"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="border p-2 rounded"
+          className={fieldClassName}
         />
 
         <input
@@ -86,19 +88,20 @@ export default function ProductForm({ categories, campuses }: Props) {
           placeholder="Precio"
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
-          className="border p-2 rounded"
+          className={fieldClassName}
         />
 
         <input
           placeholder="SKU"
           value={sku}
           onChange={(e) => setSku(e.target.value)}
-          className="border p-2 rounded"
+          className={fieldClassName}
         />
 
         <select
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="border p-2 rounded"
+          value={categoryId ?? ''}
+          onChange={(e) => setCategoryId(e.target.value || null)}
+          className={fieldClassName}
         >
           <option value="">Categoría</option>
           {categories.map((c) => (
@@ -109,17 +112,19 @@ export default function ProductForm({ categories, campuses }: Props) {
         </select>
       </div>
 
-      {/* CAMPUS */}
       <div>
-        <h3 className="font-semibold mb-2">Stock por campus</h3>
+        <h3 className="mb-2 font-semibold text-white">Stock por campus</h3>
 
         <div className="space-y-4">
           {campusStocks.map((item, index) => {
             const campus = campuses.find((c) => c.id === item.campus_id)
 
             return (
-              <div key={item.campus_id} className="border p-4 rounded space-y-2">
-                <label className="flex gap-2 items-center">
+              <div
+                key={item.campus_id}
+                className="space-y-2 rounded border border-zinc-700 p-4"
+              >
+                <label className="flex items-center gap-2 text-white">
                   <input
                     type="checkbox"
                     checked={item.enabled}
@@ -149,7 +154,7 @@ export default function ProductForm({ categories, campuses }: Props) {
                           )
                         )
                       }}
-                      className="border p-2 rounded"
+                      className={fieldClassName}
                     />
 
                     <input
@@ -166,7 +171,7 @@ export default function ProductForm({ categories, campuses }: Props) {
                           )
                         )
                       }}
-                      className="border p-2 rounded"
+                      className={fieldClassName}
                     />
                   </div>
                 )}
@@ -179,7 +184,7 @@ export default function ProductForm({ categories, campuses }: Props) {
       <button
         onClick={handleSubmit}
         disabled={loading}
-        className="bg-blue-600 text-white px-4 py-2 rounded"
+        className="rounded bg-blue-600 px-4 py-2 text-white"
       >
         {loading ? 'Guardando...' : 'Crear producto'}
       </button>
