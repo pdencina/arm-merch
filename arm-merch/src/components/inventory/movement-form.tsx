@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { X, TrendingUp, TrendingDown, RefreshCw, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { registerMovement } from '@/lib/actions/inventory'
+import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   product: any
@@ -41,6 +41,7 @@ export default function MovementForm({
   product,
   onClose,
   onSuccess,
+  userCampusId,
 }: Props) {
   const [type, setType] = useState<MovType>('entrada')
   const [quantity, setQuantity] = useState('')
@@ -65,34 +66,105 @@ export default function MovementForm({
       return
     }
 
-    if (type !== 'entrada' && type !== 'ajuste' && qty > currentStock) {
+    if (type === 'salida' && qty > currentStock) {
       toast.error(`Stock insuficiente (${currentStock} disponibles)`)
+      return
+    }
+
+    if (!product.inventory_id) {
+      toast.error('Sin registro de inventario para este campus')
       return
     }
 
     setLoading(true)
 
-    const result = await registerMovement({
-      product_id: product.id,
-      type,
-      quantity: qty,
-      notes: notes.trim() || undefined,
-    })
+    const supabase = createClient()
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (sessionError || !session) {
+      setLoading(false)
+      toast.error('Sesión expirada')
+      return
+    }
+
+    let campusId = userCampusId ?? product.campus_id ?? null
+
+    if (!campusId) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('campus_id')
+        .eq('id', session.user.id)
+        .single()
+
+      if (profileError || !profile?.campus_id) {
+        setLoading(false)
+        toast.error('No se pudo resolver el campus del usuario')
+        return
+      }
+
+      campusId = profile.campus_id
+    }
+
+    const newStock =
+      type === 'entrada'
+        ? currentStock + qty
+        : type === 'salida'
+          ? currentStock - qty
+          : qty
+
+    if (newStock < 0) {
+      setLoading(false)
+      toast.error('El stock no puede quedar negativo')
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('inventory')
+      .update({
+        stock: newStock,
+        updated_by: session.user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', product.inventory_id)
+
+    if (updateError) {
+      setLoading(false)
+      toast.error(updateError.message || 'Error al actualizar inventario')
+      return
+    }
+
+    const movementQuantity =
+      type === 'ajuste' ? Math.abs(newStock - currentStock) : qty
+
+    const { error: movementError } = await supabase
+      .from('inventory_movements')
+      .insert({
+        product_id: product.id,
+        campus_id: campusId,
+        type,
+        quantity: movementQuantity,
+        notes: notes.trim() || null,
+        created_by: session.user.id,
+      })
 
     setLoading(false)
 
-    if ('error' in result) {
-      toast.error(result.error)
+    if (movementError) {
+      toast.error(movementError.message || 'Error al registrar movimiento')
       return
     }
 
     toast.success(
       type === 'ajuste'
-        ? `Stock ajustado a ${qty} uds.`
-        : `Movimiento registrado correctamente`
+        ? `Stock ajustado a ${newStock} uds.`
+        : 'Movimiento registrado correctamente'
     )
 
-    onSuccess(preview)
+    onSuccess(newStock)
   }
 
   return (
