@@ -1,93 +1,160 @@
-import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import AssignCampusForm from '@/components/products/assign-campus-form'
 
-export default async function ProductDetailPage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const supabase = await createClient()
+export default function ProductDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const supabase = createClient()
 
-  const { data: product, error: productError } = await supabase
-    .from('products')
-    .select(`
-      id,
-      name,
-      description,
-      price,
-      sku,
-      active,
-      image_url,
-      category_id,
-      category:categories(id, name),
-      inventory(
-        id,
-        stock,
-        low_stock_alert,
-        campus_id,
-        campus:campus(id, name)
-      )
-    `)
-    .eq('id', params.id)
-    .single()
+  const [loading, setLoading] = useState(true)
+  const [product, setProduct] = useState<any>(null)
+  const [campuses, setCampuses] = useState<any[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  if (productError || !product) {
-    notFound()
+  useEffect(() => {
+    async function load() {
+      try {
+        const productId = params?.id as string
+
+        if (!productId) {
+          setError('Producto no encontrado')
+          setLoading(false)
+          return
+        }
+
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .select(`
+            id,
+            name,
+            description,
+            price,
+            sku,
+            active,
+            image_url,
+            category_id,
+            category:categories(id, name),
+            inventory(
+              id,
+              stock,
+              low_stock_alert,
+              campus_id,
+              campus:campus(id, name)
+            )
+          `)
+          .eq('id', productId)
+          .single()
+
+        if (productError || !productData) {
+          setError(productError?.message ?? 'No se pudo cargar el producto')
+          setLoading(false)
+          return
+        }
+
+        const { data: campusesData, error: campusesError } = await supabase
+          .from('campus')
+          .select('id, name')
+          .eq('active', true)
+          .order('name')
+
+        if (campusesError) {
+          setError(campusesError.message)
+          setLoading(false)
+          return
+        }
+
+        setProduct(productData)
+        setCampuses(campusesData ?? [])
+        setLoading(false)
+      } catch (err: any) {
+        setError(err?.message ?? 'Error cargando producto')
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [params, supabase])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      </div>
+    )
   }
 
-  const { data: campuses } = await supabase
-    .from('campus')
-    .select('id, name')
-    .eq('active', true)
-    .order('name')
+  if (error || !product) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-red-900/40 bg-red-950/30 p-6 text-red-200">
+          <p className="text-sm font-medium">No se pudo cargar el producto</p>
+          <p className="mt-2 text-sm text-red-300/80">
+            {error ?? 'Producto no encontrado'}
+          </p>
+        </div>
 
-  const inventoryRows = Array.isArray((product as any).inventory)
-    ? (product as any).inventory
-    : []
+        <button
+          onClick={() => router.push('/products')}
+          className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-white transition hover:bg-zinc-700"
+        >
+          Volver a productos
+        </button>
+      </div>
+    )
+  }
+
+  const inventoryRows = Array.isArray(product.inventory) ? product.inventory : []
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-white">{(product as any).name}</h1>
+            <h1 className="text-xl font-bold text-white">{product.name}</h1>
+
             <p className="text-sm text-zinc-400">
-              {(product as any).description || 'Sin descripción'}
+              {product.description || 'Sin descripción'}
             </p>
 
             <div className="flex flex-wrap gap-2 pt-2">
               <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
-                SKU: {(product as any).sku || '—'}
+                SKU: {product.sku || '—'}
               </span>
+
               <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
                 Precio: $
                 {new Intl.NumberFormat('es-CL', {
                   maximumFractionDigits: 0,
-                }).format(Number((product as any).price ?? 0))}
+                }).format(Number(product.price ?? 0))}
               </span>
+
               <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
                 Categoría:{' '}
-                {Array.isArray((product as any).category)
-                  ? (product as any).category[0]?.name ?? '—'
-                  : (product as any).category?.name ?? '—'}
+                {Array.isArray(product.category)
+                  ? product.category[0]?.name ?? '—'
+                  : product.category?.name ?? '—'}
               </span>
+
               <span
                 className={`rounded-lg px-3 py-1 text-xs ${
-                  (product as any).active
+                  product.active
                     ? 'bg-green-500/10 text-green-300'
                     : 'bg-red-500/10 text-red-300'
                 }`}
               >
-                {(product as any).active ? 'Activo' : 'Inactivo'}
+                {product.active ? 'Activo' : 'Inactivo'}
               </span>
             </div>
           </div>
 
-          {(product as any).image_url ? (
+          {product.image_url ? (
             <img
-              src={(product as any).image_url}
-              alt={(product as any).name}
+              src={product.image_url}
+              alt={product.name}
               className="h-24 w-24 rounded-xl object-cover"
             />
           ) : (
@@ -149,9 +216,9 @@ export default async function ProductDetailPage({
         </div>
 
         <AssignCampusForm
-          productId={(product as any).id}
-          productName={(product as any).name}
-          campuses={campuses ?? []}
+          productId={product.id}
+          productName={product.name}
+          campuses={campuses}
         />
       </div>
     </div>
