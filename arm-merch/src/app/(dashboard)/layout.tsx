@@ -43,11 +43,15 @@ export default async function DashboardLayout({
     )
   }
 
+  const campusName = Array.isArray(profile.campus)
+    ? profile.campus[0]?.name
+    : profile.campus?.name
+
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
       <Sidebar
         role={profile.role}
-        campusName={profile?.campus?.name}
+        campusName={campusName}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar user={profile} />
