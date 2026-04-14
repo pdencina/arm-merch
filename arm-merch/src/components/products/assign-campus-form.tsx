@@ -1,120 +1,113 @@
 'use client'
 
 import { useState } from 'react'
-import { assignProductToCampus } from '@/lib/actions/products'
-
-type Campus = {
-  id: string
-  name: string
-}
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 interface Props {
   productId: string
   productName: string
-  campuses: Campus[]
+  campuses: { id: string; name: string }[]
 }
 
-export default function AssignCampusForm({
-  productId,
-  productName,
-  campuses,
-}: Props) {
+export default function AssignCampusForm({ productId, productName, campuses }: Props) {
+  const supabase = createClient()
+
   const [campusId, setCampusId] = useState('')
-  const [stock, setStock] = useState(0)
-  const [lowStockAlert, setLowStockAlert] = useState(5)
+  const [stock, setStock] = useState('')
+  const [lowStock, setLowStock] = useState('5')
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [isError, setIsError] = useState(false)
 
-  async function handleAssign() {
-    setLoading(true)
-    setMessage('')
-    setIsError(false)
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
 
-    const result = await assignProductToCampus({
-      product_id: productId,
-      campus_id: campusId,
-      stock: Number(stock),
-      low_stock_alert: Number(lowStockAlert),
-    })
-
-    setLoading(false)
-
-    if ('error' in result) {
-      setIsError(true)
-      setMessage(result.error)
+    if (!campusId) {
+      toast.error('Selecciona un campus')
       return
     }
 
-    setIsError(false)
-    setMessage('Producto asignado correctamente al campus')
-    setCampusId('')
-    setStock(0)
-    setLowStockAlert(5)
+    setLoading(true)
+
+    try {
+      // 👇 IMPORTANTE: NO VALIDAMOS SESSION AQUÍ
+      const res = await fetch('/api/inventory/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: productId,
+          campus_id: campusId,
+          stock: Number(stock || 0),
+          low_stock_alert: Number(lowStock || 5),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error ?? 'Error al asignar producto')
+        setLoading(false)
+        return
+      }
+
+      toast.success('Producto asignado al campus')
+
+      // 🔥 refrescar pantalla
+      window.location.reload()
+
+    } catch (err) {
+      toast.error('Error inesperado')
+    }
+
+    setLoading(false)
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-zinc-700/60 bg-zinc-900/60 p-5">
-      <div>
-        <h3 className="text-sm font-semibold text-white">
-          Agregar producto a otro campus
-        </h3>
-        <p className="mt-1 text-xs text-zinc-400">{productName}</p>
-      </div>
+    <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-5">
+      <h2 className="mb-4 text-sm font-semibold text-white">
+        Agregar producto a otro campus
+      </h2>
 
-      <select
-        value={campusId}
-        onChange={(e) => setCampusId(e.target.value)}
-        className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-white"
-      >
-        <option value="">Selecciona un campus</option>
-        {campuses.map((campus) => (
-          <option key={campus.id} value={campus.id}>
-            {campus.name}
-          </option>
-        ))}
-      </select>
+      <form onSubmit={handleSubmit} className="space-y-4">
 
-      <div className="grid grid-cols-2 gap-3">
-        <input
-          type="number"
-          min={0}
-          value={stock}
-          onChange={(e) => setStock(Number(e.target.value))}
-          placeholder="Stock inicial"
-          className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-white"
-        />
-
-        <input
-          type="number"
-          min={0}
-          value={lowStockAlert}
-          onChange={(e) => setLowStockAlert(Number(e.target.value))}
-          placeholder="Alerta stock"
-          className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-white"
-        />
-      </div>
-
-      {message && (
-        <div
-          className={`rounded-xl px-3 py-2 text-xs ${
-            isError
-              ? 'bg-red-500/10 text-red-300'
-              : 'bg-green-500/10 text-green-300'
-          }`}
+        <select
+          value={campusId}
+          onChange={(e) => setCampusId(e.target.value)}
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-sm text-white"
         >
-          {message}
-        </div>
-      )}
+          <option value="">Seleccionar campus</option>
+          {campuses.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
 
-      <button
-        type="button"
-        onClick={handleAssign}
-        disabled={loading || !campusId}
-        className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 disabled:opacity-40"
-      >
-        {loading ? 'Guardando...' : 'Asignar a campus'}
-      </button>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="number"
+            placeholder="Stock inicial"
+            value={stock}
+            onChange={(e) => setStock(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-sm text-white"
+          />
+
+          <input
+            type="number"
+            placeholder="Stock bajo"
+            value={lowStock}
+            onChange={(e) => setLowStock(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-sm text-white"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-xl py-2 transition disabled:opacity-50"
+        >
+          {loading ? 'Asignando...' : 'Asignar a campus'}
+        </button>
+      </form>
     </div>
   )
 }
