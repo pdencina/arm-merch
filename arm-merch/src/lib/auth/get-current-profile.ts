@@ -13,7 +13,7 @@ export type CurrentProfile = {
 export async function getCurrentProfile(): Promise<
   { data: CurrentProfile } | { error: string }
 > {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },

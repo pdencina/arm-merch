@@ -18,7 +18,7 @@ interface CreateOrderInput {
 }
 
 export async function createOrder(input: CreateOrderInput) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const profileResult = await getCurrentProfile()
   if ('error' in profileResult) {
@@ -152,7 +152,7 @@ export async function createOrder(input: CreateOrderInput) {
 }
 
 export async function getOrders() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const profileResult = await getCurrentProfile()
   if ('error' in profileResult) {

@@ -29,7 +29,7 @@ type UpsertProductWithInventoryInput = {
 export async function upsertProductWithInventory(
   input: UpsertProductWithInventoryInput
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const profileResult = await getCurrentProfile()
   if ('error' in profileResult) {

@@ -12,7 +12,7 @@ interface MovementInput {
 }
 
 export async function registerMovement(input: MovementInput) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const profileResult = await getCurrentProfile()
   if ('error' in profileResult) {
@@ -91,7 +91,7 @@ export async function registerMovement(input: MovementInput) {
 }
 
 export async function getMovements(productId?: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const profileResult = await getCurrentProfile()
   if ('error' in profileResult) {
