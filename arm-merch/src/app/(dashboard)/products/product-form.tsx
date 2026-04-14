@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { upsertProductWithInventory } from '@/lib/actions/products'
 
 type Category = {
@@ -13,30 +14,78 @@ type Campus = {
   name: string
 }
 
-type Props = {
-  categories: Category[]
-  campuses: Campus[]
-}
+export default function ProductForm() {
+  const supabase = createClient()
 
-export default function ProductForm({ categories, campuses }: Props) {
   const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(true)
+
+  const [categories, setCategories] = useState<Category[]>([])
+  const [campuses, setCampuses] = useState<Campus[]>([])
 
   const [name, setName] = useState('')
   const [price, setPrice] = useState(0)
   const [sku, setSku] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
 
-  const [campusStocks, setCampusStocks] = useState(
-    campuses.map((c) => ({
-      campus_id: c.id,
-      enabled: false,
-      stock: 0,
-      low_stock_alert: 5,
-    }))
-  )
+  const [campusStocks, setCampusStocks] = useState<
+    {
+      campus_id: string
+      enabled: boolean
+      stock: number
+      low_stock_alert: number
+    }[]
+  >([])
 
   const fieldClassName =
     'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-black placeholder-zinc-500 focus:outline-none focus:border-amber-500'
+
+  useEffect(() => {
+    async function loadFormData() {
+      setLoadingData(true)
+
+      const [{ data: categoryData, error: categoryError }, { data: campusData, error: campusError }] =
+        await Promise.all([
+          supabase
+            .from('categories')
+            .select('id, name')
+            .eq('active', true)
+            .order('name'),
+          supabase
+            .from('campus')
+            .select('id, name')
+            .eq('active', true)
+            .order('name'),
+        ])
+
+      if (categoryError) {
+        alert(categoryError.message)
+      }
+
+      if (campusError) {
+        alert(campusError.message)
+      }
+
+      const safeCategories = (categoryData ?? []) as Category[]
+      const safeCampuses = (campusData ?? []) as Campus[]
+
+      setCategories(safeCategories)
+      setCampuses(safeCampuses)
+
+      setCampusStocks(
+        safeCampuses.map((c) => ({
+          campus_id: c.id,
+          enabled: false,
+          stock: 0,
+          low_stock_alert: 5,
+        }))
+      )
+
+      setLoadingData(false)
+    }
+
+    loadFormData()
+  }, [supabase])
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -69,6 +118,14 @@ export default function ProductForm({ categories, campuses }: Props) {
 
     alert('Producto creado correctamente')
     window.location.href = '/products'
+  }
+
+  if (loadingData) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      </div>
+    )
   }
 
   return (
