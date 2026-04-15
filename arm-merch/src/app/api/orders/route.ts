@@ -54,8 +54,6 @@ export async function POST(req: Request) {
     const items = Array.isArray(body.items) ? body.items : []
     const paymentMethod = body.payment_method ?? null
     const notes = body.notes ?? null
-    const clientName = body.client_name ?? null
-    const clientEmail = body.client_email ?? null
     const discount = Number(body.discount ?? 0)
     const requestedCampusId = body.campus_id ?? null
 
@@ -172,8 +170,6 @@ export async function POST(req: Request) {
         discount,
         total,
         notes,
-        client_name: clientName,
-        client_email: clientEmail,
       })
       .select('id')
       .single()
