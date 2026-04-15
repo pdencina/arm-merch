@@ -38,7 +38,7 @@ export async function POST(req: Request) {
 
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('id, role')
+      .select('id, role, campus_id')
       .eq('id', user.id)
       .single()
 
@@ -80,11 +80,31 @@ export async function POST(req: Request) {
       )
     }
 
-    const normalizedCampusStocks = campusStocks.map((item: any) => ({
+    let normalizedCampusStocks = campusStocks.map((item: any) => ({
       campus_id: item.campus_id,
       stock: Number(item.stock ?? 0),
       low_stock_alert: Number(item.low_stock_alert ?? 5),
     }))
+
+    if (profile.role === 'admin') {
+      if (!profile.campus_id) {
+        return NextResponse.json(
+          { error: 'El admin no tiene campus asignado' },
+          { status: 403 }
+        )
+      }
+
+      normalizedCampusStocks = normalizedCampusStocks.filter(
+        (item: any) => item.campus_id === profile.campus_id
+      )
+
+      if (normalizedCampusStocks.length === 0) {
+        return NextResponse.json(
+          { error: 'Como admin solo puedes crear productos en tu campus' },
+          { status: 403 }
+        )
+      }
+    }
 
     const { data: createdProduct, error: productError } = await adminClient
       .from('products')

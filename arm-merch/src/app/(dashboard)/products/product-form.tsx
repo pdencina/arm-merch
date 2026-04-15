@@ -13,6 +13,12 @@ type Campus = {
   name: string
 }
 
+type UserProfile = {
+  role: 'super_admin' | 'admin' | 'voluntario'
+  campus_id: string | null
+  campus?: { name?: string }[] | { name?: string } | null
+}
+
 export default function ProductForm() {
   const supabase = createClient()
 
@@ -22,6 +28,7 @@ export default function ProductForm() {
 
   const [categories, setCategories] = useState<Category[]>([])
   const [campuses, setCampuses] = useState<Campus[]>([])
+  const [profile, setProfile] = useState<UserProfile | null>(null)
 
   const [name, setName] = useState('')
   const [price, setPrice] = useState(0)
@@ -57,40 +64,69 @@ export default function ProductForm() {
     async function loadFormData() {
       setLoadingData(true)
 
-      const [
-        { data: categoryData, error: categoryError },
-        { data: campusData, error: campusError },
-      ] = await Promise.all([
-        supabase
-          .from('categories')
-          .select('id, name')
-          .eq('active', true)
-          .order('name'),
-        supabase
-          .from('campus')
-          .select('id, name')
-          .eq('active', true)
-          .order('name'),
-      ])
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError || !session) {
+        alert('No autenticado')
+        setLoadingData(false)
+        return
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, campus_id, campus:campus(name)')
+        .eq('id', session.user.id)
+        .single()
+
+      if (profileError || !profileData) {
+        alert(profileError?.message ?? 'No se pudo cargar el perfil')
+        setLoadingData(false)
+        return
+      }
+
+      setProfile(profileData as UserProfile)
+
+      const { data: categoryData, error: categoryError } = await supabase
+        .from('categories')
+        .select('id, name')
+        .eq('active', true)
+        .order('name')
 
       if (categoryError) {
         alert(categoryError.message)
       }
 
+      const safeCategories = (categoryData ?? []) as Category[]
+      setCategories(safeCategories)
+
+      let campusQuery = supabase
+        .from('campus')
+        .select('id, name')
+        .eq('active', true)
+        .order('name')
+
+      if ((profileData as UserProfile).role === 'admin' && (profileData as UserProfile).campus_id) {
+        campusQuery = campusQuery.eq('id', (profileData as UserProfile).campus_id)
+      }
+
+      const { data: campusData, error: campusError } = await campusQuery
+
       if (campusError) {
         alert(campusError.message)
       }
 
-      const safeCategories = (categoryData ?? []) as Category[]
       const safeCampuses = (campusData ?? []) as Campus[]
-
-      setCategories(safeCategories)
       setCampuses(safeCampuses)
 
       setCampusStocks(
         safeCampuses.map((c) => ({
           campus_id: c.id,
-          enabled: false,
+          enabled:
+            (profileData as UserProfile).role === 'admin' &&
+            (profileData as UserProfile).campus_id === c.id,
           stock: 0,
           low_stock_alert: 5,
         }))
@@ -233,6 +269,9 @@ export default function ProductForm() {
     )
   }
 
+  const isSuperAdmin = profile?.role === 'super_admin'
+  const isAdmin = profile?.role === 'admin'
+
   return (
     <div className="space-y-6">
       <div>
@@ -340,7 +379,9 @@ export default function ProductForm() {
         <div>
           <h3 className="text-lg font-semibold text-white">Stock por campus</h3>
           <p className="mt-1 text-sm text-zinc-500">
-            Activa solo los campus donde este producto estará disponible.
+            {isSuperAdmin
+              ? 'Activa solo los campus donde este producto estará disponible.'
+              : 'Como admin, este producto se creará solo para tu campus.'}
           </p>
         </div>
 
@@ -357,6 +398,7 @@ export default function ProductForm() {
                   <input
                     type="checkbox"
                     checked={item.enabled}
+                    disabled={isAdmin}
                     onChange={(e) => {
                       const checked = e.target.checked
                       setCampusStocks((prev) =>
