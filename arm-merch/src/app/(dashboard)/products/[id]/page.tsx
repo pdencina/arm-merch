@@ -5,6 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AssignCampusForm from '@/components/products/assign-campus-form'
 
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('es-CL', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -63,12 +71,17 @@ export default function ProductDetailPage() {
             active,
             image_url,
             category_id,
+            created_at,
+            updated_at,
+            created_by,
             category:categories(id, name),
             inventory(
               id,
               stock,
               low_stock_alert,
               campus_id,
+              updated_at,
+              updated_by,
               campus:campus(id, name)
             )
           `)
@@ -140,7 +153,7 @@ export default function ProductDetailPage() {
     <div className="space-y-6">
       <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h1 className="text-xl font-bold text-white">{product.name}</h1>
 
             <p className="text-sm text-zinc-400">
@@ -175,6 +188,26 @@ export default function ProductDetailPage() {
               >
                 {product.active ? 'Activo' : 'Inactivo'}
               </span>
+            </div>
+
+            <div className="grid gap-2 pt-2 md:grid-cols-2">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                  Producto creado
+                </p>
+                <p className="mt-1 text-sm text-white">
+                  {formatDateTime(product.created_at)}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                  Última actualización
+                </p>
+                <p className="mt-1 text-sm text-white">
+                  {formatDateTime(product.updated_at)}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -213,28 +246,50 @@ export default function ProductDetailPage() {
                 return (
                   <div
                     key={row.id}
-                    className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3"
+                    className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3"
                   >
-                    <div>
-                      <p className="text-sm font-medium text-white">
-                        {campusName || 'Campus sin nombre'}
-                      </p>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        Alerta stock bajo: {row.low_stock_alert ?? 5}
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {campusName || 'Campus sin nombre'}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Alerta stock bajo: {row.low_stock_alert ?? 5}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+                          Number(row.stock ?? 0) === 0
+                            ? 'bg-red-500/10 text-red-300'
+                            : Number(row.stock ?? 0) <= Number(row.low_stock_alert ?? 5)
+                              ? 'bg-orange-500/10 text-orange-300'
+                              : 'bg-green-500/10 text-green-300'
+                        }`}
+                      >
+                        Stock: {row.stock ?? 0}
+                      </span>
                     </div>
 
-                    <span
-                      className={`rounded-lg px-3 py-1 text-xs font-semibold ${
-                        Number(row.stock ?? 0) === 0
-                          ? 'bg-red-500/10 text-red-300'
-                          : Number(row.stock ?? 0) <= Number(row.low_stock_alert ?? 5)
-                            ? 'bg-orange-500/10 text-orange-300'
-                            : 'bg-green-500/10 text-green-300'
-                      }`}
-                    >
-                      Stock: {row.stock ?? 0}
-                    </span>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      <div className="rounded-lg bg-zinc-900 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                          Última actualización inventario
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-300">
+                          {formatDateTime(row.updated_at)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-zinc-900 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                          Campus
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-300">
+                          {campusName || '—'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )
               })}
