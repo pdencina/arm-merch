@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AssignCampusForm from '@/components/products/assign-campus-form'
+import EditProductForm from '@/components/products/edit-product-form'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '—'
@@ -21,6 +22,7 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true)
   const [product, setProduct] = useState<any>(null)
   const [campuses, setCampuses] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string>('')
   const [userCampusId, setUserCampusId] = useState<string | null>(null)
@@ -122,8 +124,21 @@ export default function ProductDetailPage() {
           return
         }
 
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name')
+          .eq('active', true)
+          .order('name')
+
+        if (categoriesError) {
+          setError(categoriesError.message)
+          setLoading(false)
+          return
+        }
+
         setProduct(productData)
         setCampuses(campusesData ?? [])
+        setCategories(categoriesData ?? [])
         setLoading(false)
       } catch (err: any) {
         setError(err?.message ?? 'Error cargando producto')
@@ -245,6 +260,20 @@ export default function ProductDetailPage() {
           )}
         </div>
       </div>
+
+      <EditProductForm
+        product={{
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          sku: product.sku,
+          category_id: product.category_id,
+          image_url: product.image_url,
+          active: product.active,
+        }}
+        categories={categories}
+      />
 
       <div className={`grid gap-6 ${isSuperAdmin ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
         <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-5">
