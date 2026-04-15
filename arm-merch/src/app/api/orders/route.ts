@@ -156,9 +156,23 @@ export async function POST(req: Request) {
       )
     }
 
-    // IMPORTANTE:
-    // order_number es integer, por eso debe ser numérico.
-    const orderNumber = Date.now()
+    // Obtener el último número de orden y sumar 1
+    const { data: lastOrder, error: lastOrderError } = await adminClient
+      .from('orders')
+      .select('order_number')
+      .order('order_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (lastOrderError) {
+      return NextResponse.json(
+        { error: lastOrderError.message },
+        { status: 400 }
+      )
+    }
+
+    const lastOrderNumber = Number(lastOrder?.order_number ?? 1000)
+    const orderNumber = lastOrderNumber + 1
 
     const { data: createdOrder, error: orderError } = await adminClient
       .from('orders')
