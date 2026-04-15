@@ -156,7 +156,9 @@ export async function POST(req: Request) {
       )
     }
 
-    const orderNumber = `ORD-${Date.now()}`
+    // IMPORTANTE:
+    // order_number es integer, por eso debe ser numérico.
+    const orderNumber = Date.now()
 
     const { data: createdOrder, error: orderError } = await adminClient
       .from('orders')
@@ -171,7 +173,7 @@ export async function POST(req: Request) {
         total,
         notes,
       })
-      .select('id')
+      .select('id, order_number')
       .single()
 
     if (orderError || !createdOrder) {
@@ -227,7 +229,7 @@ export async function POST(req: Request) {
           campus_id: sellingCampusId,
           type: 'salida',
           quantity: item.quantity,
-          notes: `Venta ${orderNumber}`,
+          notes: `Venta ${createdOrder.order_number}`,
           created_by: profile.id,
         })
 
@@ -242,7 +244,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       order_id: createdOrder.id,
-      order_number: orderNumber,
+      order_number: createdOrder.order_number,
     })
   } catch (error: any) {
     return NextResponse.json(
