@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 type Category = {
@@ -18,6 +18,7 @@ export default function ProductForm() {
 
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   const [categories, setCategories] = useState<Category[]>([])
   const [campuses, setCampuses] = useState<Campus[]>([])
@@ -26,6 +27,8 @@ export default function ProductForm() {
   const [price, setPrice] = useState(0)
   const [sku, setSku] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [description, setDescription] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   const [campusStocks, setCampusStocks] = useState<
     {
@@ -38,6 +41,17 @@ export default function ProductForm() {
 
   const fieldClassName =
     'w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-black placeholder-zinc-500 focus:outline-none focus:border-amber-500'
+
+  const imagePreviewUrl = useMemo(() => {
+    if (!imageFile) return ''
+    return URL.createObjectURL(imageFile)
+  }, [imageFile])
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
+    }
+  }, [imagePreviewUrl])
 
   useEffect(() => {
     async function loadFormData() {
@@ -88,6 +102,48 @@ export default function ProductForm() {
     loadFormData()
   }, [supabase])
 
+  async function uploadImage(): Promise<string | null> {
+    if (!imageFile) return null
+
+    setUploadingImage(true)
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError || !session?.access_token) {
+        setUploadingImage(false)
+        throw new Error('No autenticado')
+      }
+
+      const formData = new FormData()
+      formData.append('file', imageFile)
+
+      const res = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      })
+
+      const data = await res.json()
+
+      setUploadingImage(false)
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'No se pudo subir la imagen')
+      }
+
+      return data.imageUrl as string
+    } catch (error: any) {
+      setUploadingImage(false)
+      throw new Error(error?.message ?? 'Error inesperado al subir la imagen')
+    }
+  }
+
   async function handleSubmit() {
     if (!name.trim()) {
       alert('El nombre es obligatorio')
@@ -126,6 +182,12 @@ export default function ProductForm() {
         return
       }
 
+      let imageUrl: string | null = null
+
+      if (imageFile) {
+        imageUrl = await uploadImage()
+      }
+
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: {
@@ -135,9 +197,11 @@ export default function ProductForm() {
         body: JSON.stringify({
           product: {
             name: name.trim(),
+            description: description.trim() || null,
             price: Number(price),
             sku: sku.trim() || null,
             category_id: categoryId || null,
+            image_url: imageUrl,
             active: true,
           },
           campusStocks: selectedCampuses,
@@ -180,7 +244,9 @@ export default function ProductForm() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-400">Nombre del producto</label>
+          <label className="text-xs font-medium text-zinc-400">
+            Nombre del producto
+          </label>
           <input
             placeholder="Ej: Agenda ARM 2025"
             value={name}
@@ -224,6 +290,49 @@ export default function ProductForm() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="flex flex-col gap-1 md:col-span-2">
+          <label className="text-xs font-medium text-zinc-400">
+            Descripción
+          </label>
+          <textarea
+            placeholder="Describe brevemente este producto"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className={fieldClassName}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2 md:col-span-2">
+          <label className="text-xs font-medium text-zinc-400">
+            Imagen del producto
+          </label>
+
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => {
+              const file = e.target.files?.[0] ?? null
+              setImageFile(file)
+            }}
+            className="block w-full text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-4 file:py-2 file:text-sm file:text-white hover:file:bg-zinc-700"
+          />
+
+          <p className="text-[11px] text-zinc-500">
+            Formatos permitidos: JPG, PNG o WEBP. Máximo 5 MB.
+          </p>
+
+          {imagePreviewUrl && (
+            <div className="mt-2">
+              <img
+                src={imagePreviewUrl}
+                alt="Vista previa"
+                className="h-28 w-28 rounded-xl border border-zinc-700 object-cover"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -329,10 +438,14 @@ export default function ProductForm() {
       <div className="pt-2">
         <button
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || uploadingImage}
           className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60"
         >
-          {loading ? 'Guardando...' : 'Crear producto'}
+          {uploadingImage
+            ? 'Subiendo imagen...'
+            : loading
+              ? 'Guardando...'
+              : 'Crear producto'}
         </button>
       </div>
     </div>
