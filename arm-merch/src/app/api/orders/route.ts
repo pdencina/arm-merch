@@ -22,7 +22,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // Cliente para validar usuario con el access token
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -35,7 +34,6 @@ export async function POST(req: Request) {
       },
     })
 
-    // Cliente admin para operaciones de BD
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -158,21 +156,20 @@ export async function POST(req: Request) {
       }
     }
 
-    const subtotal = normalizedItems.reduce(
+    const subtotalCalculado = normalizedItems.reduce(
       (sum: number, item: any) => sum + item.quantity * item.unit_price,
       0
     )
 
-    const total = subtotal - discount
+    const totalCalculado = subtotalCalculado - discount
 
-    if (total < 0) {
+    if (totalCalculado < 0) {
       return NextResponse.json(
         { error: 'El total no puede ser negativo' },
         { status: 400 }
       )
     }
 
-    // order_number integer correlativo
     const { data: lastOrder, error: lastOrderError } = await adminClient
       .from('orders')
       .select('order_number')
@@ -190,7 +187,7 @@ export async function POST(req: Request) {
     const lastOrderNumber = Number(lastOrder?.order_number ?? 1000)
     const orderNumber = lastOrderNumber + 1
 
-    // No enviamos status: la BD usa default pending
+    // NO enviamos subtotal porque tu BD no acepta insert manual en esa columna
     const { data: createdOrder, error: orderError } = await adminClient
       .from('orders')
       .insert({
@@ -198,9 +195,8 @@ export async function POST(req: Request) {
         campus_id: sellingCampusId,
         seller_id: profile.id,
         payment_method: paymentMethod,
-        subtotal,
         discount,
-        total,
+        total: totalCalculado,
         notes,
       })
       .select('id, order_number')
@@ -213,12 +209,12 @@ export async function POST(req: Request) {
       )
     }
 
+    // NO enviamos subtotal en order_items tampoco
     const orderItemsRows = normalizedItems.map((item: any) => ({
       order_id: createdOrder.id,
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      subtotal: item.quantity * item.unit_price,
     }))
 
     const { error: orderItemsError } = await adminClient
