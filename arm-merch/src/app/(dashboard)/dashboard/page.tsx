@@ -31,6 +31,11 @@ function monthKey(date: Date) {
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const WEEKDAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
+type CampusRow = {
+  id: string
+  name: string
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
 
@@ -38,11 +43,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [role, setRole] = useState<string>('')
-  const [campusId, setCampusId] = useState<string | null>(null)
-
   const [orders, setOrders] = useState<any[]>([])
   const [inventory, setInventory] = useState<any[]>([])
   const [orderItems, setOrderItems] = useState<any[]>([])
+  const [campuses, setCampuses] = useState<CampusRow[]>([])
 
   useEffect(() => {
     async function loadDashboard() {
@@ -73,7 +77,6 @@ export default function DashboardPage() {
       }
 
       setRole(profile.role ?? '')
-      setCampusId(profile.campus_id ?? null)
 
       let ordersQuery = supabase
         .from('orders')
@@ -86,8 +89,7 @@ export default function DashboardPage() {
           discount,
           total,
           created_at,
-          campus_id,
-          campus:campus!orders_campus_id_fkey(name)
+          campus_id
         `)
         .order('created_at', { ascending: false })
 
@@ -113,12 +115,12 @@ export default function DashboardPage() {
           quantity,
           unit_price,
           subtotal,
-          order:orders!order_items_order_id_fkey(
+          order:orders(
             id,
             created_at,
             campus_id
           ),
-          product:products!order_items_product_id_fkey(
+          product:products(
             id,
             name
           )
@@ -127,14 +129,19 @@ export default function DashboardPage() {
       if (profile.role !== 'super_admin' && profile.campus_id) {
         ordersQuery = ordersQuery.eq('campus_id', profile.campus_id)
         inventoryQuery = inventoryQuery.eq('campus_id', profile.campus_id)
-        orderItemsQuery = orderItemsQuery.eq('order.campus_id', profile.campus_id)
       }
 
       const [
         { data: ordersData, error: ordersError },
         { data: inventoryData, error: inventoryError },
         { data: orderItemsData, error: orderItemsError },
-      ] = await Promise.all([ordersQuery, inventoryQuery, orderItemsQuery])
+        { data: campusData, error: campusError },
+      ] = await Promise.all([
+        ordersQuery,
+        inventoryQuery,
+        orderItemsQuery,
+        supabase.from('campus').select('id, name').eq('active', true).order('name'),
+      ])
 
       if (ordersError) {
         setError(ordersError.message)
@@ -154,14 +161,40 @@ export default function DashboardPage() {
         return
       }
 
+      if (campusError) {
+        setError(campusError.message)
+        setLoading(false)
+        return
+      }
+
+      const safeOrderItems = (orderItemsData ?? []).filter((item: any) => {
+        if (profile.role === 'super_admin') return true
+
+        const orderRaw = item.order
+        const orderCampusId = Array.isArray(orderRaw)
+          ? orderRaw[0]?.campus_id
+          : orderRaw?.campus_id
+
+        return orderCampusId === profile.campus_id
+      })
+
       setOrders(ordersData ?? [])
       setInventory(inventoryData ?? [])
-      setOrderItems(orderItemsData ?? [])
+      setOrderItems(safeOrderItems)
+      setCampuses((campusData ?? []) as CampusRow[])
       setLoading(false)
     }
 
     loadDashboard()
   }, [supabase])
+
+  const campusMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const campus of campuses) {
+      map.set(campus.id, campus.name)
+    }
+    return map
+  }, [campuses])
 
   const metrics = useMemo(() => {
     const now = new Date()
@@ -216,20 +249,15 @@ export default function DashboardPage() {
       weekdays[day].total += Number(order.total ?? 0)
     }
 
-    const campusMap = new Map<string, number>()
+    const campusSalesMap = new Map<string, number>()
     if (role === 'super_admin') {
       for (const order of ordersMonth) {
-        const campusRaw = order.campus
-        const campusName = Array.isArray(campusRaw)
-          ? campusRaw[0]?.name
-          : campusRaw?.name
-
-        const name = campusName || 'Sin campus'
-        campusMap.set(name, (campusMap.get(name) || 0) + Number(order.total ?? 0))
+        const campusName = campusMap.get(order.campus_id) || 'Sin campus'
+        campusSalesMap.set(campusName, (campusSalesMap.get(campusName) || 0) + Number(order.total ?? 0))
       }
     }
 
-    const campusComparison = Array.from(campusMap.entries())
+    const campusComparison = Array.from(campusSalesMap.entries())
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total)
 
@@ -245,7 +273,7 @@ export default function DashboardPage() {
       weekdays,
       campusComparison,
     }
-  }, [orders, inventory, role])
+  }, [orders, inventory, role, campusMap])
 
   const topSoldProducts = useMemo(() => {
     const map = new Map<string, { name: string; quantity: number; total: number }>()
