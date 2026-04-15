@@ -1,298 +1,382 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search } from 'lucide-react'
+import AssignCampusForm from '@/components/products/assign-campus-form'
+import EditProductForm from '@/components/products/edit-product-form'
+import EditInventoryByCampus from '@/components/products/edit-inventory-by-campus'
 
-type ProductRow = {
-  id: string
-  name: string
-  sku: string | null
-  price: number
-  active: boolean
-  image_url: string | null
-  category_name: string
-  stock: number
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('es-CL', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
-export default function ProductsPage() {
+export default function ProductDetailPage() {
+  const params = useParams()
+  const router = useRouter()
   const supabase = createClient()
 
   const [loading, setLoading] = useState(true)
+  const [product, setProduct] = useState<any>(null)
+  const [campuses, setCampuses] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [products, setProducts] = useState<ProductRow[]>([])
-  const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
+  const [userRole, setUserRole] = useState<string>('')
+  const [userCampusId, setUserCampusId] = useState<string | null>(null)
 
   useEffect(() => {
-    async function loadProducts() {
-      setLoading(true)
-      setError(null)
+    async function load() {
+      try {
+        const productId = params?.id as string
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
+        if (!productId) {
+          setError('Producto no encontrado')
+          setLoading(false)
+          return
+        }
 
-      if (sessionError || !session) {
-        setError('No autenticado')
-        setLoading(false)
-        return
-      }
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, campus_id')
-        .eq('id', session.user.id)
-        .single()
+        if (sessionError || !session) {
+          setError('No hay sesión activa')
+          setLoading(false)
+          return
+        }
 
-      if (profileError || !profile) {
-        setError(profileError?.message ?? 'No se pudo cargar el perfil')
-        setLoading(false)
-        return
-      }
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role, campus_id')
+          .eq('id', session.user.id)
+          .single()
 
-      const { data, error } = await supabase
-        .from('inventory')
-        .select(`
-          id,
-          stock,
-          campus_id,
-          product:products(
+        if (profileError || !profile) {
+          setError(profileError?.message ?? 'No se pudo cargar el perfil')
+          setLoading(false)
+          return
+        }
+
+        setUserRole(profile.role ?? '')
+        setUserCampusId(profile.campus_id ?? null)
+
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .select(`
             id,
             name,
-            sku,
+            description,
             price,
+            sku,
             active,
             image_url,
-            category:categories(name)
-          )
-        `)
-        .order('id', { ascending: false })
+            category_id,
+            created_at,
+            updated_at,
+            created_by,
+            category:categories(id, name),
+            inventory(
+              id,
+              stock,
+              low_stock_alert,
+              campus_id,
+              updated_at,
+              updated_by,
+              campus:campus(id, name)
+            )
+          `)
+          .eq('id', productId)
+          .single()
 
-      if (error) {
-        setError(error.message)
-        setLoading(false)
-        return
-      }
-
-      const inventoryRows = (data ?? []) as any[]
-
-      const filteredInventory =
-        profile.role === 'super_admin'
-          ? inventoryRows
-          : inventoryRows.filter((row) => row.campus_id === profile.campus_id)
-
-      const grouped = new Map<string, ProductRow>()
-
-      for (const row of filteredInventory) {
-        const product = Array.isArray(row.product) ? row.product[0] : row.product
-        if (!product?.id) continue
-
-        const categoryRaw = product.category
-        const categoryName = Array.isArray(categoryRaw)
-          ? categoryRaw[0]?.name ?? 'Sin categoría'
-          : categoryRaw?.name ?? 'Sin categoría'
-
-        const existing = grouped.get(product.id)
-
-        if (existing) {
-          existing.stock += Number(row.stock ?? 0)
-        } else {
-          grouped.set(product.id, {
-            id: product.id,
-            name: product.name ?? 'Sin nombre',
-            sku: product.sku ?? null,
-            price: Number(product.price ?? 0),
-            active: Boolean(product.active),
-            image_url: product.image_url ?? null,
-            category_name: categoryName,
-            stock: Number(row.stock ?? 0),
-          })
+        if (productError || !productData) {
+          setError(productError?.message ?? 'No se pudo cargar el producto')
+          setLoading(false)
+          return
         }
-      }
 
-      setProducts(Array.from(grouped.values()))
-      setLoading(false)
+        const inventoryRows = Array.isArray((productData as any).inventory)
+          ? (productData as any).inventory
+          : []
+
+        if (
+          profile.role === 'admin' &&
+          profile.campus_id &&
+          !inventoryRows.some((row: any) => row.campus_id === profile.campus_id)
+        ) {
+          setError('No tienes acceso a este producto porque no pertenece a tu campus')
+          setLoading(false)
+          return
+        }
+
+        const { data: campusesData, error: campusesError } = await supabase
+          .from('campus')
+          .select('id, name')
+          .eq('active', true)
+          .order('name')
+
+        if (campusesError) {
+          setError(campusesError.message)
+          setLoading(false)
+          return
+        }
+
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name')
+          .eq('active', true)
+          .order('name')
+
+        if (categoriesError) {
+          setError(categoriesError.message)
+          setLoading(false)
+          return
+        }
+
+        setProduct(productData)
+        setCampuses(campusesData ?? [])
+        setCategories(categoriesData ?? [])
+        setLoading(false)
+      } catch (err: any) {
+        setError(err?.message ?? 'Error cargando producto')
+        setLoading(false)
+      }
     }
 
-    loadProducts()
-  }, [supabase])
-
-  const categories = useMemo(() => {
-    return Array.from(new Set(products.map((p) => p.category_name))).sort()
-  }, [products])
-
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchSearch =
-        !search ||
-        product.name.toLowerCase().includes(search.toLowerCase()) ||
-        (product.sku ?? '').toLowerCase().includes(search.toLowerCase())
-
-      const matchCategory =
-        !categoryFilter || product.category_name === categoryFilter
-
-      return matchSearch && matchCategory
-    })
-  }, [products, search, categoryFilter])
-
-  function formatCurrency(value: number) {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0,
-    }).format(value)
-  }
+    load()
+  }, [params, supabase])
 
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
       </div>
     )
   }
 
-  if (error) {
+  if (error || !product) {
     return (
-      <div className="rounded-2xl border border-red-900/40 bg-red-950/30 p-6 text-red-200">
-        <p className="text-sm font-medium">Error cargando productos</p>
-        <p className="mt-2 text-sm text-red-300/80">{error}</p>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-red-900/40 bg-red-950/30 p-6 text-red-200">
+          <p className="text-sm font-medium">No se pudo cargar el producto</p>
+          <p className="mt-2 text-sm text-red-300/80">
+            {error ?? 'Producto no encontrado'}
+          </p>
+        </div>
+
+        <button
+          onClick={() => router.push('/products')}
+          className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-white transition hover:bg-zinc-700"
+        >
+          Volver a productos
+        </button>
       </div>
     )
   }
 
+  let inventoryRows = Array.isArray(product.inventory) ? product.inventory : []
+
+  if (userRole === 'admin' && userCampusId) {
+    inventoryRows = inventoryRows.filter((row: any) => row.campus_id === userCampusId)
+  }
+
+  const isSuperAdmin = userRole === 'super_admin'
+
+  const inventoryForEditor = inventoryRows.map((row: any) => {
+    const campusRaw = row.campus
+    const campusName = Array.isArray(campusRaw)
+      ? campusRaw[0]?.name
+      : campusRaw?.name
+
+    return {
+      id: row.id,
+      stock: Number(row.stock ?? 0),
+      low_stock_alert: Number(row.low_stock_alert ?? 5),
+      campus_id: row.campus_id,
+      campus_name: campusName || 'Campus',
+    }
+  })
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-white">Productos</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            {products.length} productos registrados
-          </p>
-        </div>
+      <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-3">
+            <h1 className="text-xl font-bold text-white">{product.name}</h1>
 
-        <Link
-          href="/products/new"
-          className="inline-flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-black transition hover:bg-amber-400"
-        >
-          <Plus size={18} />
-          Nuevo producto
-        </Link>
-      </div>
+            <p className="text-sm text-zinc-400">
+              {product.description || 'Sin descripción'}
+            </p>
 
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="relative flex-1">
-          <Search
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
-          />
-          <input
-            type="text"
-            placeholder="Buscar producto o SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-2xl border border-zinc-700 bg-zinc-800 px-12 py-3 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
-          />
-        </div>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
+                SKU: {product.sku || '—'}
+              </span>
 
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white focus:border-amber-500 focus:outline-none"
-        >
-          <option value="">Todas las categorías</option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </div>
+              <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
+                Precio: $
+                {new Intl.NumberFormat('es-CL', {
+                  maximumFractionDigits: 0,
+                }).format(Number(product.price ?? 0))}
+              </span>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-700/60 bg-zinc-900/50">
-        <div className="grid grid-cols-[56px_2fr_1.2fr_1.1fr_1fr_0.8fr_0.9fr_1fr] gap-4 border-b border-zinc-800 px-6 py-4 text-sm text-zinc-400">
-          <div>#</div>
-          <div>Producto</div>
-          <div>Categoría</div>
-          <div>SKU</div>
-          <div>Precio</div>
-          <div>Stock</div>
-          <div>Estado</div>
-          <div>Acciones</div>
-        </div>
+              <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
+                Categoría:{' '}
+                {Array.isArray(product.category)
+                  ? product.category[0]?.name ?? '—'
+                  : product.category?.name ?? '—'}
+              </span>
 
-        {filteredProducts.length === 0 ? (
-          <div className="px-6 py-10 text-sm text-zinc-500">
-            No hay productos para mostrar.
-          </div>
-        ) : (
-          filteredProducts.map((product, index) => (
-            <div
-              key={product.id}
-              className="grid grid-cols-[56px_2fr_1.2fr_1.1fr_1fr_0.8fr_0.9fr_1fr] items-center gap-4 border-b border-zinc-800/70 px-6 py-4 last:border-b-0"
-            >
-              <div className="text-zinc-500">{index + 1}</div>
+              <span
+                className={`rounded-lg px-3 py-1 text-xs ${
+                  product.active
+                    ? 'bg-green-500/10 text-green-300'
+                    : 'bg-red-500/10 text-red-300'
+                }`}
+              >
+                {product.active ? 'Activo' : 'Inactivo'}
+              </span>
+            </div>
 
-              <div className="flex items-center gap-3">
-                {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="h-12 w-12 rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-800 text-xs text-zinc-500">
-                    □
-                  </div>
-                )}
-
-                <div>
-                  <p className="font-medium text-white">{product.name}</p>
-                </div>
+            <div className="grid gap-2 pt-2 md:grid-cols-2">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                  Producto creado
+                </p>
+                <p className="mt-1 text-sm text-white">
+                  {formatDateTime(product.created_at)}
+                </p>
               </div>
 
-              <div>
-                <span className="rounded-lg bg-zinc-800 px-3 py-1 text-sm text-zinc-300">
-                  {product.category_name}
-                </span>
-              </div>
-
-              <div className="text-white">{product.sku || '—'}</div>
-
-              <div className="font-semibold text-amber-400">
-                {formatCurrency(product.price)}
-              </div>
-
-              <div>
-                <span className="rounded-lg bg-green-500/10 px-3 py-1 text-sm font-semibold text-green-300">
-                  {product.stock}
-                </span>
-              </div>
-
-              <div>
-                <span
-                  className={`rounded-lg px-3 py-1 text-sm ${
-                    product.active
-                      ? 'bg-green-500/10 text-green-300'
-                      : 'bg-red-500/10 text-red-300'
-                  }`}
-                >
-                  {product.active ? 'Activo' : 'Inactivo'}
-                </span>
-              </div>
-
-              <div>
-                <Link
-                  href={`/products/${product.id}`}
-                  className="inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-600"
-                >
-                  Editar todo
-                </Link>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                  Última actualización
+                </p>
+                <p className="mt-1 text-sm text-white">
+                  {formatDateTime(product.updated_at)}
+                </p>
               </div>
             </div>
-          ))
+          </div>
+
+          {product.image_url ? (
+            <img
+              src={product.image_url}
+              alt={product.name}
+              className="h-24 w-24 rounded-xl object-cover"
+            />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-zinc-800 text-xs text-zinc-500">
+              Sin imagen
+            </div>
+          )}
+        </div>
+      </div>
+
+      <EditProductForm
+        product={{
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          sku: product.sku,
+          category_id: product.category_id,
+          image_url: product.image_url,
+          active: product.active,
+        }}
+        categories={categories}
+      />
+
+      <EditInventoryByCampus
+        productId={product.id}
+        productName={product.name}
+        rows={inventoryForEditor}
+        isSuperAdmin={isSuperAdmin}
+        userCampusId={userCampusId}
+      />
+
+      <div className={`grid gap-6 ${isSuperAdmin ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
+        <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-5">
+          <h2 className="mb-4 text-sm font-semibold text-white">
+            Inventario actual por campus
+          </h2>
+
+          {inventoryRows.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              Este producto aún no está asignado a ningún campus.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {inventoryRows.map((row: any) => {
+                const campusRaw = row.campus
+                const campusName = Array.isArray(campusRaw)
+                  ? campusRaw[0]?.name
+                  : campusRaw?.name
+
+                return (
+                  <div
+                    key={row.id}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {campusName || 'Campus sin nombre'}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Alerta stock bajo: {row.low_stock_alert ?? 5}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+                          Number(row.stock ?? 0) === 0
+                            ? 'bg-red-500/10 text-red-300'
+                            : Number(row.stock ?? 0) <= Number(row.low_stock_alert ?? 5)
+                              ? 'bg-orange-500/10 text-orange-300'
+                              : 'bg-green-500/10 text-green-300'
+                        }`}
+                      >
+                        Stock: {row.stock ?? 0}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      <div className="rounded-lg bg-zinc-900 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                          Última actualización inventario
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-300">
+                          {formatDateTime(row.updated_at)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-zinc-900 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                          Campus
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-300">
+                          {campusName || '—'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {isSuperAdmin && (
+          <AssignCampusForm
+            productId={product.id}
+            productName={product.name}
+            campuses={campuses}
+          />
         )}
       </div>
     </div>
