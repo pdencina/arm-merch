@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
+import SendReceipt from '@/components/orders/send-receipt'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-CL', {
@@ -61,7 +62,7 @@ export default async function OrderDetailPage({
     notFound()
   }
 
-  // 🧾 Items + campus
+  // 📦 Items + campus
   const [{ data: items }, { data: campuses }] = await Promise.all([
     supabase
       .from('order_items')
@@ -227,6 +228,16 @@ export default async function OrderDetailPage({
           <p className="text-zinc-300">{order.notes}</p>
         </div>
       )}
+
+      {/* 📧 ENVÍO DE COMPROBANTE */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <h2 className="text-lg font-semibold text-white mb-3">
+          Enviar comprobante
+        </h2>
+
+        <SendReceipt orderId={order.id} />
+      </div>
+
     </div>
   )
 }
