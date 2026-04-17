@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Loader2, Receipt, Mail, User } from 'lucide-react'
+import { X, Loader2, Receipt, Mail, User, CreditCard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/lib/hooks/use-cart'
 import { toast } from 'sonner'
 import ConfirmActionModal from '@/components/ui/confirm-action-modal'
+import SaleSuccessModal from '@/components/pos/sale-success-modal'
 
 interface Props {
   clientName: string
@@ -41,6 +42,18 @@ export default function CheckoutModal({
   const [loading, setLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
+  const [successOpen, setSuccessOpen] = useState(false)
+  const [createdOrderId, setCreatedOrderId] = useState('')
+  const [createdOrderNumber, setCreatedOrderNumber] = useState<number | string>('')
+  const [createdOrderTotal, setCreatedOrderTotal] = useState(0)
+
+  const [sumupPendingOpen, setSumupPendingOpen] = useState(false)
+
+  const isCardPayment =
+    paymentMethod === 'debito' ||
+    paymentMethod === 'credito' ||
+    paymentMethod === 'card'
+
   const canConfirm =
     items.length > 0 &&
     clientName.trim().length > 0 &&
@@ -68,6 +81,14 @@ export default function CheckoutModal({
         .eq('id', session.user.id)
         .single()
 
+      const finalTotal = total()
+
+      // Por ahora solo mostramos aviso visual si el pago es tarjeta.
+      // La confirmación real por SumUp aún no está conectada al cierre.
+      if (isCardPayment) {
+        setSumupPendingOpen(true)
+      }
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {
@@ -92,23 +113,33 @@ export default function CheckoutModal({
       const data = await res.json()
 
       if (!res.ok) {
+        setSumupPendingOpen(false)
         toast.error(data.error ?? 'No se pudo registrar la venta')
         setLoading(false)
         return
       }
 
-      toast.success(`Venta registrada correctamente (#${data.order_number})`)
-      clearCart()
-      onNewSale()
-      setLoading(false)
+      setCreatedOrderId(data.order_id)
+      setCreatedOrderNumber(data.order_number)
+      setCreatedOrderTotal(finalTotal)
 
-      setTimeout(() => {
-        window.location.href = `/orders/${data.order_id}/print`
-      }, 700)
+      clearCart()
+      setSumupPendingOpen(false)
+      onClose()
+      setSuccessOpen(true)
+
+      toast.success(`Venta registrada correctamente (#${data.order_number})`)
+      setLoading(false)
     } catch (error: any) {
+      setSumupPendingOpen(false)
       toast.error(error?.message ?? 'Error inesperado al registrar la venta')
       setLoading(false)
     }
+  }
+
+  function handleNewSale() {
+    setSuccessOpen(false)
+    onNewSale()
   }
 
   return (
@@ -252,7 +283,7 @@ export default function CheckoutModal({
       <ConfirmActionModal
         open={confirmOpen}
         title="¿Confirmar esta venta?"
-        description="Se registrará la venta, se descontará el stock, se enviará el comprobante al cliente y se abrirá el voucher para impresión."
+        description="Se registrará la venta, se descontará el stock, se enviará el comprobante al cliente y quedará listo el voucher para impresión."
         confirmText="Sí, confirmar venta"
         cancelText="Revisar otra vez"
         loading={loading}
@@ -260,6 +291,39 @@ export default function CheckoutModal({
         onCancel={() => setConfirmOpen(false)}
         onConfirm={handleConfirmSale}
       />
+
+      <SaleSuccessModal
+        open={successOpen}
+        orderId={createdOrderId}
+        orderNumber={createdOrderNumber}
+        total={createdOrderTotal}
+        clientName={clientName}
+        clientEmail={clientEmail}
+        onNewSale={handleNewSale}
+      />
+
+      {sumupPendingOpen && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-zinc-700 bg-zinc-950 p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
+              <CreditCard size={30} className="text-blue-400" />
+            </div>
+
+            <h3 className="text-xl font-bold text-white">
+              Esperando confirmación del POS
+            </h3>
+
+            <p className="mt-2 text-sm text-zinc-400">
+              Estamos procesando el pago con tarjeta. En la siguiente fase este paso quedará conectado directamente con SumUp Solo.
+            </p>
+
+            <div className="mt-5 flex items-center justify-center gap-2 text-blue-400">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-sm font-medium">Procesando transacción...</span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
