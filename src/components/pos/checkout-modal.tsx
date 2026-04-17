@@ -9,7 +9,6 @@ import ConfirmActionModal from '@/components/ui/confirm-action-modal'
 import SaleSuccessModal from '@/components/pos/sale-success-modal'
 
 interface Props {
-  open: boolean
   clientName: string
   clientEmail?: string
   onClose: () => void
@@ -24,7 +23,6 @@ const fmt = (n: number) =>
   }).format(n)
 
 export default function CheckoutModal({
-  open,
   clientName,
   clientEmail,
   onClose,
@@ -61,49 +59,6 @@ export default function CheckoutModal({
     items.length > 0 &&
     clientName.trim().length > 0 &&
     paymentMethod
-
-  if (!open) {
-    return (
-      <>
-        <SaleSuccessModal
-          open={successOpen}
-          orderId={createdOrderId}
-          orderNumber={createdOrderNumber}
-          total={createdOrderTotal}
-          clientName={clientName}
-          clientEmail={clientEmail}
-          emailSent={emailSent}
-          onNewSale={() => {
-            setSuccessOpen(false)
-            onNewSale()
-          }}
-        />
-
-        {sumupPendingOpen && (
-          <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-3xl border border-zinc-700 bg-zinc-950 p-6 text-center shadow-2xl">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
-                <CreditCard size={30} className="text-blue-400" />
-              </div>
-
-              <h3 className="text-xl font-bold text-white">
-                Esperando confirmación del POS
-              </h3>
-
-              <p className="mt-2 text-sm text-zinc-400">
-                Estamos procesando el pago con tarjeta. En la siguiente fase este paso quedará conectado directamente con SumUp Solo.
-              </p>
-
-              <div className="mt-5 flex items-center justify-center gap-2 text-blue-400">
-                <Loader2 size={18} className="animate-spin" />
-                <span className="text-sm font-medium">Procesando transacción...</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
-    )
-  }
 
   async function handleConfirmSale() {
     setConfirmOpen(false)
