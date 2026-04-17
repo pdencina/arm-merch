@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(
+  _req: Request,
+  { params }: { params: { readerId: string } }
+) {
   try {
     const apiKey = process.env.SUMUP_API_KEY
     const merchantCode = process.env.SUMUP_MERCHANT_CODE
@@ -12,8 +15,17 @@ export async function GET() {
       )
     }
 
+    const readerId = params.readerId
+
+    if (!readerId) {
+      return NextResponse.json(
+        { error: 'Falta readerId' },
+        { status: 400 }
+      )
+    }
+
     const res = await fetch(
-      `https://api.sumup.com/v0.1/merchants/${merchantCode}/readers`,
+      `https://api.sumup.com/v0.1/merchants/${merchantCode}/readers/${readerId}`,
       {
         method: 'GET',
         headers: {
@@ -29,7 +41,7 @@ export async function GET() {
     if (!res.ok) {
       return NextResponse.json(
         {
-          error: 'Error obteniendo readers de SumUp',
+          error: 'Error obteniendo estado del reader',
           detail: data,
         },
         { status: res.status }
@@ -38,12 +50,12 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      readers: data,
+      reader: data,
     })
   } catch (error: any) {
     return NextResponse.json(
       {
-        error: error?.message ?? 'Error interno al consultar readers',
+        error: error?.message ?? 'Error interno consultando reader',
       },
       { status: 500 }
     )
