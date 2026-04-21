@@ -64,7 +64,7 @@ export default function Cart() {
     if (!clientName.trim()) {
       setModalType('error')
       setModalTitle('Falta el nombre del cliente')
-      setModalDesc('Ingresa el nombre del cliente para continuar.')
+      setModalDesc('Ingresa el nombre del cliente.')
       setModalOpen(true)
       return
     }
@@ -72,258 +72,173 @@ export default function Cart() {
     try {
       setModalType('loading')
       setModalTitle('Procesando venta...')
-      setModalDesc('Estamos registrando la venta y validando la operación.')
+      setModalDesc('Registrando la venta...')
       setModalOpen(true)
 
       const {
         data: { session },
-        error: sessionError,
       } = await supabase.auth.getSession()
 
-      if (sessionError || !session?.access_token) {
-        setModalType('error')
-        setModalTitle('Sesión expirada')
-        setModalDesc('Debes iniciar sesión nuevamente para registrar ventas.')
-        return
-      }
-
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('campus_id')
-        .eq('id', session.user.id)
+        .eq('id', session?.user.id)
         .single()
-
-      if (profileError) {
-        setModalType('error')
-        setModalTitle('No se pudo cargar tu perfil')
-        setModalDesc(profileError.message || 'Intenta nuevamente.')
-        return
-      }
 
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({
-          campus_id: profile?.campus_id ?? null,
+          campus_id: profile?.campus_id,
           items: items.map((i) => ({
             product_id: i.product.id,
             quantity: i.quantity,
             unit_price: i.product.price,
           })),
-          client_name: clientName.trim(),
-          client_email: clientEmail.trim() || null,
+          client_name: clientName,
+          client_email: clientEmail || null,
           payment_method: paymentMethod,
           discount: 0,
-          notes: null,
         }),
       })
 
-      const data = await res.json().catch(() => null)
+      const data = await res.json()
 
       if (!res.ok) {
-        console.error('POST /api/orders error:', data)
-        setModalType('error')
-        setModalTitle('Error en la venta')
-        setModalDesc(
-          data?.error ||
-            data?.message ||
-            'No se pudo registrar la venta. Intenta nuevamente.'
-        )
-        return
+        throw new Error(data?.error || 'Error en la venta')
       }
 
       setModalType('success')
       setModalTitle('Venta completada')
-      setModalDesc(
-        data?.email_sent
-          ? 'La venta se registró y el voucher fue enviado correctamente.'
-          : 'La venta se registró correctamente.'
-      )
+      setModalDesc('Venta registrada correctamente')
 
       clearCart()
       setClientName('')
       setClientEmail('')
     } catch (error: any) {
-      console.error('Cart handleConfirmSale error:', error)
       setModalType('error')
       setModalTitle('Error en la venta')
-      setModalDesc(
-        error?.message || 'Ocurrió un error inesperado. Intenta nuevamente.'
-      )
+      setModalDesc(error.message)
     }
   }
 
   return (
     <aside className="flex h-full flex-col bg-zinc-950">
-      <div className="border-b border-zinc-800 px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-200/10 ring-1 ring-slate-300/15">
-            <ShoppingCart size={18} className="text-slate-300" />
-          </div>
 
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold tracking-tight text-white sm:text-xl">
-              Carrito
-            </h2>
-            <p className="text-sm text-zinc-500">
-              {itemCount()} item{itemCount() === 1 ? '' : 's'} en la venta
-            </p>
-          </div>
+      {/* HEADER */}
+      <div className="border-b border-zinc-800 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <ShoppingCart size={18} className="text-slate-300" />
+          <h2 className="text-lg font-bold text-white">Carrito</h2>
         </div>
+        <p className="text-xs text-zinc-500 mt-1">
+          {itemCount()} productos
+        </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 px-4 py-4">
+      {/* ITEMS SCROLL */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {items.length === 0 ? (
-          <div className="mt-2 rounded-3xl border border-dashed border-zinc-800 bg-zinc-900/30 p-5 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900">
-              <ShoppingCart size={22} className="text-zinc-600" />
-            </div>
-            <p className="mt-3 text-sm font-semibold text-zinc-300">
-              Carrito vacío
-            </p>
-            <p className="mt-1 text-xs leading-6 text-zinc-500 sm:text-sm">
-              Agrega productos desde la grilla para comenzar una venta.
-            </p>
-          </div>
+          <p className="text-center text-zinc-500 text-sm mt-4">
+            Carrito vacío
+          </p>
         ) : (
           items.map((item) => (
             <div
               key={item.product.id}
-              className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3"
+              className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">
-                    {item.product.name}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-slate-300">
-                    {fmt(item.product.price)} c/u
-                  </p>
-                </div>
-
+              <div className="flex justify-between">
+                <p className="text-sm font-semibold text-white">
+                  {item.product.name}
+                </p>
                 <button
                   onClick={() => removeItem(item.product.id)}
-                  className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-800 hover:text-red-400"
-                  aria-label="Quitar producto"
+                  className="text-zinc-500 hover:text-red-400"
                 >
-                  <Trash2 size={15} />
+                  <Trash2 size={14} />
                 </button>
               </div>
 
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 rounded-xl bg-zinc-950 px-2 py-2">
+              <div className="flex justify-between items-center mt-2">
+                <div className="flex gap-2 items-center">
                   <button
                     onClick={() =>
                       updateQuantity(item.product.id, item.quantity - 1)
                     }
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-base font-bold text-white transition hover:bg-zinc-700"
+                    className="px-2 bg-zinc-800 rounded"
                   >
-                    −
+                    -
                   </button>
-
-                  <span className="w-7 text-center text-sm font-bold text-white">
-                    {item.quantity}
-                  </span>
-
+                  <span className="text-white">{item.quantity}</span>
                   <button
                     onClick={() =>
                       updateQuantity(item.product.id, item.quantity + 1)
                     }
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-base font-bold text-white transition hover:bg-zinc-700"
+                    className="px-2 bg-zinc-800 rounded"
                   >
                     +
                   </button>
                 </div>
 
-                <p className="text-sm font-bold text-white sm:text-base">
+                <span className="text-sm font-bold text-white">
                   {fmt(item.product.price * item.quantity)}
-                </p>
+                </span>
               </div>
             </div>
           ))
         )}
       </div>
 
-      <div className="space-y-4 border-t border-zinc-800 bg-zinc-950/95 px-4 py-4">
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              <User size={12} />
-              Nombre del cliente
-            </span>
-            <input
-              placeholder="Ej: Pablo Encina"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              className="w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-slate-400 sm:text-base"
-            />
-          </label>
+      {/* FOOTER FIJO */}
+      <div className="sticky bottom-0 border-t border-zinc-800 bg-zinc-950 px-4 py-4 space-y-3">
 
-          <label className="block">
-            <span className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              <Mail size={12} />
-              Email voucher por correo
-            </span>
-            <input
-              placeholder="cliente@email.com"
-              value={clientEmail}
-              onChange={(e) => setClientEmail(e.target.value)}
-              className="w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-slate-400 sm:text-base"
-            />
-          </label>
+        <input
+          placeholder="Nombre cliente"
+          value={clientName}
+          onChange={(e) => setClientName(e.target.value)}
+          className="w-full p-2 rounded bg-zinc-900 border border-zinc-700 text-white text-sm"
+        />
+
+        <input
+          placeholder="Email"
+          value={clientEmail}
+          onChange={(e) => setClientEmail(e.target.value)}
+          className="w-full p-2 rounded bg-zinc-900 border border-zinc-700 text-white text-sm"
+        />
+
+        {/* MÉTODO PAGO */}
+        <div className="grid grid-cols-2 gap-2">
+          {paymentOptions.map((p) => {
+            const Icon = p.icon
+            return (
+              <button
+                key={p.key}
+                onClick={() => setPaymentMethod(p.key)}
+                className={`p-2 rounded text-xs ${
+                  paymentMethod === p.key
+                    ? 'bg-slate-200 text-black'
+                    : 'bg-zinc-800 text-zinc-300'
+                }`}
+              >
+                <Icon size={14} />
+                {p.label}
+              </button>
+            )
+          })}
         </div>
 
-        <div>
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-            Método de pago
-          </p>
-
-          <div className="grid grid-cols-2 gap-2">
-            {paymentOptions.map((option) => {
-              const Icon = option.icon
-              const active = paymentMethod === option.key
-
-              return (
-                <button
-                  key={option.key}
-                  onClick={() => setPaymentMethod(option.key)}
-                  className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-bold transition sm:text-sm ${
-                    active
-                      ? 'border-slate-300 bg-slate-200 text-black'
-                      : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800'
-                  }`}
-                >
-                  <Icon size={14} />
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-          <div className="flex items-center justify-between text-sm text-zinc-400">
-            <span>Subtotal</span>
-            <span>{fmt(subtotal())}</span>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-sm font-semibold text-white sm:text-base">
-              Total a cobrar
-            </span>
-            <span className="text-xl font-black tracking-tight text-white sm:text-2xl">
-              {fmt(total())}
-            </span>
-          </div>
+        <div className="flex justify-between text-sm text-zinc-400">
+          <span>Total</span>
+          <span className="text-white font-bold">{fmt(total())}</span>
         </div>
 
         <button
           onClick={handleConfirmSale}
-          disabled={items.length === 0}
-          className="w-full rounded-2xl bg-slate-200 py-3 text-sm font-black text-black transition hover:bg-slate-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+          className="w-full bg-slate-200 text-black py-3 rounded-xl font-bold"
         >
           Confirmar venta
         </button>
