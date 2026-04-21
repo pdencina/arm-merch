@@ -25,6 +25,7 @@ type ProductRow = {
   low_stock_alert?: number
   updated_by?: string | null
   campus_id?: string | null
+  campus_name?: string | null
   low_stock?: boolean
   category?: {
     id: string
@@ -32,9 +33,15 @@ type ProductRow = {
   } | null
 }
 
+type CampusOption = {
+  id: string
+  name: string
+}
+
 export default function InventoryPage() {
   const [products, setProducts] = useState<ProductRow[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [campuses, setCampuses] = useState<CampusOption[]>([])
   const [userRole, setUserRole] = useState('')
   const [campusId, setCampusId] = useState<string | null>(null)
   const [campusName, setCampusName] = useState<string | null>(null)
@@ -54,6 +61,10 @@ export default function InventoryPage() {
         updated_at,
         updated_by,
         campus_id,
+        campus:campus(
+          id,
+          name
+        ),
         product:products(
           id,
           name,
@@ -79,6 +90,7 @@ export default function InventoryPage() {
 
     if (role !== 'super_admin' && !currentCampusId) {
       setProducts([])
+      setCampuses([])
       return
     }
 
@@ -87,6 +99,7 @@ export default function InventoryPage() {
     if (error) {
       setError(error.message)
       setProducts([])
+      setCampuses([])
       return
     }
 
@@ -109,7 +122,10 @@ export default function InventoryPage() {
         low_stock_alert: row.low_stock_alert ?? 5,
         updated_by: row.updated_by,
         campus_id: row.campus_id,
-        low_stock: (row.stock ?? 0) > 0 && (row.stock ?? 0) <= (row.low_stock_alert ?? 5),
+        campus_name: row.campus?.name ?? '—',
+        low_stock:
+          (row.stock ?? 0) > 0 &&
+          (row.stock ?? 0) <= (row.low_stock_alert ?? 5),
         category: product.category
           ? {
               id: product.category.id,
@@ -119,7 +135,16 @@ export default function InventoryPage() {
       }
     })
 
+    const mappedCampuses: CampusOption[] = Array.from(
+      new Map(
+        (data ?? [])
+          .filter((row: any) => row.campus?.id && row.campus?.name)
+          .map((row: any) => [row.campus.id, { id: row.campus.id, name: row.campus.name }])
+      ).values()
+    )
+
     setProducts(mapped)
+    setCampuses(mappedCampuses)
   }, [])
 
   useEffect(() => {
@@ -216,6 +241,7 @@ export default function InventoryPage() {
     <InventoryClient
       initialProducts={products}
       categories={categories}
+      campuses={campuses}
       userRole={userRole}
       userCampusId={campusId}
       userCampusName={campusName}
