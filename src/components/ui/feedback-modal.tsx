@@ -98,19 +98,19 @@ export default function FeedbackModal({
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+            className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-[#252A31] bg-[#14171B] shadow-2xl"
             initial={{ scale: 0.94, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 12 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-300 via-slate-200 to-slate-400" />
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#9DB2FF] via-[#B7C6F9] to-[#8FA8FF]" />
 
             <div className="px-7 pb-7 pt-8">
               <div className="mb-5 flex justify-center">
                 {isLoading && (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-300/10 ring-1 ring-slate-300/20">
-                    <Loader2 size={40} className="animate-spin text-slate-300" />
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#1B2028] ring-1 ring-[#2C3440]">
+                    <Loader2 size={40} className="animate-spin text-[#B7C6F9]" />
                   </div>
                 )}
 
@@ -127,12 +127,12 @@ export default function FeedbackModal({
                 )}
               </div>
 
-              <h2 className="text-center text-4xl font-black tracking-tight text-white">
+              <h2 className="text-center text-4xl font-black tracking-tight text-[#F3F5F7]">
                 {title}
               </h2>
 
               {description && (
-                <p className="mx-auto mt-4 max-w-md text-center text-xl leading-8 text-zinc-400">
+                <p className="mx-auto mt-4 max-w-md text-center text-xl leading-8 text-[#A1A8B3]">
                   {description}
                 </p>
               )}
@@ -140,7 +140,7 @@ export default function FeedbackModal({
               {!isLoading && onClose && (
                 <button
                   onClick={onClose}
-                  className="mt-7 w-full rounded-2xl bg-slate-200 py-4 text-xl font-black text-black transition hover:bg-slate-300 active:scale-[0.99]"
+                  className="mt-7 w-full rounded-2xl bg-[#B7C6F9] py-4 text-xl font-black text-[#111318] transition hover:bg-[#C7D2FE] active:scale-[0.99]"
                 >
                   Continuar
                 </button>

@@ -17,11 +17,11 @@ import {
 } from 'lucide-react'
 
 const CAMPUS_COLORS: Record<string, string> = {
-  'ARM Santiago': 'bg-slate-400/10 text-slate-300',
-  'ARM Puente Alto': 'bg-slate-400/10 text-slate-300',
-  'ARM Punta Arenas': 'bg-slate-400/10 text-slate-300',
-  'ARM Montevideo': 'bg-slate-400/10 text-slate-300',
-  'ARM Maracaibo': 'bg-slate-400/10 text-slate-300',
+  'ARM Santiago': 'bg-[#1B2028] text-[#B7C6F9]',
+  'ARM Puente Alto': 'bg-[#1B2028] text-[#B7C6F9]',
+  'ARM Punta Arenas': 'bg-[#1B2028] text-[#B7C6F9]',
+  'ARM Montevideo': 'bg-[#1B2028] text-[#B7C6F9]',
+  'ARM Maracaibo': 'bg-[#1B2028] text-[#B7C6F9]',
 }
 
 interface Notification {
@@ -217,33 +217,33 @@ export default function Navbar({
 
   const campusName = user?.campus?.name ?? null
   const campusStyle = campusName
-    ? CAMPUS_COLORS[campusName] ?? 'bg-zinc-700/50 text-zinc-400'
+    ? CAMPUS_COLORS[campusName] ?? 'bg-[#1B2028] text-[#B7C6F9]'
     : null
 
   const NOTIF_ICON: Record<string, any> = {
     out_stock: <TrendingDown size={13} className="text-red-400" />,
     low_stock: <AlertTriangle size={13} className="text-orange-400" />,
-    transfer: <Package size={13} className="text-slate-300" />,
+    transfer: <Package size={13} className="text-[#B7C6F9]" />,
   }
 
   return (
     <>
-      <header className="flex items-center justify-between gap-3 border-b border-zinc-800/60 bg-zinc-950 px-3 py-3 shrink-0 sm:px-4 lg:px-5">
+      <header className="flex items-center justify-between gap-3 border-b border-[#222831] bg-[#0F1216] px-3 py-3 shrink-0 sm:px-4 lg:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             onClick={onOpenSidebar}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-zinc-300 transition hover:bg-zinc-800 hover:text-slate-300 lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#161A20] text-[#A1A8B3] transition hover:bg-[#1D232B] hover:text-[#B7C6F9] lg:hidden"
           >
             <Menu size={18} />
           </button>
 
           <button
             onClick={() => setSearchOpen(true)}
-            className="flex h-10 items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-800/60 px-3 text-xs text-zinc-500 transition hover:bg-zinc-800 sm:w-56"
+            className="flex h-10 items-center gap-2 rounded-xl border border-[#252A31] bg-[#161A20] px-3 text-xs text-[#7F8896] transition hover:bg-[#1B2028] sm:w-56"
           >
             <Search size={13} />
             <span className="truncate">Buscar...</span>
-            <span className="ml-auto hidden rounded bg-zinc-700 px-1.5 py-0.5 font-mono text-[9px] text-zinc-500 sm:block">
+            <span className="ml-auto hidden rounded bg-[#252A31] px-1.5 py-0.5 font-mono text-[9px] text-[#7F8896] sm:block">
               ⌘K
             </span>
           </button>
@@ -253,7 +253,7 @@ export default function Navbar({
           <button
             onClick={toggleTheme}
             title={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-slate-300"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#161A20] text-[#A1A8B3] transition hover:bg-[#1D232B] hover:text-[#B7C6F9]"
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
@@ -264,7 +264,7 @@ export default function Navbar({
                 setNotifOpen((o) => !o)
                 setUnread(0)
               }}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-[#161A20] text-[#A1A8B3] transition hover:bg-[#1D232B] hover:text-white"
             >
               <Bell size={15} />
               {unread > 0 && (
@@ -275,17 +275,17 @@ export default function Navbar({
             </button>
 
             {notifOpen && (
-              <div className="absolute right-0 top-12 z-50 w-[300px] max-w-[85vw] overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-                  <span className="text-sm font-semibold text-white">Notificaciones</span>
-                  <span className="text-xs text-zinc-500">{notifs.length} alertas</span>
+              <div className="absolute right-0 top-12 z-50 w-[300px] max-w-[85vw] overflow-hidden rounded-2xl border border-[#252A31] bg-[#14171B] shadow-2xl">
+                <div className="flex items-center justify-between border-b border-[#222831] px-4 py-3">
+                  <span className="text-sm font-semibold text-[#F3F5F7]">Notificaciones</span>
+                  <span className="text-xs text-[#7F8896]">{notifs.length} alertas</span>
                 </div>
 
                 <div className="max-h-80 overflow-y-auto">
                   {notifs.length === 0 ? (
                     <div className="py-8 text-center">
-                      <Bell size={24} className="mx-auto mb-2 text-zinc-700" />
-                      <p className="text-xs text-zinc-600">Todo en orden</p>
+                      <Bell size={24} className="mx-auto mb-2 text-[#3A414D]" />
+                      <p className="text-xs text-[#66707F]">Todo en orden</p>
                     </div>
                   ) : (
                     notifs.map((n) => (
@@ -295,7 +295,7 @@ export default function Navbar({
                           router.push('/inventory')
                           setNotifOpen(false)
                         }}
-                        className="flex w-full items-start gap-3 border-b border-zinc-800/50 px-4 py-3 text-left transition hover:bg-zinc-800 last:border-0"
+                        className="flex w-full items-start gap-3 border-b border-[#222831]/70 px-4 py-3 text-left transition hover:bg-[#1A1E23] last:border-0"
                       >
                         <div
                           className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
@@ -303,17 +303,17 @@ export default function Navbar({
                               ? 'bg-red-500/10'
                               : n.type === 'low_stock'
                               ? 'bg-orange-500/10'
-                              : 'bg-slate-400/10'
+                              : 'bg-[#1B2028]'
                           }`}
                         >
                           {NOTIF_ICON[n.type]}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-zinc-200">
+                          <p className="truncate text-xs font-medium text-[#E6EAF0]">
                             {n.title}
                           </p>
-                          <p className="mt-0.5 text-[10px] text-zinc-500">{n.desc}</p>
+                          <p className="mt-0.5 text-[10px] text-[#7F8896]">{n.desc}</p>
                         </div>
                       </button>
                     ))
@@ -321,13 +321,13 @@ export default function Navbar({
                 </div>
 
                 {notifs.length > 0 && (
-                  <div className="border-t border-zinc-800 px-4 py-2.5">
+                  <div className="border-t border-[#222831] px-4 py-2.5">
                     <button
                       onClick={() => {
                         router.push('/inventory')
                         setNotifOpen(false)
                       }}
-                      className="text-xs text-slate-300 transition hover:text-white"
+                      className="text-xs text-[#B7C6F9] transition hover:text-white"
                     >
                       Ver inventario →
                     </button>
@@ -339,7 +339,7 @@ export default function Navbar({
 
           <div className="ml-1 flex items-center gap-2.5">
             <div className="hidden text-right sm:block">
-              <p className="text-xs font-medium leading-none text-white">
+              <p className="text-xs font-medium leading-none text-[#F3F5F7]">
                 {user?.full_name ?? '—'}
               </p>
               <div className="mt-0.5 flex items-center justify-end gap-1">
@@ -348,20 +348,20 @@ export default function Navbar({
                     {campusName}
                   </span>
                 )}
-                <p className="text-[10px] capitalize text-zinc-500">
+                <p className="text-[10px] capitalize text-[#7F8896]">
                   {user?.role?.replace('_', ' ')}
                 </p>
               </div>
             </div>
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-300/20 bg-slate-200/10">
-              <span className="text-xs font-bold text-slate-300">{initials}</span>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#2C3440] bg-[#1B2028]">
+              <span className="text-xs font-bold text-[#B7C6F9]">{initials}</span>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#161A20] text-[#7F8896] transition hover:bg-red-500/10 hover:text-red-400"
           >
             <LogOut size={15} />
           </button>
@@ -375,19 +375,19 @@ export default function Navbar({
             if (e.target === e.currentTarget) setSearchOpen(false)
           }}
         >
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-            <div className="flex items-center gap-3 border-b border-zinc-800 px-4 py-3.5">
-              <Search size={16} className="shrink-0 text-zinc-500" />
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#252A31] bg-[#14171B] shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-[#222831] px-4 py-3.5">
+              <Search size={16} className="shrink-0 text-[#7F8896]" />
               <input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar productos, órdenes, clientes..."
-                className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+                className="flex-1 bg-transparent text-sm text-[#F3F5F7] placeholder-[#7F8896] outline-none"
               />
               <button
                 onClick={() => setSearchOpen(false)}
-                className="text-zinc-600 transition hover:text-zinc-400"
+                className="text-[#66707F] transition hover:text-[#A1A8B3]"
               >
                 <X size={16} />
               </button>
@@ -403,32 +403,26 @@ export default function Navbar({
                       setSearchOpen(false)
                       setQuery('')
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-zinc-800"
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-[#1A1E23]"
                   >
-                    <div
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs ${
-                        r.type === 'product'
-                          ? 'bg-slate-400/10 text-slate-300'
-                          : 'bg-slate-400/10 text-slate-300'
-                      }`}
-                    >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#1B2028] text-xs text-[#B7C6F9]">
                       {r.type === 'product' ? '📦' : '🧾'}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-zinc-200">{r.label}</p>
-                      <p className="truncate text-xs text-zinc-500">{r.sub}</p>
+                      <p className="truncate text-sm font-medium text-[#E6EAF0]">{r.label}</p>
+                      <p className="truncate text-xs text-[#7F8896]">{r.sub}</p>
                     </div>
                   </button>
                 ))}
               </div>
             ) : query.trim() ? (
-              <div className="py-8 text-center text-sm text-zinc-600">
+              <div className="py-8 text-center text-sm text-[#66707F]">
                 Sin resultados para "{query}"
               </div>
             ) : (
               <div className="px-4 py-6">
-                <p className="mb-3 text-xs text-zinc-600">Accesos rápidos</p>
+                <p className="mb-3 text-xs text-[#66707F]">Accesos rápidos</p>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { label: 'Punto de Venta', href: '/pos' },
@@ -443,7 +437,7 @@ export default function Navbar({
                         router.push(l.href)
                         setSearchOpen(false)
                       }}
-                      className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-700"
+                      className="rounded-lg bg-[#1B2028] px-3 py-1.5 text-xs text-[#A1A8B3] transition hover:bg-[#232A34] hover:text-white"
                     >
                       {l.label}
                     </button>

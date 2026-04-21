@@ -58,17 +58,17 @@ const ROLE_CONFIG: Record<
   super_admin: {
     label: 'Super Admin',
     description: 'Acceso global · Todos los campus',
-    color: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
+    color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]',
   },
   admin: {
     label: 'Admin Campus',
     description: 'Pastor · Gestión de sede',
-    color: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
+    color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]',
   },
   voluntario: {
     label: 'Voluntario',
     description: 'Ventas y punto de venta',
-    color: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
+    color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]',
   },
 }
 
@@ -89,21 +89,21 @@ export default function Sidebar({
   const config = ROLE_CONFIG[role] ?? ROLE_CONFIG.voluntario
 
   return (
-    <aside className="flex h-full w-[280px] shrink-0 flex-col overflow-y-auto border-r border-zinc-800/60 bg-zinc-950 px-3 py-5 lg:w-56">
+    <aside className="flex h-full w-[280px] shrink-0 flex-col overflow-y-auto border-r border-[#222831] bg-[#0F1216] px-3 py-5 lg:w-56">
       <div className="mb-5 flex items-center justify-between gap-3 px-2">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200">
-            <span className="text-xs font-black text-black">A</span>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E8EEF8]">
+            <span className="text-xs font-black text-[#111318]">A</span>
           </div>
           <div>
-            <p className="text-sm font-bold leading-none text-white">ARM Merch</p>
-            <p className="mt-0.5 text-[10px] text-zinc-600">Sistema de Merch</p>
+            <p className="text-sm font-bold leading-none text-[#F3F5F7]">ARM Merch</p>
+            <p className="mt-0.5 text-[10px] text-[#66707F]">Sistema de Merch</p>
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-zinc-400 transition hover:bg-zinc-800 hover:text-white lg:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#161A20] text-[#8D97A5] transition hover:bg-[#1D232B] hover:text-white lg:hidden"
         >
           <X size={16} />
         </button>
@@ -123,7 +123,7 @@ export default function Sidebar({
           return (
             <div key={section} className="mb-2">
               {section && (
-                <p className="mb-2 mt-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                <p className="mb-2 mt-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-[#66707F]">
                   {section}
                 </p>
               )}
@@ -141,8 +141,8 @@ export default function Sidebar({
                     className={clsx(
                       'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
                       active
-                        ? 'bg-slate-200/10 font-semibold text-slate-300'
-                        : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-white'
+                        ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
+                        : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
                     )}
                   >
                     {item.icon}
