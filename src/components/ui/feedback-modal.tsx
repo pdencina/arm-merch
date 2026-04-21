@@ -98,7 +98,7 @@ export default function FeedbackModal({
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+            className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl"
             initial={{ scale: 0.94, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 12 }}
@@ -106,43 +106,33 @@ export default function FeedbackModal({
           >
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500" />
 
-            <div className="px-6 pb-6 pt-7">
+            <div className="px-7 pb-7 pt-8">
               <div className="mb-5 flex justify-center">
                 {isLoading && (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/10 ring-1 ring-amber-500/20">
-                    <Loader2 size={34} className="animate-spin text-amber-400" />
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-amber-500/10 ring-1 ring-amber-500/20">
+                    <Loader2 size={40} className="animate-spin text-amber-400" />
                   </div>
                 )}
 
                 {isSuccess && (
-                  <motion.div
-                    className="flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10 ring-1 ring-green-500/20"
-                    initial={{ scale: 0.8, rotate: -8 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-                  >
-                    <CheckCircle2 size={38} className="text-green-400" />
-                  </motion.div>
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-green-500/10 ring-1 ring-green-500/20">
+                    <CheckCircle2 size={44} className="text-green-400" />
+                  </div>
                 )}
 
                 {isError && (
-                  <motion.div
-                    className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10 ring-1 ring-red-500/20"
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
-                  >
-                    <AlertTriangle size={38} className="text-red-400" />
-                  </motion.div>
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-red-500/10 ring-1 ring-red-500/20">
+                    <AlertTriangle size={44} className="text-red-400" />
+                  </div>
                 )}
               </div>
 
-              <h2 className="text-center text-2xl font-bold tracking-tight text-white">
+              <h2 className="text-center text-4xl font-black tracking-tight text-white">
                 {title}
               </h2>
 
               {description && (
-                <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-6 text-zinc-400">
+                <p className="mx-auto mt-4 max-w-md text-center text-xl leading-8 text-zinc-400">
                   {description}
                 </p>
               )}
@@ -150,7 +140,7 @@ export default function FeedbackModal({
               {!isLoading && onClose && (
                 <button
                   onClick={onClose}
-                  className="mt-6 w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 active:scale-[0.99]"
+                  className="mt-7 w-full rounded-2xl bg-amber-500 py-4 text-xl font-black text-black transition hover:bg-amber-400 active:scale-[0.99]"
                 >
                   Continuar
                 </button>
