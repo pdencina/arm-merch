@@ -160,12 +160,12 @@ export default function Cart() {
     <aside className="flex h-full flex-col bg-zinc-950">
       <div className="border-b border-zinc-800 px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
-            <ShoppingCart size={20} className="text-amber-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+            <ShoppingCart size={18} className="text-amber-400" />
           </div>
 
           <div className="min-w-0">
-            <h2 className="text-xl font-bold tracking-tight text-white">
+            <h2 className="text-lg font-bold tracking-tight text-white sm:text-xl">
               Carrito
             </h2>
             <p className="text-sm text-zinc-500">
@@ -177,14 +177,14 @@ export default function Cart() {
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {items.length === 0 ? (
-          <div className="mt-4 rounded-3xl border border-dashed border-zinc-800 bg-zinc-900/30 p-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-zinc-900">
-              <ShoppingCart size={24} className="text-zinc-600" />
+          <div className="mt-2 rounded-3xl border border-dashed border-zinc-800 bg-zinc-900/30 p-5 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900">
+              <ShoppingCart size={22} className="text-zinc-600" />
             </div>
-            <p className="mt-3 text-base font-semibold text-zinc-300">
+            <p className="mt-3 text-sm font-semibold text-zinc-300">
               Carrito vacío
             </p>
-            <p className="mt-1 text-sm leading-6 text-zinc-500">
+            <p className="mt-1 text-xs leading-6 text-zinc-500 sm:text-sm">
               Agrega productos desde la grilla para comenzar una venta.
             </p>
           </div>
@@ -238,7 +238,7 @@ export default function Cart() {
                   </button>
                 </div>
 
-                <p className="text-base font-bold text-white">
+                <p className="text-sm sm:text-base font-bold text-white">
                   {fmt(item.product.price * item.quantity)}
                 </p>
               </div>
@@ -258,7 +258,7 @@ export default function Cart() {
               placeholder="Ej: Pablo Encina"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              className="w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base text-white placeholder-zinc-500 outline-none transition focus:border-amber-500"
+              className="w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm sm:text-base text-white placeholder-zinc-500 outline-none transition focus:border-amber-500"
             />
           </label>
 
@@ -271,7 +271,7 @@ export default function Cart() {
               placeholder="cliente@email.com"
               value={clientEmail}
               onChange={(e) => setClientEmail(e.target.value)}
-              className="w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base text-white placeholder-zinc-500 outline-none transition focus:border-amber-500"
+              className="w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm sm:text-base text-white placeholder-zinc-500 outline-none transition focus:border-amber-500"
             />
           </label>
         </div>
@@ -290,7 +290,7 @@ export default function Cart() {
                 <button
                   key={option.key}
                   onClick={() => setPaymentMethod(option.key)}
-                  className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-bold transition ${
+                  className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs sm:text-sm font-bold transition ${
                     active
                       ? 'border-amber-500 bg-amber-500 text-black shadow-lg shadow-amber-500/10'
                       : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800'
@@ -311,10 +311,10 @@ export default function Cart() {
           </div>
 
           <div className="mt-3 flex items-center justify-between">
-            <span className="text-base font-semibold text-white">
+            <span className="text-sm sm:text-base font-semibold text-white">
               Total a cobrar
             </span>
-            <span className="text-2xl font-black tracking-tight text-white">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-white">
               {fmt(total())}
             </span>
           </div>
@@ -323,7 +323,7 @@ export default function Cart() {
         <button
           onClick={handleConfirmSale}
           disabled={items.length === 0}
-          className="w-full rounded-2xl bg-amber-500 py-3.5 text-base font-black text-black transition hover:bg-amber-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-2xl bg-amber-500 py-3 text-sm sm:text-base font-black text-black transition hover:bg-amber-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Confirmar venta
         </button>

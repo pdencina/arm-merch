@@ -49,7 +49,7 @@ export default function ProductGrid({ products, categories }: Props) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-zinc-800 px-4 pb-3 pt-4 xl:px-5">
+      <div className="border-b border-zinc-800 px-3 pb-3 pt-3 sm:px-4 xl:px-5">
         <div className="relative">
           <Search
             size={16}
@@ -59,14 +59,14 @@ export default function ProductGrid({ products, categories }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o SKU..."
-            className="h-12 w-full rounded-2xl border border-zinc-700 bg-zinc-900 pl-11 pr-4 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-amber-500"
+            className="h-11 sm:h-12 w-full rounded-2xl border border-zinc-700 bg-zinc-900 pl-11 pr-4 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-amber-500"
           />
         </div>
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           <button
             onClick={() => setCategory('')}
-            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+            className={`shrink-0 rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition ${
               !category
                 ? 'border-amber-500/50 bg-amber-500/15 text-amber-400'
                 : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
@@ -79,7 +79,7 @@ export default function ProductGrid({ products, categories }: Props) {
             <button
               key={c.id}
               onClick={() => setCategory(c.id)}
-              className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition ${
                 category === c.id
                   ? 'border-amber-500/50 bg-amber-500/15 text-amber-400'
                   : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
@@ -91,14 +91,14 @@ export default function ProductGrid({ products, categories }: Props) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 xl:px-5">
+      <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 xl:px-5">
         {filtered.length === 0 ? (
-          <div className="flex h-44 flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-800 bg-zinc-900/30 text-zinc-500">
-            <Package2 size={26} className="mb-3 text-zinc-600" />
+          <div className="flex h-40 sm:h-44 flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-800 bg-zinc-900/30 text-zinc-500">
+            <Package2 size={24} className="mb-3 text-zinc-600" />
             <p className="text-sm">No se encontraron productos</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
             {filtered.map((product) => {
               const inCart = items.find((i) => i.product.id === product.id)
               const outOfStock = (product.stock ?? 0) <= 0
@@ -143,17 +143,17 @@ export default function ProductGrid({ products, categories }: Props) {
                     )}
                   </div>
 
-                  <p className="line-clamp-2 min-h-[40px] text-sm font-semibold leading-5 text-white">
+                  <p className="line-clamp-2 min-h-[38px] text-sm sm:text-[15px] font-semibold leading-5 text-white">
                     {product.name}
                   </p>
 
-                  <p className="mt-2 text-2xl font-black tracking-tight text-amber-400">
+                  <p className="mt-2 text-xl sm:text-2xl font-black tracking-tight text-amber-400">
                     {fmt(product.price)}
                   </p>
 
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <span
-                      className={`text-xs font-medium ${
+                      className={`text-[11px] sm:text-xs font-medium ${
                         outOfStock
                           ? 'text-red-400'
                           : lowStock

@@ -60,10 +60,10 @@ export default function POSPage() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col -m-5 bg-black">
+    <div className="flex min-h-full flex-col bg-black -m-5">
       {campusName && (
-        <div className="shrink-0 border-b border-zinc-800/70 bg-zinc-950/80 px-5 py-3 backdrop-blur">
-          <div className="flex items-center gap-2 text-sm">
+        <div className="shrink-0 border-b border-zinc-800/70 bg-zinc-950/80 px-4 py-3 sm:px-5 backdrop-blur">
+          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
             <div className="h-2 w-2 rounded-full bg-amber-400" />
             <span className="text-zinc-400">Punto de Venta —</span>
             <span className="font-semibold text-amber-400">{campusName}</span>
@@ -72,12 +72,12 @@ export default function POSPage() {
         </div>
       )}
 
-      <div className="flex flex-1 gap-4 overflow-hidden p-4 xl:gap-5 xl:p-5">
-        <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/60">
+      <div className="flex flex-1 flex-col gap-4 p-3 sm:p-4 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-5 xl:p-5 overflow-hidden">
+        <div className="min-h-0 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/60">
           <ProductGrid products={products} categories={categories} />
         </div>
 
-        <div className="w-[360px] shrink-0 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/80 xl:w-[380px]">
+        <div className="min-h-[420px] overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/80 xl:min-h-0">
           <Cart />
         </div>
       </div>
