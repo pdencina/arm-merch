@@ -1,5 +1,46 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound, redirect } from 'next/navigation'
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+type OrderRow = {
+  id: string
+  order_number: number | string
+  campus_id: string | null
+  payment_method: string | null
+  total: number
+  discount?: number | null
+  created_at: string
+  status?: string | null
+  notes?: string | null
+}
+
+type CampusRow = {
+  id: string
+  name: string
+}
+
+type ItemRow = {
+  id: string
+  quantity: number
+  unit_price: number
+  products:
+    | {
+        name?: string | null
+        sku?: string | null
+      }
+    | Array<{
+        name?: string | null
+        sku?: string | null
+      }>
+    | null
+}
+
+type ContactRow = {
+  client_name?: string | null
+  client_email?: string | null
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-CL', {
@@ -13,232 +54,332 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString('es-CL')
 }
 
-function buildQrUrl(orderNumber: string | number) {
-  const text = encodeURIComponent(`ORDEN:${orderNumber}`)
-  return `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${text}`
-}
+export default function OrderPrintPage() {
+  const supabase = createClient()
+  const params = useParams()
+  const router = useRouter()
 
-export default async function PrintOrderPage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const supabase = await createClient()
+  const orderId = String(params?.id ?? '')
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!user) redirect('/login')
+  const [order, setOrder] = useState<OrderRow | null>(null)
+  const [profile, setProfile] = useState<{ role: string; campus_id: string | null } | null>(null)
+  const [campuses, setCampuses] = useState<CampusRow[]>([])
+  const [items, setItems] = useState<ItemRow[]>([])
+  const [contact, setContact] = useState<ContactRow | null>(null)
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, campus_id')
-    .eq('id', user.id)
-    .single()
+  useEffect(() => {
+    async function load() {
+      if (!orderId) {
+        setError('ID de orden inválido')
+        setLoading(false)
+        return
+      }
 
-  if (!profile) redirect('/login')
+      setLoading(true)
+      setError(null)
 
-  const { data: order } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      order_number,
-      campus_id,
-      payment_method,
-      total,
-      discount,
-      created_at,
-      status,
-      notes
-    `)
-    .eq('id', params.id)
-    .single()
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
 
-  if (!order) notFound()
+      if (sessionError || !session) {
+        router.push('/login')
+        return
+      }
 
-  if (profile.role !== 'super_admin' && profile.campus_id !== order.campus_id) {
-    notFound()
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, campus_id')
+        .eq('id', session.user.id)
+        .single()
+
+      if (profileError || !profileData) {
+        router.push('/login')
+        return
+      }
+
+      const [
+        { data: orderData, error: orderError },
+        { data: itemsData, error: itemsError },
+        { data: campusData, error: campusError },
+        { data: contactData, error: contactError },
+      ] = await Promise.all([
+        supabase
+          .from('orders')
+          .select(`
+            id,
+            order_number,
+            campus_id,
+            payment_method,
+            total,
+            discount,
+            created_at,
+            status,
+            notes
+          `)
+          .eq('id', orderId)
+          .single(),
+
+        supabase
+          .from('order_items')
+          .select(`
+            id,
+            quantity,
+            unit_price,
+            products (
+              name,
+              sku
+            )
+          `)
+          .eq('order_id', orderId),
+
+        supabase.from('campus').select('id, name'),
+
+        supabase
+          .from('order_contacts')
+          .select(`
+            client_name,
+            client_email
+          `)
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      if (orderError || !orderData) {
+        setError('No se pudo cargar la orden')
+        setLoading(false)
+        return
+      }
+
+      if (itemsError) {
+        setError(itemsError.message)
+        setLoading(false)
+        return
+      }
+
+      if (campusError) {
+        setError(campusError.message)
+        setLoading(false)
+        return
+      }
+
+      if (contactError) {
+        setError(contactError.message)
+        setLoading(false)
+        return
+      }
+
+      if (
+        profileData.role !== 'super_admin' &&
+        profileData.campus_id !== orderData.campus_id
+      ) {
+        setError('No tienes acceso a esta orden')
+        setLoading(false)
+        return
+      }
+
+      setProfile(profileData)
+      setOrder(orderData as OrderRow)
+      setItems((itemsData ?? []) as ItemRow[])
+      setCampuses((campusData ?? []) as CampusRow[])
+      setContact((contactData ?? null) as ContactRow | null)
+      setLoading(false)
+
+      setTimeout(() => {
+        window.print()
+      }, 400)
+    }
+
+    load()
+  }, [orderId, router, supabase])
+
+  const campusMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const campus of campuses) {
+      map.set(campus.id, campus.name)
+    }
+    return map
+  }, [campuses])
+
+  const campusName = useMemo(() => {
+    if (!order?.campus_id) return 'Sin campus'
+    return campusMap.get(order.campus_id) ?? 'Sin campus'
+  }, [campusMap, order])
+
+  const safeItems = useMemo(() => {
+    return items.map((item) => {
+      const product = Array.isArray(item.products)
+        ? item.products[0]
+        : item.products
+
+      return {
+        id: item.id,
+        quantity: Number(item.quantity ?? 0),
+        unit_price: Number(item.unit_price ?? 0),
+        name: product?.name ?? 'Producto',
+        sku: product?.sku ?? '—',
+        lineTotal: Number(item.quantity ?? 0) * Number(item.unit_price ?? 0),
+      }
+    })
+  }, [items])
+
+  const subtotal = useMemo(() => {
+    return safeItems.reduce((sum, item) => sum + item.lineTotal, 0)
+  }, [safeItems])
+
+  const discount = Number(order?.discount ?? 0)
+  const total = Number(order?.total ?? 0)
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white text-black">
+        <p>Cargando voucher...</p>
+      </div>
+    )
   }
 
-  const [{ data: items }, { data: campuses }] = await Promise.all([
-    supabase
-      .from('order_items')
-      .select(`
-        id,
-        quantity,
-        unit_price,
-        products (
-          name,
-          sku
-        )
-      `)
-      .eq('order_id', order.id),
-    supabase.from('campus').select('id, name'),
-  ])
-
-  const campusMap = new Map((campuses ?? []).map((c: any) => [c.id, c.name]))
-  const campusName = order.campus_id ? campusMap.get(order.campus_id) ?? 'Sin campus' : 'Sin campus'
-
-  const safeItems = (items ?? []).map((item: any) => {
-    const product = Array.isArray(item.products) ? item.products[0] : item.products
-    return {
-      id: item.id,
-      quantity: Number(item.quantity ?? 0),
-      unit_price: Number(item.unit_price ?? 0),
-      name: product?.name ?? 'Producto',
-      sku: product?.sku ?? '—',
-      lineTotal: Number(item.quantity ?? 0) * Number(item.unit_price ?? 0),
-    }
-  })
-
-  const subtotal = safeItems.reduce((sum: number, item: any) => sum + item.lineTotal, 0)
-  const discount = Number(order.discount ?? 0)
-  const total = Number(order.total ?? 0)
-
-  const qrUrl = buildQrUrl(order.order_number)
+  if (error || !order) {
+    return (
+      <div className="min-h-screen bg-white p-8 text-black">
+        <h1 className="text-xl font-bold">No se pudo imprimir la orden</h1>
+        <p className="mt-2">{error ?? 'Orden no encontrada'}</p>
+        <button
+          type="button"
+          onClick={() => router.push('/orders')}
+          className="mt-6 rounded-lg border px-4 py-2"
+        >
+          Volver a órdenes
+        </button>
+      </div>
+    )
+  }
 
   return (
-    <html lang="es">
-      <head>
-        <title>Ticket #{order.order_number}</title>
-        <style>{`
-          @media print {
-            @page {
-              size: auto;
-              margin: 8mm;
-            }
-          }
-          body {
-            margin: 0;
-            background: #ffffff;
-            color: #000000;
-            font-family: Arial, Helvetica, sans-serif;
-          }
-        `}</style>
-      </head>
+    <div className="min-h-screen bg-white text-black print:bg-white">
+      <div className="mx-auto max-w-[360px] p-6 print:p-2">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">ARM MERCH</h1>
+          <p className="mt-1 text-xs">Comprobante de compra</p>
+        </div>
 
-      <body>
-        <div className="min-h-screen bg-white px-4 py-6 print:px-0 print:py-2">
-          <div className="mx-auto w-full max-w-[380px] text-black">
-            <div className="rounded-none border border-black/10 bg-white p-5 print:border-none print:p-0">
-              <div className="text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-black bg-black text-lg font-black text-white">
-                  A
-                </div>
-                <h1 className="text-xl font-bold tracking-wide">ARM MERCH</h1>
-                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-black/60">
-                  Comprobante de venta
+        <div className="my-4 border-t border-dashed border-black" />
+
+        <div className="space-y-1 text-sm">
+          <p>
+            <span className="font-semibold">Orden:</span> #{order.order_number}
+          </p>
+          <p>
+            <span className="font-semibold">Fecha:</span> {formatDate(order.created_at)}
+          </p>
+          <p>
+            <span className="font-semibold">Campus:</span> {campusName}
+          </p>
+          <p>
+            <span className="font-semibold">Pago:</span> {order.payment_method ?? 'Sin definir'}
+          </p>
+          <p>
+            <span className="font-semibold">Estado:</span> {order.status ?? '—'}
+          </p>
+        </div>
+
+        {(contact?.client_name || contact?.client_email) && (
+          <>
+            <div className="my-4 border-t border-dashed border-black" />
+            <div className="space-y-1 text-sm">
+              {contact?.client_name && (
+                <p>
+                  <span className="font-semibold">Cliente:</span> {contact.client_name}
                 </p>
-              </div>
-
-              <div className="my-4 border-t border-dashed border-black/30" />
-
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Orden</span>
-                  <span className="font-semibold">#{order.order_number}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Fecha</span>
-                  <span className="text-right">{formatDate(order.created_at)}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Campus</span>
-                  <span className="text-right">{campusName}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Pago</span>
-                  <span className="capitalize">{order.payment_method ?? 'Sin definir'}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Estado</span>
-                  <span>{order.status ?? '—'}</span>
-                </div>
-              </div>
-
-              <div className="my-4 border-t border-dashed border-black/30" />
-
-              <div className="space-y-3">
-                {safeItems.map((item) => (
-                  <div key={item.id} className="text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold leading-tight">{item.name}</p>
-                        <p className="mt-0.5 text-xs text-black/55">SKU: {item.sku}</p>
-                        <p className="mt-0.5 text-xs text-black/70">
-                          {item.quantity} × {formatCurrency(item.unit_price)}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right font-semibold">
-                        {formatCurrency(item.lineTotal)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="my-4 border-t border-dashed border-black/30" />
-
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Subtotal</span>
-                  <span>{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-black/60">Descuento</span>
-                  <span>{formatCurrency(discount)}</span>
-                </div>
-                <div className="mt-2 flex justify-between gap-3 text-lg font-bold">
-                  <span>Total</span>
-                  <span>{formatCurrency(total)}</span>
-                </div>
-              </div>
-
-              {order.notes && (
-                <>
-                  <div className="my-4 border-t border-dashed border-black/30" />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-black/60">
-                      Nota
-                    </p>
-                    <p className="mt-1 text-sm">{order.notes}</p>
-                  </div>
-                </>
               )}
-
-              <div className="my-4 border-t border-dashed border-black/30" />
-
-              <div className="flex flex-col items-center">
-                <img
-                  src={qrUrl}
-                  alt={`QR orden ${order.order_number}`}
-                  className="h-28 w-28"
-                />
-                <p className="mt-2 text-[11px] text-black/60">
-                  Escanea para referencia interna
+              {contact?.client_email && (
+                <p>
+                  <span className="font-semibold">Email:</span> {contact.client_email}
                 </p>
-              </div>
+              )}
+            </div>
+          </>
+        )}
 
-              <div className="mt-5 text-center">
-                <p className="text-xs text-black/70">Gracias por tu compra</p>
-                <p className="mt-1 text-[11px] text-black/50">
-                  ARM Merch · {campusName}
-                </p>
-              </div>
+        <div className="my-4 border-t border-dashed border-black" />
 
-              <div className="mt-6 text-center print:hidden">
-                <button
-                  onClick={() => window.print()}
-                  className="rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white hover:bg-black/80"
-                >
-                  Imprimir ticket
-                </button>
+        <div className="space-y-3 text-sm">
+          {safeItems.map((item) => (
+            <div key={item.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold">{item.name}</p>
+                  <p className="text-xs">{item.sku}</p>
+                  <p className="text-xs">
+                    {item.quantity} × {formatCurrency(item.unit_price)}
+                  </p>
+                </div>
+                <div className="shrink-0 font-semibold">
+                  {formatCurrency(item.lineTotal)}
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+
+        <div className="my-4 border-t border-dashed border-black" />
+
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Descuento</span>
+            <span>{formatCurrency(discount)}</span>
+          </div>
+
+          <div className="flex justify-between text-base font-bold">
+            <span>Total</span>
+            <span>{formatCurrency(total)}</span>
           </div>
         </div>
-      </body>
-    </html>
+
+        {order.notes && (
+          <>
+            <div className="my-4 border-t border-dashed border-black" />
+            <div className="text-sm">
+              <p className="font-semibold">Nota</p>
+              <p>{order.notes}</p>
+            </div>
+          </>
+        )}
+
+        <div className="my-4 border-t border-dashed border-black" />
+
+        <div className="text-center text-xs">
+          <p>Gracias por tu compra 🙌</p>
+        </div>
+
+        <div className="mt-8 flex items-center justify-center gap-3 print:hidden">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-lg bg-black px-4 py-2 text-white"
+          >
+            Imprimir
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push(`/orders/${order.id}`)}
+            className="rounded-lg border border-black px-4 py-2"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
