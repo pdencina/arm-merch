@@ -58,17 +58,17 @@ const ROLE_CONFIG: Record<
   super_admin: {
     label: 'Super Admin',
     description: 'Acceso global · Todos los campus',
-    color: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    color: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
   },
   admin: {
     label: 'Admin Campus',
     description: 'Pastor · Gestión de sede',
-    color: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    color: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
   },
   voluntario: {
     label: 'Voluntario',
     description: 'Ventas y punto de venta',
-    color: 'bg-green-500/10 text-green-400 border-green-500/20',
+    color: 'bg-slate-400/10 text-slate-300 border-slate-400/20',
   },
 }
 
@@ -92,8 +92,8 @@ export default function Sidebar({
     <aside className="flex h-full w-[280px] shrink-0 flex-col overflow-y-auto border-r border-zinc-800/60 bg-zinc-950 px-3 py-5 lg:w-56">
       <div className="mb-5 flex items-center justify-between gap-3 px-2">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500">
-            <span className="text-xs font-black text-zinc-950">A</span>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200">
+            <span className="text-xs font-black text-black">A</span>
           </div>
           <div>
             <p className="text-sm font-bold leading-none text-white">ARM Merch</p>
@@ -141,7 +141,7 @@ export default function Sidebar({
                     className={clsx(
                       'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
                       active
-                        ? 'bg-amber-500/10 font-semibold text-amber-400'
+                        ? 'bg-slate-200/10 font-semibold text-slate-300'
                         : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-white'
                     )}
                   >

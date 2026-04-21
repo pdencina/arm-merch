@@ -17,11 +17,11 @@ import {
 } from 'lucide-react'
 
 const CAMPUS_COLORS: Record<string, string> = {
-  'ARM Santiago': 'bg-blue-500/10 text-blue-400',
-  'ARM Puente Alto': 'bg-purple-500/10 text-purple-400',
-  'ARM Punta Arenas': 'bg-teal-500/10 text-teal-400',
-  'ARM Montevideo': 'bg-amber-500/10 text-amber-400',
-  'ARM Maracaibo': 'bg-red-500/10 text-red-400',
+  'ARM Santiago': 'bg-slate-400/10 text-slate-300',
+  'ARM Puente Alto': 'bg-slate-400/10 text-slate-300',
+  'ARM Punta Arenas': 'bg-slate-400/10 text-slate-300',
+  'ARM Montevideo': 'bg-slate-400/10 text-slate-300',
+  'ARM Maracaibo': 'bg-slate-400/10 text-slate-300',
 }
 
 interface Notification {
@@ -223,16 +223,16 @@ export default function Navbar({
   const NOTIF_ICON: Record<string, any> = {
     out_stock: <TrendingDown size={13} className="text-red-400" />,
     low_stock: <AlertTriangle size={13} className="text-orange-400" />,
-    transfer: <Package size={13} className="text-blue-400" />,
+    transfer: <Package size={13} className="text-slate-300" />,
   }
 
   return (
     <>
-      <header className="flex items-center justify-between gap-3 border-b border-zinc-800/60 bg-zinc-950 px-3 py-3 sm:px-4 lg:px-5 shrink-0">
+      <header className="flex items-center justify-between gap-3 border-b border-zinc-800/60 bg-zinc-950 px-3 py-3 shrink-0 sm:px-4 lg:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             onClick={onOpenSidebar}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-zinc-300 transition hover:bg-zinc-800 hover:text-white lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-zinc-300 transition hover:bg-zinc-800 hover:text-slate-300 lg:hidden"
           >
             <Menu size={18} />
           </button>
@@ -253,7 +253,7 @@ export default function Navbar({
           <button
             onClick={toggleTheme}
             title={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-amber-400"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-slate-300"
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
@@ -303,7 +303,7 @@ export default function Navbar({
                               ? 'bg-red-500/10'
                               : n.type === 'low_stock'
                               ? 'bg-orange-500/10'
-                              : 'bg-blue-500/10'
+                              : 'bg-slate-400/10'
                           }`}
                         >
                           {NOTIF_ICON[n.type]}
@@ -327,7 +327,7 @@ export default function Navbar({
                         router.push('/inventory')
                         setNotifOpen(false)
                       }}
-                      className="text-xs text-amber-400 transition hover:text-amber-300"
+                      className="text-xs text-slate-300 transition hover:text-white"
                     >
                       Ver inventario →
                     </button>
@@ -354,14 +354,14 @@ export default function Navbar({
               </div>
             </div>
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/20">
-              <span className="text-xs font-bold text-amber-400">{initials}</span>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-300/20 bg-slate-200/10">
+              <span className="text-xs font-bold text-slate-300">{initials}</span>
             </div>
           </div>
 
           <button
             onClick={handleLogout}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-500 transition hover:bg-red-500/20 hover:text-red-400"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800 text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400"
           >
             <LogOut size={15} />
           </button>
@@ -408,8 +408,8 @@ export default function Navbar({
                     <div
                       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs ${
                         r.type === 'product'
-                          ? 'bg-amber-500/10 text-amber-400'
-                          : 'bg-blue-500/10 text-blue-400'
+                          ? 'bg-slate-400/10 text-slate-300'
+                          : 'bg-slate-400/10 text-slate-300'
                       }`}
                     >
                       {r.type === 'product' ? '📦' : '🧾'}

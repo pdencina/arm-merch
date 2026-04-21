@@ -104,13 +104,13 @@ export default function FeedbackModal({
             exit={{ scale: 0.96, opacity: 0, y: 12 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500" />
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-300 via-slate-200 to-slate-400" />
 
             <div className="px-7 pb-7 pt-8">
               <div className="mb-5 flex justify-center">
                 {isLoading && (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-amber-500/10 ring-1 ring-amber-500/20">
-                    <Loader2 size={40} className="animate-spin text-amber-400" />
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-300/10 ring-1 ring-slate-300/20">
+                    <Loader2 size={40} className="animate-spin text-slate-300" />
                   </div>
                 )}
 
@@ -140,7 +140,7 @@ export default function FeedbackModal({
               {!isLoading && onClose && (
                 <button
                   onClick={onClose}
-                  className="mt-7 w-full rounded-2xl bg-amber-500 py-4 text-xl font-black text-black transition hover:bg-amber-400 active:scale-[0.99]"
+                  className="mt-7 w-full rounded-2xl bg-slate-200 py-4 text-xl font-black text-black transition hover:bg-slate-300 active:scale-[0.99]"
                 >
                   Continuar
                 </button>
