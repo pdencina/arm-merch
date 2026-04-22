@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 
 // ─── POST /api/orders ────────────────────────────────────────────────────────
 // Crea una nueva orden con soporte para:
