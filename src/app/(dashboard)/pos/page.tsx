@@ -67,25 +67,19 @@ export default function POSPage() {
             <div className="h-2 w-2 rounded-full bg-slate-400" />
             <span className="text-zinc-400">Punto de Venta —</span>
             <span className="font-semibold text-slate-300">{campusName}</span>
-            <span className="text-zinc-600">
-              · {products.length} productos
-            </span>
+            <span className="text-zinc-600">· {products.length} productos</span>
           </div>
         </div>
       )}
 
-      <div className="grid flex-1 grid-cols-[1fr_360px] gap-4 p-4 overflow-hidden">
-        
-        {/* PRODUCTOS */}
-        <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
+      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[1fr_380px]">
+        <div className="min-h-0 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
           <ProductGrid products={products} categories={categories} />
         </div>
 
-        {/* CART FIJO */}
-        <div className="sticky top-0 h-full">
+        <div className="min-h-0 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
           <Cart />
         </div>
-
       </div>
     </div>
   )
