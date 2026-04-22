@@ -36,31 +36,40 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: 'Campus no resuelto' }
   }
 
+  const discount = input.discount ?? 0
   const subtotal = input.items.reduce(
     (sum, i) => sum + i.unit_price * i.quantity,
     0
   )
-
-  const discount = input.discount ?? 0
   const total = subtotal - discount
 
-  for (const item of input.items) {
-    const { data: inv, error: invError } = await supabase
-      .from('inventory')
-      .select('id, stock')
-      .eq('product_id', item.product_id)
-      .eq('campus_id', campusId)
-      .single()
+  // ── Verificar stock en una sola consulta (no dentro del loop) ──
+  const productIds = input.items.map((i) => i.product_id)
+  const { data: inventoryRows, error: invQueryError } = await supabase
+    .from('inventory')
+    .select('id, product_id, stock')
+    .in('product_id', productIds)
+    .eq('campus_id', campusId)
 
-    if (invError || !inv) {
+  if (invQueryError) {
+    return { error: invQueryError.message }
+  }
+
+  const inventoryMap = new Map(
+    (inventoryRows ?? []).map((row: any) => [row.product_id, row])
+  )
+
+  for (const item of input.items) {
+    const inv = inventoryMap.get(item.product_id)
+    if (!inv) {
       return { error: 'Inventario no encontrado para uno de los productos' }
     }
-
     if (inv.stock < item.quantity) {
       return { error: 'Stock insuficiente para uno de los productos' }
     }
   }
 
+  // ── Crear orden ──
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
@@ -80,6 +89,7 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: orderError?.message ?? 'No se pudo crear la orden' }
   }
 
+  // ── Insertar order_items incluyendo subtotal ──
   const { error: itemsError } = await supabase
     .from('order_items')
     .insert(
@@ -88,7 +98,7 @@ export async function createOrder(input: CreateOrderInput) {
         product_id: i.product_id,
         quantity: i.quantity,
         unit_price: i.unit_price,
-        subtotal: i.quantity * i.unit_price,
+        subtotal: i.quantity * i.unit_price,  // requerido por el schema
       }))
     )
 
@@ -96,19 +106,10 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: itemsError.message }
   }
 
+  // ── Actualizar stock usando el inventoryMap pre-consultado (no re-consultar) ──
   for (const item of input.items) {
-    const { data: inv, error: invError } = await supabase
-      .from('inventory')
-      .select('id, stock')
-      .eq('product_id', item.product_id)
-      .eq('campus_id', campusId)
-      .single()
-
-    if (invError || !inv) {
-      return { error: 'No se pudo actualizar el inventario' }
-    }
-
-    const newStock = inv.stock - item.quantity
+    const inv = inventoryMap.get(item.product_id)
+    const newStock = Number(inv.stock ?? 0) - item.quantity
 
     const { error: updateError } = await supabase
       .from('inventory')
