@@ -98,7 +98,7 @@ export async function createOrder(input: CreateOrderInput) {
         product_id: i.product_id,
         quantity: i.quantity,
         unit_price: i.unit_price,
-        subtotal: i.quantity * i.unit_price,  // requerido por el schema
+        // subtotal es columna GENERADA por la BD — no insertar
       }))
     )
 

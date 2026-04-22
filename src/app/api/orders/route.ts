@@ -192,14 +192,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Insertar order_items ──
-    // CRÍTICO: incluir 'subtotal' (requerido por el schema original)
-    // Esto es lo que permite que la vista de detalle de orden muestre los productos
+    // subtotal es columna GENERADA por la BD — no se puede insertar manualmente
     const orderItemsRows = normalizedItems.map((item) => ({
       order_id: createdOrder.id,
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      subtotal: Math.round(item.unit_price * item.quantity * (1 - item.discount_pct / 100)),
     }))
 
     const { error: orderItemsError } = await adminClient
