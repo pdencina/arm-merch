@@ -38,7 +38,7 @@ export default function ReportsPage() {
           order_contacts(client_name, client_email),
           order_items(quantity, unit_price, product:products(name))
         `)
-        .in('status', ['paid', 'completada', 'completed'])
+        .in('status', ['paid', 'pending'])
         .order('created_at', { ascending: false })
 
       if (role === 'voluntario') {

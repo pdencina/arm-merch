@@ -165,7 +165,7 @@ export default function DashboardPage() {
       let ordersQ = supabase
         .from('orders')
         .select('id, total, discount, created_at, campus_id, payment_method, seller_id, order_number')
-        .in('status', ['paid', 'completada', 'completed'])
+        .in('status', ['paid', 'pending'])
         .order('created_at', { ascending: false })
 
       let itemsQ = supabase

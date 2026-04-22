@@ -80,7 +80,7 @@ export async function createOrder(input: CreateOrderInput) {
       discount,
       total,
       notes: input.notes ?? null,
-      status: 'completada',
+      status: 'paid',
     })
     .select('id, order_number')
     .single()

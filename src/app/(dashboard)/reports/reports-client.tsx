@@ -36,9 +36,10 @@ function getClientName(order: any): string {
 // Etiqueta visual para el estado de la orden
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
-    paid:       { label: 'Pagado',     className: 'bg-green-500/15 text-green-400' },
-    completada: { label: 'Completada', className: 'bg-green-500/15 text-green-400' },
-    completed:  { label: 'Completada', className: 'bg-green-500/15 text-green-400' },
+    paid:      { label: 'Pagado',     className: 'bg-green-500/15 text-green-400' },
+    pending:   { label: 'Pendiente',  className: 'bg-amber-500/15 text-amber-400' },
+    cancelled: { label: 'Cancelado',  className: 'bg-red-500/15 text-red-400' },
+    refunded:  { label: 'Reembolsado',className: 'bg-blue-500/15 text-blue-400' },
     pendiente:  { label: 'Pendiente',  className: 'bg-amber-500/15 text-amber-400' },
     cancelada:  { label: 'Cancelada',  className: 'bg-red-500/15 text-red-400' },
   }
