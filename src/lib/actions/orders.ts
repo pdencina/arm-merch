@@ -106,24 +106,10 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: itemsError.message }
   }
 
-  // ── Actualizar stock usando el inventoryMap pre-consultado (no re-consultar) ──
+  // ── Actualizar stock vía trigger ──
+  // El trigger update_stock_on_movement descuenta inventory automáticamente.
+  // Solo insertar el movimiento — NO actualizar inventory manualmente.
   for (const item of input.items) {
-    const inv = inventoryMap.get(item.product_id)
-    const newStock = Number(inv.stock ?? 0) - item.quantity
-
-    const { error: updateError } = await supabase
-      .from('inventory')
-      .update({
-        stock: newStock,
-        updated_by: profile.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', inv.id)
-
-    if (updateError) {
-      return { error: updateError.message }
-    }
-
     const { error: movementError } = await supabase
       .from('inventory_movements')
       .insert({

@@ -208,26 +208,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: orderItemsError.message }, { status: 400 })
     }
 
-    // ── Actualizar stock e insertar movimientos ──
-    // CRÍTICO: usar el inventoryMap pre-consultado (NO re-consultar dentro del loop)
-    // Re-consultar dentro del loop causaría race condition si dos ventas ocurren simultáneamente
+    // ── Actualizar stock vía trigger ──
+    // El trigger update_stock_on_movement descuenta inventory automáticamente
+    // al insertar en inventory_movements. NO actualizar inventory manualmente
+    // para evitar doble deducción.
     for (const item of normalizedItems) {
-      const inv = inventoryMap.get(item.product_id)
-      const newStock = Number(inv.stock ?? 0) - item.quantity
-
-      const { error: stockError } = await adminClient
-        .from('inventory')
-        .update({
-          stock: newStock,
-          updated_at: new Date().toISOString(),
-          updated_by: profile.id,
-        })
-        .eq('id', inv.id)
-
-      if (stockError) {
-        return NextResponse.json({ error: stockError.message }, { status: 400 })
-      }
-
       const { error: movementError } = await adminClient
         .from('inventory_movements')
         .insert({
