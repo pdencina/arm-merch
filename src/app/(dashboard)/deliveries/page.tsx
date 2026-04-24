@@ -277,6 +277,35 @@ function OrderCard({
         </div>
       )}
     </div>
+
+      {/* Success Modal */}
+      {successModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setSuccessModal(null)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative flex flex-col items-center gap-4 rounded-3xl border border-zinc-700 bg-zinc-900 px-10 py-8 shadow-2xl text-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-6xl">{successModal.icon}</div>
+            <div>
+              <p className="text-xl font-bold text-white">{successModal.title}</p>
+              {successModal.subtitle && (
+                <p className="mt-1.5 text-sm text-zinc-400">{successModal.subtitle}</p>
+              )}
+            </div>
+            <button
+              onClick={() => setSuccessModal(null)}
+              className="mt-1 rounded-2xl bg-amber-500 px-8 py-2.5 text-sm font-bold text-black transition hover:bg-amber-400"
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -289,6 +318,7 @@ export default function DeliveriesPage() {
   const [loading, setLoading]       = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [updating, setUpdating]     = useState<string | null>(null)
+  const [successModal, setSuccessModal] = useState<{ title: string; subtitle: string; icon: string } | null>(null)
   const [search, setSearch]         = useState('')
   const [statusFilter, setStatusFilter] = useState<DeliveryStatus | ''>('')
   const [campusFilter, setCampusFilter] = useState('')
@@ -384,14 +414,14 @@ export default function DeliveriesPage() {
       }
     }
 
-    toast.success(
-      newStatus === 'ready'
-        ? '📦 Marcado como listo — el campus puede entregar al cliente'
-        : newStatus === 'delivered'
-        ? '🎉 Entregado al cliente'
-        : 'Estado actualizado'
-    )
     setUpdating(null)
+    setSuccessModal(
+      newStatus === 'ready'
+        ? { icon: '📦', title: 'Listo para entregar', subtitle: 'El campus ya puede entregar este pedido al cliente.' }
+        : newStatus === 'delivered'
+        ? { icon: '🎉', title: '¡Entregado al cliente!', subtitle: `Pedido #${order?.order_number ?? ''} marcado como entregado.` }
+        : { icon: '✅', title: 'Estado actualizado', subtitle: '' }
+    )
     load(true)
   }
 
@@ -577,6 +607,35 @@ export default function DeliveriesPage() {
                 </div>
               )
             })}
+        </div>
+      )}
+    </div>
+
+      {/* Success Modal */}
+      {successModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setSuccessModal(null)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative flex flex-col items-center gap-4 rounded-3xl border border-zinc-700 bg-zinc-900 px-10 py-8 shadow-2xl text-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-6xl">{successModal.icon}</div>
+            <div>
+              <p className="text-xl font-bold text-white">{successModal.title}</p>
+              {successModal.subtitle && (
+                <p className="mt-1.5 text-sm text-zinc-400">{successModal.subtitle}</p>
+              )}
+            </div>
+            <button
+              onClick={() => setSuccessModal(null)}
+              className="mt-1 rounded-2xl bg-amber-500 px-8 py-2.5 text-sm font-bold text-black transition hover:bg-amber-400"
+            >
+              Continuar
+            </button>
+          </div>
         </div>
       )}
     </div>
