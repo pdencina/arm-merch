@@ -119,7 +119,7 @@ function SizePicker({
           onClose={() => setSizePickerProduct(null)}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -200,6 +200,7 @@ export default function ProductGrid({ products, categories }: Props) {
   }, [])
 
   return (
+    <>
     <div className="flex h-full flex-col overflow-hidden bg-zinc-950">
 
       {/* BUSCADOR + FILTROS */}
@@ -388,6 +389,6 @@ export default function ProductGrid({ products, categories }: Props) {
           onClose={() => setSizePickerProduct(null)}
         />
       )}
-    </div>
+    </>
   )
 }
