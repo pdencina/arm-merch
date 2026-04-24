@@ -151,6 +151,18 @@ function OrderCard({
             <span>·</span>
             <span>{fmtDate(order.created_at)}</span>
           </div>
+          {/* Product summary in header */}
+          <div className="mt-1 flex flex-wrap gap-1">
+            {order.order_items.map((item, i) => (
+              <span key={i} className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
+                {item.product?.name ?? '—'}
+                {item.size && (
+                  <span className="font-bold text-violet-400">· T:{item.size}</span>
+                )}
+                <span className="text-zinc-600">×{item.quantity}</span>
+              </span>
+            ))}
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
