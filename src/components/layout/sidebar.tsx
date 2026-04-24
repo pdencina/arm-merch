@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
 
   { label: 'Inventario',     href: '/inventory',            icon: <Package size={16} />,        roles: ['admin', 'super_admin'],               moduleKey: 'inventory',  section: 'Inventario' },
   { label: 'Movimientos',    href: '/inventory/movements',  icon: <ArrowLeftRight size={16} />, roles: ['admin', 'super_admin'],               moduleKey: 'movements' },
-  { label: 'Pedidos entrega', href: '/deliveries',     icon: <Truck size={16} />,         roles: ['super_admin'],                        moduleKey: null },
+  { label: 'Pedidos entrega', href: '/deliveries',     icon: <Truck size={16} />,         roles: ['admin', 'voluntario', 'super_admin'], moduleKey: null, section: 'Ventas' },
   { label: 'Transferencias', href: '/transfers',            icon: <ArrowRightLeft size={16} />, roles: ['super_admin'],                        moduleKey: null },
 
   { label: 'Productos',      href: '/products',             icon: <ClipboardList size={16} />,  roles: ['admin', 'super_admin'],               moduleKey: 'products',   section: 'Gestión' },
