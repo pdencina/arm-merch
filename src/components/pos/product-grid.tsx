@@ -57,12 +57,79 @@ function StockBadge({ stock, lowAlert }: { stock: number; lowAlert: number | nul
   )
 }
 
+
+// ─── SizePicker modal ────────────────────────────────────────────────────────
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
+
+function SizePicker({
+  product,
+  onSelect,
+  onClose,
+}: {
+  product: Product
+  onSelect: (size: string) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-lg p-1.5 text-zinc-500 hover:text-white"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-800 text-2xl">
+            {product.image_url
+              ? <img src={product.image_url} alt={product.name} className="h-12 w-12 rounded-2xl object-cover" />
+              : '👕'}
+          </div>
+          <div>
+            <p className="font-semibold text-white">{product.name}</p>
+            <p className="text-xs text-zinc-500">Selecciona una talla</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2">
+          {SIZES.map(size => (
+            <button
+              key={size}
+              onClick={() => onSelect(size)}
+              className="flex h-12 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-800 text-sm font-bold text-zinc-300 transition hover:border-amber-500/50 hover:bg-amber-500/15 hover:text-amber-300 active:scale-95"
+            >
+              {size}
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-4 text-center text-[10px] text-zinc-600">
+          Si no ves la talla correcta, el vendedor puede anotarla en las notas de la venta.
+        </p>
+      </div>
+    </div>
+
+      {/* Size Picker Modal */}
+      {sizePickerProduct && (
+        <SizePicker
+          product={sizePickerProduct}
+          onSelect={handleSizeSelect}
+          onClose={() => setSizePickerProduct(null)}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function ProductGrid({ products, categories }: Props) {
   const { addItem, items } = useCart()
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [lastAdded, setLastAdded] = useState<string | null>(null)
   const [barcodeFlash, setBarcodeFlash] = useState<string | null>(null)
+  const [sizePickerProduct, setSizePickerProduct] = useState<Product | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // mapa de cantidad en carrito por producto
@@ -83,14 +150,20 @@ export default function ProductGrid({ products, categories }: Props) {
     })
   }, [products, search, category])
 
-  function addProduct(product: Product) {
+  function addProduct(product: Product, size?: string) {
     if ((product.stock ?? 0) <= 0) return
     const inCart = cartQtyMap[product.id] ?? 0
     if (inCart >= (product.stock ?? 0)) return
 
+    // If product has sizes and no size selected, show picker
+    if (product.has_sizes && !size) {
+      setSizePickerProduct(product)
+      return
+    }
+
     addItem({
       id: product.id,
-      name: product.name,
+      name: product.name + (size ? ` (${size})` : ''),
       price: product.price,
       image_url: product.image_url,
       stock: product.stock ?? 0,
@@ -101,6 +174,12 @@ export default function ProductGrid({ products, categories }: Props) {
     playAddSound()
     setLastAdded(product.id)
     setTimeout(() => setLastAdded(null), 600)
+  }
+
+  function handleSizeSelect(size: string) {
+    if (!sizePickerProduct) return
+    addProduct(sizePickerProduct, size)
+    setSizePickerProduct(null)
   }
 
   // Scanner de código de barras
@@ -299,6 +378,16 @@ export default function ProductGrid({ products, categories }: Props) {
           </div>
         )}
       </div>
+    </div>
+
+      {/* Size Picker Modal */}
+      {sizePickerProduct && (
+        <SizePicker
+          product={sizePickerProduct}
+          onSelect={handleSizeSelect}
+          onClose={() => setSizePickerProduct(null)}
+        />
+      )}
     </div>
   )
 }
