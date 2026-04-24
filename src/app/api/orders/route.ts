@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       quantity: number
       unit_price: number
       discount_pct?: number
+      size?: string | null
     }> = Array.isArray(body.items) ? body.items : []
 
     const paymentMethod: string  = body.payment_method ?? null
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       quantity: Number(i.quantity),
       unit_price: Number(i.unit_price),
       discount_pct: Number(i.discount_pct ?? 0),
+      size: i.size ?? null,
     }))
 
     const invalidItem = normalizedItems.find(
@@ -200,6 +202,7 @@ export async function POST(req: NextRequest) {
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
+      ...(item.size ? { size: item.size } : {}),
     }))
 
     const { error: orderItemsError } = await adminClient

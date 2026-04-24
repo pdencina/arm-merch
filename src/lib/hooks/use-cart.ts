@@ -16,6 +16,7 @@ export interface CartItem {
   quantity: number
   unit_price: number       // precio al momento de agregar (respeta congelado)
   discount_pct: number     // descuento por ítem (0-100)
+  size?: string | null     // talla seleccionada (para productos de vestuario)
 }
 
 export interface Promotion {
@@ -40,7 +41,7 @@ interface CartStore {
   notes: string
 
   // Acciones de items
-  addItem: (product: CartProduct) => void
+  addItem: (product: CartProduct, size?: string | null) => void
   removeItem: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
   setItemDiscount: (productId: string, pct: number) => void
@@ -77,14 +78,15 @@ export const useCart = create<CartStore>()(
       clientEmail: '',
       notes: '',
 
-      addItem: (product) =>
+      addItem: (product, size) =>
         set((state) => {
-          const existing = state.items.find((i) => i.product.id === product.id)
+          // Match by product id AND size (same product diff size = diff item)
+          const existing = state.items.find((i) => i.product.id === product.id && (i.size ?? null) === (size ?? null))
           if (existing) {
             if (existing.quantity >= product.stock) return state
             return {
               items: state.items.map((i) =>
-                i.product.id === product.id
+                i.product.id === product.id && (i.size ?? null) === (size ?? null)
                   ? { ...i, quantity: i.quantity + 1 }
                   : i
               ),
@@ -97,6 +99,7 @@ export const useCart = create<CartStore>()(
                 product,
                 quantity: 1,
                 unit_price: product.price,
+                size: size ?? null,
                 discount_pct: 0,
               },
             ],

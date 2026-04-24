@@ -154,13 +154,13 @@ export default function ProductGrid({ products, categories }: Props) {
 
     addItem({
       id: product.id,
-      name: product.name + (size ? ` (${size})` : ''),
+      name: product.name,
       price: product.price,
       image_url: product.image_url,
       stock: product.stock ?? 0,
       sku: product.sku,
       category_id: product.category_id,
-    })
+    }, size ?? null)
 
     playAddSound()
     setLastAdded(product.id)

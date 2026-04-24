@@ -67,7 +67,14 @@ function CartItemRow({
           <p className="truncate text-sm font-semibold leading-tight text-white">
             {item.product.name}
           </p>
-          <p className="mt-0.5 text-xs text-zinc-500">{fmt(item.unit_price)} c/u</p>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            {fmt(item.unit_price)} c/u
+            {item.size && (
+              <span className="ml-1.5 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-bold text-violet-400">
+                Talla {item.size}
+              </span>
+            )}
+          </p>
         </div>
 
         <button
@@ -212,6 +219,7 @@ export default function Cart() {
             quantity: i.quantity,
             unit_price: i.unit_price,
             discount_pct: i.discount_pct,
+            size: i.size ?? null,
           })),
           client_name: clientName.trim(),
           client_email: clientEmail.trim() || null,
