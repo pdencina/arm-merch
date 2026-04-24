@@ -259,15 +259,32 @@ export default function DeliveriesPage() {
       .select(`
         id, order_number, total, delivery_status, created_at,
         payment_method, notes, campus_id,
-        campus:campus(name),
         order_contacts(client_name, client_email),
-        order_items(quantity, unit_price, product:products(name, sku))
+        order_items(quantity, unit_price, product_id, product:products(name, sku))
       `)
       .not('delivery_status', 'is', null)
       .order('created_at', { ascending: false })
 
     if (error) { toast.error(error.message); setLoading(false); setRefreshing(false); return }
-    setOrders((data ?? []) as unknown as DeliveryOrder[])
+
+    // Fetch campus names separately (orders has no FK to campus in schema)
+    const campusIds = [...new Set((data ?? []).map((o: any) => o.campus_id).filter(Boolean))]
+    const campusMap: Record<string, string> = {}
+    if (campusIds.length > 0) {
+      const { data: campusData } = await supabase
+        .from('campus')
+        .select('id, name')
+        .in('id', campusIds)
+      ;(campusData ?? []).forEach((c: any) => { campusMap[c.id] = c.name })
+    }
+
+    // Attach campus name to each order
+    const ordersWithCampus = (data ?? []).map((o: any) => ({
+      ...o,
+      campus: campusMap[o.campus_id] ? { name: campusMap[o.campus_id] } : null,
+    }))
+
+    setOrders(ordersWithCampus as unknown as DeliveryOrder[])
     setLoading(false)
     setRefreshing(false)
   }
