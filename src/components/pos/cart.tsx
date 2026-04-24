@@ -220,7 +220,6 @@ export default function Cart() {
 
           {items.length > 0 && (
             <div className="space-y-4 px-4 pb-6">
-              </div>
 
               {/* DATOS DEL CLIENTE */}
               <div className="space-y-2.5">
