@@ -276,7 +276,6 @@ function OrderCard({
           )}
         </div>
       )}
-    </div>
 
       {/* Success Modal */}
       {successModal && (
@@ -609,7 +608,6 @@ export default function DeliveriesPage() {
             })}
         </div>
       )}
-    </div>
 
       {/* Success Modal */}
       {successModal && (
