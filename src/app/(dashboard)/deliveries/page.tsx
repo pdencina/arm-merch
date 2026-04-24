@@ -277,33 +277,6 @@ function OrderCard({
         </div>
       )}
 
-      {/* Success Modal */}
-      {successModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setSuccessModal(null)}
-        >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div
-            className="relative flex flex-col items-center gap-4 rounded-3xl border border-zinc-700 bg-zinc-900 px-10 py-8 shadow-2xl text-center"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="text-6xl">{successModal.icon}</div>
-            <div>
-              <p className="text-xl font-bold text-white">{successModal.title}</p>
-              {successModal.subtitle && (
-                <p className="mt-1.5 text-sm text-zinc-400">{successModal.subtitle}</p>
-              )}
-            </div>
-            <button
-              onClick={() => setSuccessModal(null)}
-              className="mt-1 rounded-2xl bg-amber-500 px-8 py-2.5 text-sm font-bold text-black transition hover:bg-amber-400"
-            >
-              Continuar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
