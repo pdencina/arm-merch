@@ -103,9 +103,17 @@ export async function POST(req: NextRequest) {
     const twilioData = await twilioRes.json().catch(() => null)
 
     if (!twilioRes.ok) {
-      console.error('[WhatsApp] Twilio error:', twilioData)
+      console.error('[WhatsApp] Twilio error:', JSON.stringify(twilioData))
+      // Return the full Twilio error for debugging
       return NextResponse.json(
-        { error: twilioData?.message ?? 'Error al enviar WhatsApp', code: twilioData?.code },
+        {
+          error: twilioData?.message ?? 'Error al enviar WhatsApp',
+          code: twilioData?.code,
+          status: twilioData?.status,
+          more_info: twilioData?.more_info,
+          to: toNumber,
+          from: fromNumber,
+        },
         { status: 400 }
       )
     }
