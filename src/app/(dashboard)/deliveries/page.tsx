@@ -278,9 +278,16 @@ function OrderCard({
                 </div>
               )}
 
-              
+              <button
+                onClick={handleAction}
+                disabled={isUpdating}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${action.color} disabled:opacity-50`}
+              >
+                {isUpdating
+                  ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                  : <action.icon size={14} />}
+                {action.label}
               </button>
-
 
               <p className="text-center text-[10px] text-zinc-700">{action.sublabel}</p>
             </div>
