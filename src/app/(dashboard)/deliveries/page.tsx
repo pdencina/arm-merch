@@ -104,7 +104,6 @@ function OrderCard({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [noteInput, setNoteInput] = useState('')
-  const [confirmDelivery, setConfirmDelivery] = useState(false)
   const [clientPhone, setClientPhone] = useState('')
   const [whatsappSent, setWhatsappSent] = useState(false)
 
@@ -118,9 +117,8 @@ function OrderCard({
   async function handleAction() {
     if (!action) return
     if (action.next === 'delivered') {
-      if (!confirmDelivery) { setConfirmDelivery(true); setExpanded(true); return }
+      // Entrega directa sin confirmación extra — el modal de éxito sirve como confirmación
       onStatusChange(order.id, action.next, noteInput.trim() || undefined)
-      setConfirmDelivery(false)
       setNoteInput('')
     } else {
       onStatusChange(order.id, action.next)
@@ -280,40 +278,9 @@ function OrderCard({
                 </div>
               )}
 
-              {/* Delivery confirmation */}
-              {confirmDelivery && (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-emerald-300">
-                    ¿Confirmar entrega al cliente {client?.client_name}?
-                  </p>
-                  <input
-                    value={noteInput}
-                    onChange={e => setNoteInput(e.target.value)}
-                    placeholder="Nota de entrega (opcional)..."
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white outline-none"
-                  />
-                </div>
-              )}
-
-              <button
-                onClick={handleAction}
-                disabled={isUpdating}
-                className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${action.color} disabled:opacity-50`}
-              >
-                {isUpdating
-                  ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                  : <action.icon size={14} />}
-                {confirmDelivery ? 'Confirmar entrega' : action.label}
+              
               </button>
 
-              {confirmDelivery && (
-                <button
-                  onClick={() => { setConfirmDelivery(false); setNoteInput('') }}
-                  className="w-full text-center text-xs text-zinc-600 hover:text-zinc-400"
-                >
-                  Cancelar
-                </button>
-              )}
 
               <p className="text-center text-[10px] text-zinc-700">{action.sublabel}</p>
             </div>
