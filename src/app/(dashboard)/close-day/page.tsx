@@ -281,7 +281,7 @@ function AdminView({
     <div className="space-y-5">
       <NotifyModal notify={notify} onClose={close} />
 
-      {/* Stats bar */
+      {/* Stats bar */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'Ventas hoy',   value: fmt(dailySalesTotal),        color: 'text-amber-400',   icon: TrendingUp  },
