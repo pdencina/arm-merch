@@ -17,14 +17,15 @@ export default function ForgotPasswordPage() {
 
     const supabase = createClient()
 
-    // Verificar que el email existe en el sistema antes de enviar
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email.trim().toLowerCase())
-      .maybeSingle()
+    // Verificar via API route (usa service role para bypassear RLS)
+    const checkRes = await fetch('/api/auth/check-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim() }),
+    })
+    const { exists } = await checkRes.json().catch(() => ({ exists: false }))
 
-    if (!profile) {
+    if (!exists) {
       setLoading(false)
       setError('No existe una cuenta con ese email en el sistema.')
       return
