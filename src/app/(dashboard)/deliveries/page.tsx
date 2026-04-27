@@ -104,13 +104,9 @@ function OrderCard({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [noteInput, setNoteInput] = useState('')
-  const [clientPhone, setClientPhone] = useState('')
-
-  // Auto-fill phone from order when it loads/changes
-  useEffect(() => {
-    const phone = order.order_contacts?.[0]?.client_phone ?? ''
-    if (phone) setClientPhone(phone)
-  }, [order.id])
+  // Auto-fill from order_contacts, fallback to manual input
+  const savedPhone = order.order_contacts?.[0]?.client_phone ?? ''
+  const [clientPhone, setClientPhone] = useState(savedPhone)
   const [whatsappSent, setWhatsappSent] = useState(false)
 
   const cfg    = STATUS_CFG[order.delivery_status as DeliveryStatus] ?? STATUS_CFG.pending
