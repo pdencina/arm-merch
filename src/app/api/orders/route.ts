@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     const requestedCampusId: string|null = body.campus_id ?? null
     const clientName: string|null = String(body.client_name ?? '').trim() || null
     const clientEmail: string|null = String(body.client_email ?? '').trim().toLowerCase() || null
+    const clientPhone: string|null = String(body.client_phone ?? '').trim() || null
 
     if (!items.length || !clientName || !paymentMethod) {
       return NextResponse.json(
