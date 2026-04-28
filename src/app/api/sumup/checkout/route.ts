@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         // return_url = SumUp llama este endpoint (POST) cuando el checkout cambia de estado
         return_url: `${appUrl}/api/sumup/webhook`,
         // redirect_url = donde va el cliente en su browser tras pagar
-        redirect_url: `${appUrl}/pos?payment=success`,
+        redirect_url: `${appUrl}/payment=success`,
       }),
     })
 
