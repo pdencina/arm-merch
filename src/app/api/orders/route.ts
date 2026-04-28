@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
         discount,
         total: Math.round(totalCalculado),
         notes: combinedNotes,
-        status: 'paid',
+        status: paymentMethod === 'link' ? 'pending' : 'paid',
         delivery_status: deliveryStatus,
         client_phone: clientPhone || null,
       })
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
 
     // ── Actualizar stock vía trigger ──
     // Si es pedido pendiente NO descontar stock — se descuenta al entregar.
-    if (deliveryStatus !== 'pending') {
+    if (deliveryStatus !== 'pending' && paymentMethod !== 'link') {
       for (const item of normalizedItems) {
         const { error: movementError } = await adminClient
           .from('inventory_movements')

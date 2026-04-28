@@ -272,6 +272,7 @@ export default function Cart() {
           discount: 0,
           notes: notes.trim() || null,
           delivery_status: isPendingDelivery ? 'pending' : null,
+          sumup_checkout_id: paymentMethod === 'link' ? (checkoutData?.checkout_id ?? null) : null,
         }),
       })
 

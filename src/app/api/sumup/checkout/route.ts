@@ -43,23 +43,30 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         checkout_reference: order_id ?? `arm-${Date.now()}`,
         amount: Number(amount),
-        currency,
+        currency: currency ?? 'CLP',
         merchant_code: merchantCode,
         description,
         hosted_checkout: {
           enabled: true,
         },
-        // URL de retorno cuando el cliente completa el pago
-        redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/pos?payment=success`,
+        // return_url = webhook que SumUp llama cuando el pago se completa
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://armerch-poud.vercel.app'}/api/sumup/webhook`,
+        // redirect_url = donde va el cliente tras pagar (página de éxito)
+        redirect_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://armerch-poud.vercel.app'}/pos?payment=success`,
       }),
     })
 
     const checkoutData = await checkoutRes.json()
 
     if (!checkoutRes.ok) {
-      console.error('[SumUp] Checkout error:', checkoutData)
+      console.error('[SumUp] Checkout error full:', JSON.stringify(checkoutData))
       return NextResponse.json(
-        { error: checkoutData?.message ?? 'Error creando checkout en SumUp' },
+        {
+          error: checkoutData?.message ?? 'Error creando checkout en SumUp',
+          sumup_error: checkoutData,
+          api_key_present: !!apiKey,
+          merchant_code: merchantCode,
+        },
         { status: 400 }
       )
     }
