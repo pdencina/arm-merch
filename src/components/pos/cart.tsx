@@ -179,6 +179,8 @@ export default function Cart() {
     id: string; number: number | string; total: number; emailSent?: boolean
   } | null>(null)
 
+  const [linkOrderStatus, setLinkOrderStatus] = useState<'pending' | 'paid' | 'cancelled' | null>(null)
+
   const canSubmit = useMemo(
     () => items.length > 0 && clientName.trim().length > 0 && !submitting,
     [items.length, clientName, submitting]
@@ -318,6 +320,36 @@ export default function Cart() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [canSubmit, paymentMethod, items.length, clientName])
 
+
+  // ── Realtime: escuchar cambio de estado de la orden con link de pago ──────
+  useEffect(() => {
+    if (!linkSentOpen || !createdOrder?.id) return
+
+    setLinkOrderStatus('pending')
+
+    const channel = supabase
+      .channel(`order-status-${createdOrder.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${createdOrder.id}`,
+        },
+        (payload) => {
+          const newStatus = (payload.new as any).status
+          if (newStatus === 'paid') {
+            setLinkOrderStatus('paid')
+          } else if (newStatus === 'cancelled') {
+            setLinkOrderStatus('cancelled')
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [linkSentOpen, createdOrder?.id])
 
   // ─── render ───────────────────────────────────────────────────────────────
   return (
@@ -561,24 +593,65 @@ export default function Cart() {
       {linkSentOpen && createdOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-8 text-center shadow-2xl">
-            <div className="mb-4 text-6xl">📱</div>
-            <h2 className="mb-3 text-xl font-bold text-white">Link enviado al cliente</h2>
+
+            {/* Ícono dinámico según estado */}
+            <div className="mb-4 text-6xl">
+              {linkOrderStatus === 'paid' ? '✅' : linkOrderStatus === 'cancelled' ? '❌' : '📱'}
+            </div>
+
+            {/* Título dinámico */}
+            <h2 className="mb-3 text-xl font-bold text-white">
+              {linkOrderStatus === 'paid'
+                ? '¡Pago confirmado!'
+                : linkOrderStatus === 'cancelled'
+                ? 'Pago rechazado'
+                : 'Link enviado al cliente'}
+            </h2>
+
             <p className="mb-1 text-sm text-zinc-400">
               Orden <span className="font-bold text-white">#{createdOrder.number}</span>
             </p>
-            <p className="mb-5 text-sm text-zinc-500">
-              El cliente recibirá el link por WhatsApp para pagar con tarjeta, Apple Pay o Google Pay.
-            </p>
+
+            {linkOrderStatus === 'paid' ? (
+              <p className="mb-5 text-sm text-green-400 font-semibold">
+                El pago fue procesado. El stock ya fue descontado automáticamente.
+              </p>
+            ) : linkOrderStatus === 'cancelled' ? (
+              <p className="mb-5 text-sm text-red-400">
+                El pago fue rechazado o expiró. El stock no fue afectado.
+              </p>
+            ) : (
+              <p className="mb-5 text-sm text-zinc-500">
+                El cliente recibirá el link por WhatsApp para pagar con tarjeta, Apple Pay o Google Pay.
+              </p>
+            )}
 
             {/* Estado visual */}
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 mb-6 text-left space-y-2">
+            <div className={`rounded-2xl border px-4 py-4 mb-6 text-left space-y-2 transition-all ${
+              linkOrderStatus === 'paid'
+                ? 'border-green-500/40 bg-green-500/10'
+                : linkOrderStatus === 'cancelled'
+                ? 'border-red-500/40 bg-red-500/10'
+                : 'border-zinc-700 bg-zinc-800'
+            }`}>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-500">Estado orden</span>
-                <span className="font-semibold text-amber-400">⏳ Pendiente de pago</span>
+                {linkOrderStatus === 'paid' ? (
+                  <span className="font-semibold text-green-400">✅ Pagado</span>
+                ) : linkOrderStatus === 'cancelled' ? (
+                  <span className="font-semibold text-red-400">❌ Cancelado</span>
+                ) : (
+                  <span className="font-semibold text-amber-400 flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                    Esperando pago...
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-500">Stock descontado</span>
-                <span className="font-semibold text-zinc-400">No — se descuenta al pagar</span>
+                <span className={`font-semibold ${linkOrderStatus === 'paid' ? 'text-green-400' : 'text-zinc-400'}`}>
+                  {linkOrderStatus === 'paid' ? 'Sí — descontado' : 'No — se descuenta al pagar'}
+                </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-500">Confirmación</span>
@@ -586,13 +659,21 @@ export default function Cart() {
               </div>
             </div>
 
-            <p className="mb-5 text-xs text-zinc-600">
-              Si el cliente no paga, la orden quedará pendiente sin afectar el inventario.
-            </p>
+            {linkOrderStatus === null || linkOrderStatus === 'pending' ? (
+              <p className="mb-5 text-xs text-zinc-600">
+                Esta pantalla se actualizará automáticamente cuando el cliente pague.
+              </p>
+            ) : null}
 
             <button
-              onClick={() => { setLinkSentOpen(false); clearCart() }}
-              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
+              onClick={() => { setLinkSentOpen(false); setLinkOrderStatus(null); clearCart() }}
+              className={`w-full rounded-2xl py-3 text-sm font-bold text-black transition ${
+                linkOrderStatus === 'paid'
+                  ? 'bg-green-500 hover:bg-green-400'
+                  : linkOrderStatus === 'cancelled'
+                  ? 'bg-red-500 hover:bg-red-400 text-white'
+                  : 'bg-amber-500 hover:bg-amber-400'
+              }`}
             >
               Nueva venta
             </button>
