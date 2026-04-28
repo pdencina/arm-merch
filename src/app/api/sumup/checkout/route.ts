@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +27,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://armerch-poud.vercel.app'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://arm-merch.vercel.app'
     const checkoutRef = order_id ?? `arm-${Date.now()}`
 
     const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
@@ -38,21 +37,34 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        checkout_reference: checkoutRef,
+        checkout_reference: String(checkoutRef),
         amount: Number(amount),
-        currency,
+        currency: 'CLP',
         merchant_code: merchantCode,
-        description,
-        hosted_checkout: { enabled: true },
-        // return_url = SumUp llama este endpoint (POST) cuando el checkout cambia de estado
-        return_url: `${appUrl}/api/sumup/webhook`,
-        // redirect_url = donde va el cliente en su browser tras pagar
-        redirect_url: `${appUrl}/payment=success`,
+        description: String(description),
+
+        // IMPORTANTE: redirección correcta después del pago
+        redirect_url: `${appUrl}/pos?payment=success&order_id=${checkoutRef}`,
+
+        // Hosted checkout activo
+        hosted_checkout: {
+          enabled: true,
+        },
       }),
     })
 
-    const checkoutData = await checkoutRes.json()
-    console.log('[SumUp] Checkout response:', JSON.stringify(checkoutData))
+    // 👇 Leer respuesta REAL de SumUp (clave para debug)
+    const rawText = await checkoutRes.text()
+    let checkoutData: any = {}
+
+    try {
+      checkoutData = JSON.parse(rawText)
+    } catch {
+      checkoutData = { raw: rawText }
+    }
+
+    console.log('[SumUp] STATUS:', checkoutRes.status)
+    console.log('[SumUp] RESPONSE:', checkoutData)
 
     if (!checkoutRes.ok) {
       return NextResponse.json(
@@ -60,7 +72,7 @@ export async function POST(req: NextRequest) {
           error: checkoutData?.message ?? 'Error creando checkout en SumUp',
           sumup_error: checkoutData,
         },
-        { status: 400 }
+        { status: checkoutRes.status }
       )
     }
 
@@ -68,12 +80,15 @@ export async function POST(req: NextRequest) {
 
     if (!paymentUrl) {
       return NextResponse.json(
-        { error: 'SumUp no retornó URL de pago. Verifica que tu cuenta tenga Hosted Checkout habilitado.' },
+        {
+          error: 'SumUp no retornó URL de pago. Revisa que Hosted Checkout esté habilitado.',
+          sumup_error: checkoutData,
+        },
         { status: 400 }
       )
     }
 
-    console.log('[SumUp] Checkout created:', checkoutData.id, paymentUrl)
+    console.log('[SumUp] Checkout creado:', checkoutData.id, paymentUrl)
 
     return NextResponse.json({
       success: true,
@@ -83,7 +98,10 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('[SumUp] Error:', error)
-    return NextResponse.json({ error: error?.message ?? 'Error interno' }, { status: 500 })
+    console.error('[SumUp] ERROR:', error)
+    return NextResponse.json(
+      { error: error?.message ?? 'Error interno' },
+      { status: 500 }
+    )
   }
 }
