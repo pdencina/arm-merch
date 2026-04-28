@@ -230,6 +230,8 @@ export default function Cart() {
           })
           const checkoutData = await checkoutRes.json()
           if (checkoutRes.ok && checkoutData.payment_url) {
+            // Store reference for order creation
+            window.__sumupCheckoutRef = checkoutData.checkout_reference
             // Send WhatsApp with payment link
             await fetch('/api/whatsapp', {
               method: 'POST',
@@ -271,7 +273,7 @@ export default function Cart() {
           client_phone: clientPhone.trim() || null,
           payment_method: paymentMethod,
           discount: 0,
-          notes: notes.trim() || null,
+          notes: paymentMethod === 'link' && (window as any).__sumupCheckoutRef ? `sumup:${(window as any).__sumupCheckoutRef}` : (notes.trim() || null),
           delivery_status: isPendingDelivery ? 'pending' : null,
         }),
       })

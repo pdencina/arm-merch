@@ -2,22 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 // ─── POST /api/sumup/webhook ──────────────────────────────────────────────────
-// SumUp llama a este endpoint cuando un pago se completa.
-// Configurar en SumUp Dashboard → Webhooks → URL: /api/sumup/webhook
+// SumUp llama automáticamente a este endpoint cuando el estado del checkout cambia.
+// Se configura via return_url en la creación del checkout.
+// Maneja: PAID, FAILED, CANCELLED
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    console.log('[SumUp Webhook]', JSON.stringify(body))
+    console.log('[SumUp Webhook] Received:', JSON.stringify(body))
 
-    // SumUp envía: { id, checkout_reference, status, amount, currency, ... }
-    const { checkout_reference, status, id: checkout_id } = body
-
-    // Solo procesar pagos completados
-    if (status !== 'PAID') {
-      return NextResponse.json({ received: true, action: 'ignored', status })
-    }
+    const { checkout_reference, status, id: checkout_id, transaction_code } = body
 
     if (!checkout_reference) {
       return NextResponse.json({ received: true, action: 'no_reference' })
@@ -29,60 +24,87 @@ export async function POST(req: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Buscar la orden por checkout_reference (guardado en notes o metadata)
-    // El checkout_reference lo enviamos como `arm-{order_id}` o el order_number
-    const { data: order, error } = await adminClient
+    // Buscar la orden por checkout_reference (enviamos arm-{timestamp} al crear)
+    // También intentamos por sumup_checkout_id como fallback
+    let order: any = null
+
+    // Intento 1: por checkout_reference en notes
+    const { data: o1 } = await adminClient
       .from('orders')
-      .select('id, order_number, campus_id, status, payment_method, order_items(product_id, quantity)')
-      .eq('sumup_checkout_id', checkout_id)
+      .select('id, order_number, campus_id, status, order_items(product_id, quantity, size)')
+      .ilike('notes', `%${checkout_reference}%`)
       .maybeSingle()
 
-    if (error || !order) {
-      console.error('[SumUp Webhook] Order not found for checkout:', checkout_id)
-      // Try by checkout_reference
-      const { data: orderByRef } = await adminClient
+    if (o1) order = o1
+
+    // Intento 2: por sumup_checkout_id si existe la columna
+    if (!order && checkout_id) {
+      const { data: o2 } = await adminClient
         .from('orders')
-        .select('id, order_number, campus_id, status, order_items(product_id, quantity)')
-        .eq('notes', `sumup:${checkout_reference}`)
+        .select('id, order_number, campus_id, status, order_items(product_id, quantity, size)')
+        .eq('sumup_checkout_id', checkout_id)
         .maybeSingle()
-
-      if (!orderByRef) {
-        return NextResponse.json({ received: true, action: 'order_not_found' })
-      }
-
-      // Update order to paid
-      await processPayment(adminClient, orderByRef)
-      return NextResponse.json({ received: true, action: 'paid', order_number: orderByRef.order_number })
+      if (o2) order = o2
     }
 
-    await processPayment(adminClient, order)
-    return NextResponse.json({ received: true, action: 'paid', order_number: order.order_number })
+    if (!order) {
+      console.error('[SumUp Webhook] Order not found for reference:', checkout_reference)
+      return NextResponse.json({ received: true, action: 'order_not_found', checkout_reference })
+    }
+
+    // Ya procesada — evitar duplicados
+    if (order.status === 'paid' || order.status === 'cancelled') {
+      console.log('[SumUp Webhook] Already processed:', order.order_number, order.status)
+      return NextResponse.json({ received: true, action: 'already_processed' })
+    }
+
+    // ── PAGO ACEPTADO ─────────────────────────────────────────────────────────
+    if (status === 'PAID') {
+      await adminClient
+        .from('orders')
+        .update({
+          status: 'paid',
+          notes: `Pagado via SumUp | Ref: ${checkout_reference} | TXN: ${transaction_code ?? ''}`,
+        })
+        .eq('id', order.id)
+
+      // Descontar stock por campus
+      for (const item of (order.order_items ?? [])) {
+        await adminClient
+          .from('inventory_movements')
+          .insert({
+            product_id: item.product_id,
+            campus_id:  order.campus_id,
+            type:       'salida',
+            quantity:   item.quantity,
+            notes:      `Pago link SumUp - Orden #${order.order_number}`,
+          })
+      }
+
+      console.log('[SumUp Webhook] ✅ Order PAID:', order.order_number)
+      return NextResponse.json({ received: true, action: 'paid', order_number: order.order_number })
+    }
+
+    // ── PAGO FALLIDO O CANCELADO ──────────────────────────────────────────────
+    if (status === 'FAILED' || status === 'CANCELLED' || status === 'EXPIRED') {
+      await adminClient
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          notes: `Pago ${status.toLowerCase()} via SumUp | Ref: ${checkout_reference}`,
+        })
+        .eq('id', order.id)
+
+      console.log('[SumUp Webhook] ❌ Order', status, ':', order.order_number)
+      return NextResponse.json({ received: true, action: status.toLowerCase(), order_number: order.order_number })
+    }
+
+    // Otros estados (PENDING, etc) — solo loguear
+    console.log('[SumUp Webhook] Status ignored:', status)
+    return NextResponse.json({ received: true, action: 'ignored', status })
 
   } catch (error: any) {
     console.error('[SumUp Webhook] Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
-
-async function processPayment(adminClient: any, order: any) {
-  // 1. Actualizar orden a pagada
-  await adminClient
-    .from('orders')
-    .update({ status: 'paid' })
-    .eq('id', order.id)
-
-  // 2. Descontar stock
-  for (const item of (order.order_items ?? [])) {
-    await adminClient
-      .from('inventory_movements')
-      .insert({
-        product_id: item.product_id,
-        campus_id:  order.campus_id,
-        type:       'salida',
-        quantity:   item.quantity,
-        notes:      `Pago link - Orden #${order.order_number}`,
-      })
-  }
-
-  console.log('[SumUp Webhook] Order paid:', order.order_number)
 }

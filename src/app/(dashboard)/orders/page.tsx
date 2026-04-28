@@ -124,6 +124,23 @@ export default function OrdersPage() {
     }
 
     load()
+
+    // ── Realtime: actualizar órdenes cuando SumUp confirma el pago ──────────
+    const channel = supabase
+      .channel('orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        (payload) => {
+          const updated = payload.new as OrderRow
+          setOrders(prev => prev.map(o =>
+            o.id === updated.id ? { ...o, status: updated.status, notes: updated.notes } : o
+          ))
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [supabase])
 
   const campusMap = useMemo(() => {

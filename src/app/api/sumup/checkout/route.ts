@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Crear Hosted Checkout en SumUp ────────────────────────────────────────
+    const checkoutRef = order_id ?? `arm-${Date.now()}`
     const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: {
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        checkout_reference: order_id ?? `arm-${Date.now()}`,
+        checkout_reference: checkoutRef,
         amount: Number(amount),
         currency: currency ?? 'CLP',
         merchant_code: merchantCode,
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       checkout_id: checkoutId,
+      checkout_reference: checkoutRef,
       payment_url: paymentUrl,
     })
 
