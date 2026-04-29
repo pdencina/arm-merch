@@ -450,7 +450,7 @@ export default function Navbar({
           </div>
         </div>
       )}
-    </>      {/* Logout confirm modal */}
+      {/* Logout confirm modal */}
       {showLogoutConfirm && (
         <div
           style={{
@@ -465,7 +465,7 @@ export default function Navbar({
               borderRadius: '20px', padding: '28px 24px',
               maxWidth: '320px', width: '90%', textAlign: 'center',
               boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
-              animation: 'slideUp 0.2s ease',
+              animation: 'slideUpLogout 0.2s ease',
             }}
           >
             <div style={{
@@ -509,8 +509,9 @@ export default function Navbar({
               </button>
             </div>
           </div>
-          <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`}</style>
+          <style>{`@keyframes slideUpLogout { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`}</style>
         </div>
       )}
+    </>
   )
 }
