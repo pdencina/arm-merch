@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/sidebar'
+import SessionGuard from '@/components/layout/session-guard'
 import Navbar from '@/components/layout/navbar'
 import { Toaster } from 'sonner'
 
@@ -130,6 +131,7 @@ export default function DashboardLayout({
         </main>
       </div>
 
+      <SessionGuard />
       <Toaster
         position="bottom-right"
         toastOptions={{

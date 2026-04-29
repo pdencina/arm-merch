@@ -201,6 +201,8 @@ export default function Navbar({
     document.documentElement.classList.toggle('light-mode', !next)
   }
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -360,7 +362,7 @@ export default function Navbar({
           </div>
 
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutConfirm(true)}
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#161A20] text-[#7F8896] transition hover:bg-red-500/10 hover:text-red-400"
           >
             <LogOut size={15} />
@@ -448,6 +450,67 @@ export default function Navbar({
           </div>
         </div>
       )}
-    </>
+    </>      {/* Logout confirm modal */}
+      {showLogoutConfirm && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9998,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            style={{
+              background: '#111318', border: '1px solid #2a2e38',
+              borderRadius: '20px', padding: '28px 24px',
+              maxWidth: '320px', width: '90%', textAlign: 'center',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+              animation: 'slideUp 0.2s ease',
+            }}
+          >
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '50%',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </div>
+            <p style={{ fontSize: '15px', fontWeight: 600, color: '#f3f5f7', marginBottom: '6px' }}>
+              ¿Cerrar sesión?
+            </p>
+            <p style={{ fontSize: '12px', color: '#66707f', marginBottom: '22px', lineHeight: 1.5 }}>
+              Serás redirigido al login. Asegúrate de haber guardado tus cambios.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                style={{
+                  flex: 1, background: 'transparent', border: '1px solid #2a2e38',
+                  borderRadius: '10px', padding: '10px', fontSize: '13px',
+                  color: '#66707f', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleLogout}
+                style={{
+                  flex: 1, background: '#ef4444', border: 'none',
+                  borderRadius: '10px', padding: '10px', fontSize: '13px',
+                  fontWeight: 600, color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+          <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`}</style>
+        </div>
+      )}
   )
 }
