@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get('authorization')
 
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ found: false, message: 'No autenticado' }, { status: 401 })
+      return NextResponse.json(
+        { found: false, message: 'No autenticado' },
+        { status: 401 }
+      )
     }
 
     const apiKey = process.env.SUMUP_API_KEY
@@ -55,51 +58,76 @@ export async function POST(req: NextRequest) {
     })
 
     const rawText = await sumupRes.text()
+
     let sumupData: any = {}
 
     try {
       sumupData = JSON.parse(rawText)
     } catch {
+      console.error('[SumUp Verify] ❌ No es JSON válido:', rawText)
       sumupData = { raw: rawText }
     }
 
-    console.log('[SumUp Verify] API status:', sumupRes.status)
-    console.log('[SumUp Verify] API response:', sumupData)
+    console.log('[SumUp Verify] 🔎 Status:', sumupRes.status)
+    console.log('[SumUp Verify] 🔎 Data:', sumupData)
 
     if (!sumupRes.ok) {
       return NextResponse.json(
         {
           found: false,
-          message: 'No se pudo consultar SumUp',
+          message: 'Error consultando SumUp',
           sumup_error: sumupData,
         },
         { status: sumupRes.status }
       )
     }
 
-    const transactions: SumUpTransaction[] = Array.isArray(sumupData.items)
-      ? sumupData.items
-      : Array.isArray(sumupData)
-        ? sumupData
-        : []
+    // 🧠 Soporte para distintas estructuras de respuesta
+    const transactions: SumUpTransaction[] =
+      Array.isArray(sumupData.items)
+        ? sumupData.items
+        : Array.isArray(sumupData.transactions)
+          ? sumupData.transactions
+          : Array.isArray(sumupData.data)
+            ? sumupData.data
+            : Array.isArray(sumupData)
+              ? sumupData
+              : []
 
-    const successfulStatuses = ['SUCCESSFUL', 'PAID', 'SUCCESS', 'COMPLETED']
+    console.log('[SumUp Verify] 📦 Transactions encontradas:', transactions.length)
+
+    const successfulStatuses = [
+      'SUCCESSFUL',
+      'PAID',
+      'SUCCESS',
+      'COMPLETED'
+    ]
 
     const matchingTransaction = transactions.find((tx) => {
-      const txAmount = Number(tx.amount)
+      const txAmount = Number(tx.amount ?? 0)
       const txStatus = String(tx.status ?? '').toUpperCase()
+
       const txDateRaw = tx.timestamp ?? tx.local_time
       const txDate = txDateRaw ? new Date(txDateRaw) : null
 
-      const sameAmount = Math.round(txAmount) === Math.round(amount)
+      const sameAmount = Math.abs(txAmount - amount) < 1
       const isSuccessful = successfulStatuses.includes(txStatus)
       const isRecent = txDate ? txDate >= tenMinutesAgo && txDate <= now : true
+
+      console.log('[SumUp Verify] 🔍 TX:', {
+        txAmount,
+        txStatus,
+        txDate,
+        sameAmount,
+        isSuccessful,
+        isRecent,
+      })
 
       return sameAmount && isSuccessful && isRecent
     })
 
     if (!matchingTransaction) {
-      const availableAmounts = transactions.slice(0, 8).map((tx) => ({
+      const available = transactions.slice(0, 8).map((tx) => ({
         amount: tx.amount,
         status: tx.status,
         date: tx.timestamp ?? tx.local_time,
@@ -109,7 +137,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         found: false,
         message: `No se encontró una transacción aprobada por $${amount.toLocaleString('es-CL')} en los últimos 10 minutos.`,
-        available_amounts: availableAmounts,
+        available_amounts: available,
       })
     }
 
@@ -120,12 +148,16 @@ export async function POST(req: NextRequest) {
         tx_code: matchingTransaction.transaction_code ?? matchingTransaction.id,
         amount: matchingTransaction.amount,
         status: matchingTransaction.status,
-        card_type: matchingTransaction.card_type ?? matchingTransaction.payment_type ?? 'Tarjeta',
+        card_type:
+          matchingTransaction.card_type ??
+          matchingTransaction.payment_type ??
+          'Tarjeta',
         date: matchingTransaction.timestamp ?? matchingTransaction.local_time,
       },
     })
+
   } catch (error: any) {
-    console.error('[SumUp Verify] Error:', error)
+    console.error('[SumUp Verify] ❌ Error:', error)
 
     return NextResponse.json(
       {
