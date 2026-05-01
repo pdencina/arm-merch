@@ -795,14 +795,14 @@ export default function Cart() {
             <h2 className="mb-2 text-xl font-bold text-white">Cobro con Smart POS</h2>
             <p className="mb-2 text-sm text-zinc-400">Total a cobrar:</p>
             <p className="mb-6 text-3xl font-black text-amber-400">
-              {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(total())}
+              {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(sumupSmartOrder?.total ?? 0)}
             </p>
 
             <div className="mb-6 rounded-2xl border border-zinc-700 bg-zinc-800 p-4 text-left space-y-2">
               <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3">Instrucciones</p>
               <div className="flex items-start gap-2 text-sm text-zinc-300">
                 <span className="shrink-0 font-bold text-amber-400">1.</span>
-                <span>Cobra <strong>{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(total())}</strong> en el Smart POS físicamente</span>
+                <span>Cobra <strong>{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(sumupSmartOrder?.total ?? 0)}</strong> en el Smart POS físicamente</span>
               </div>
               <div className="flex items-start gap-2 text-sm text-zinc-300">
                 <span className="shrink-0 font-bold text-amber-400">2.</span>
