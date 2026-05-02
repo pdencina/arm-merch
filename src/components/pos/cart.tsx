@@ -223,7 +223,7 @@ export default function Cart() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token ?? ''}`,
         },
-        body: JSON.stringify({ amount: total() }),
+        body: JSON.stringify({ tx_code: txCode.trim(), amount: sumupSmartOrder?.total ?? 0 }),
       })
       const data = await res.json()
 
