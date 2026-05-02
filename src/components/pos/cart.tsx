@@ -178,6 +178,8 @@ export default function Cart() {
   const [verifying, setVerifying] = useState(false)
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null)
+  const [recentTxList, setRecentTxList] = useState<any[]>([])
+  const [txCode, setTxCode] = useState('')
   const [sumupPolling, setSumupPolling] = useState(false)
   const [sumupStatus, setSumupStatus] = useState<'waiting' | 'found' | 'timeout'>('waiting')
   const sumupPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -232,7 +234,7 @@ export default function Cart() {
       }
 
       // Transacción encontrada — registrar la venta
-      setVerifySuccess(`✅ Pago verificado · ${data.transaction.card_type ?? 'Tarjeta'} · TX: ${data.transaction.tx_code}`)
+      setVerifySuccess(`✅ Pago verificado · ${txToUse.card_type ?? 'Tarjeta'} · TX: ${txToUse.tx_code}`)
 
       // Crear la orden
       const orderRes = await fetch('/api/orders', {
@@ -252,7 +254,7 @@ export default function Cart() {
           client_name: clientName.trim(),
           client_email: clientEmail.trim() || '',
           client_phone: clientPhone.trim() || null,
-          notes: `Smart POS · TX: ${data.transaction.tx_code} · ${data.transaction.card_type ?? ''}`,
+          notes: `Smart POS · TX: ${txToUse.tx_code} · ${txToUse.card_type ?? ''}`,
           discount: 0,
         }),
       })
@@ -826,8 +828,27 @@ export default function Cart() {
               </div>
             )}
 
+            {/* TX Code input */}
+            <div className="mb-4">
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">
+                Código de transacción del Smart POS
+              </label>
+              <input
+                value={txCode}
+                onChange={e => setTxCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleVerifySumup() }}
+                placeholder="Ej: TAAA2UTDS4R"
+                className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm font-mono text-white placeholder-zinc-600 outline-none transition focus:border-amber-500/60"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="mt-1.5 text-[10px] text-zinc-600">
+                El código aparece en la pantalla del Smart POS y en el comprobante del cliente
+              </p>
+            </div>
+
             <button
-              onClick={handleVerifySumup}
+              onClick={() => handleVerifySumup()}
               disabled={verifying}
               className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 disabled:opacity-50"
             >
@@ -837,7 +858,7 @@ export default function Cart() {
             </button>
 
             <button
-              onClick={() => { setSumupSmartOpen(false); setVerifyError(null); setSubmitting(false) }}
+              onClick={() => { setSumupSmartOpen(false); setVerifyError(null); setTxCode(''); setSubmitting(false) }}
               className="w-full text-center text-xs text-zinc-600 hover:text-zinc-400 transition"
             >
               Cancelar

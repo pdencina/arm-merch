@@ -1,27 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// ─── POST /api/sumup/verify ───────────────────────────────────────────────────
+// Busca una transacción específica de SumUp por código de transacción.
+// El vendedor ingresa el código que aparece en el Smart POS (ej: TAAA2UTDS4R).
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   try {
-    const apiKey       = process.env.SUMUP_API_KEY
-    const merchantCode = process.env.SUMUP_MERCHANT_CODE ?? 'MGSXCYTL'
-
+    const apiKey = process.env.SUMUP_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'SUMUP_API_KEY no configurada' }, { status: 500 })
     }
 
-    const { amount } = await req.json()
-    if (!amount) {
-      return NextResponse.json({ error: 'amount requerido' }, { status: 400 })
+    const { tx_code, amount } = await req.json()
+
+    if (!tx_code?.trim()) {
+      return NextResponse.json({ error: 'Código de transacción requerido' }, { status: 400 })
     }
 
-    const targetAmount = Number(amount)
+    const code = tx_code.trim().toUpperCase()
 
-    // ── Buscar las últimas transacciones en orden DESCENDENTE ─────────────────
-    // SumUp por defecto devuelve ASC (las más antiguas primero)
-    // Usamos order=descending para obtener las más recientes
+    // Buscar la transacción exacta por código
     const res = await fetch(
-      `https://api.sumup.com/v0.1/me/transactions/history` +
-      `?limit=10&order=descending`,
+      `https://api.sumup.com/v0.1/me/transactions?transaction_code=${code}`,
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -39,63 +40,45 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const data = await res.json()
-    const allTx: any[] = data.items ?? []
+    const tx = await res.json()
+    console.log('[SumUp Verify] Transaction found:', tx?.status, tx?.amount, tx?.transaction_code)
 
-    console.log('[SumUp Verify] Transactions found:', allTx.length)
-    console.log('[SumUp Verify] Latest:', allTx[0]?.timestamp, allTx[0]?.amount, allTx[0]?.status)
-
-    // Filtrar solo las de los últimos 15 minutos
-    const cutoff = Date.now() - 15 * 60 * 1000
-    const recentTx = allTx.filter(tx => {
-      const txTime = new Date(tx.timestamp).getTime()
-      return txTime >= cutoff
-    })
-
-    console.log('[SumUp Verify] Recent transactions (last 15min):', recentTx.length)
-
-    if (recentTx.length === 0) {
+    if (!tx || !tx.transaction_code) {
       return NextResponse.json({
         found: false,
-        message: `No hay transacciones en los últimos 15 minutos. La más reciente es de: ${allTx[0]?.timestamp ?? 'desconocida'}`,
-        debug: {
-          total_found: allTx.length,
-          latest_timestamp: allTx[0]?.timestamp,
-          latest_amount: allTx[0]?.amount,
-          latest_status: allTx[0]?.status,
-        }
+        message: `No se encontró la transacción con código ${code}`,
       })
     }
 
-    // Buscar transacción que coincida con el monto (tolerancia ±100 CLP)
-    const successStatuses = ['SUCCESSFUL', 'successful', 'PAID', 'paid', 'APPROVED', 'approved']
-    const match = recentTx.find(tx =>
-      successStatuses.includes(tx.status) &&
-      Math.abs(Number(tx.amount) - targetAmount) <= 100
-    )
-
-    if (!match) {
-      // Si hay transacciones recientes pero no coincide el monto
-      const recentAmounts = recentTx.map(tx => `$${tx.amount} (${tx.status})`).join(', ')
+    const successStatuses = ['SUCCESSFUL', 'PAID', 'APPROVED']
+    if (!successStatuses.includes(tx.status?.toUpperCase())) {
       return NextResponse.json({
         found: false,
-        message: `No hay transacción de $${targetAmount.toLocaleString('es-CL')} en los últimos 15 minutos. Transacciones recientes: ${recentAmounts}`,
+        message: `La transacción ${code} tiene estado: ${tx.status} — no está aprobada`,
       })
     }
 
-    console.log('[SumUp Verify] ✅ Match found:', match.transaction_code, match.amount)
+    // Validar que el monto coincida (si se envía)
+    if (amount && Math.abs(Number(tx.amount) - Number(amount)) > 1) {
+      return NextResponse.json({
+        found: false,
+        message: `El monto de la transacción ($${tx.amount}) no coincide con el carrito ($${amount})`,
+        tx_amount: tx.amount,
+        cart_amount: amount,
+      })
+    }
 
     return NextResponse.json({
       found: true,
       transaction: {
-        id:           match.id,
-        tx_code:      match.transaction_code,
-        amount:       match.amount,
-        currency:     match.currency,
-        status:       match.status,
-        card_type:    match.card_type,
-        timestamp:    match.timestamp,
-        payment_type: match.payment_type,
+        id:           tx.id,
+        tx_code:      tx.transaction_code,
+        amount:       tx.amount,
+        currency:     tx.currency,
+        status:       tx.status,
+        card_type:    tx.card_type,
+        timestamp:    tx.timestamp,
+        payment_type: tx.payment_type,
       },
     })
 
