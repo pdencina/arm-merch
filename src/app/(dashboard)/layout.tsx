@@ -1,10 +1,10 @@
 'use client'
+import ConnectionStatus from '@/components/ui/connection-status'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/sidebar'
-import SessionGuard from '@/components/layout/session-guard'
 import Navbar from '@/components/layout/navbar'
 import { Toaster } from 'sonner'
 
@@ -127,11 +127,11 @@ export default function DashboardLayout({
         />
 
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
-          {children}
+          <ConnectionStatus />
+      {children}
         </main>
       </div>
 
-      <SessionGuard />
       <Toaster
         position="bottom-right"
         toastOptions={{

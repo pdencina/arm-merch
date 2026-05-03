@@ -307,7 +307,7 @@ export default function Cart() {
         // 1. Crear orden en Supabase como pending
         const supabase = createClient()
         const { data: { session: authSession } } = await supabase.auth.getSession()
-        if (!authSession?.access_token) { alert('Sin sesión'); return }
+        if (!authSession?.access_token) { setVerifyError('Sesión expirada. Recarga la página.'); setVerifying(false); return }
 
         const orderRes = await fetch('/api/orders', {
           method: 'POST',
@@ -323,7 +323,7 @@ export default function Cart() {
           }),
         })
         const orderData = await orderRes.json()
-        if (!orderRes.ok) { alert(orderData.error ?? 'Error creando orden'); return }
+        if (!orderRes.ok) { setVerifyError(orderData.error ?? 'Error al registrar la orden'); setVerifying(false); return }
 
         const orderId     = orderData.order_id
         const orderNumber = orderData.order_number ?? orderId
@@ -453,7 +453,8 @@ export default function Cart() {
       setClientPhone('')
       clearCart()
     } catch (err: any) {
-      alert(err?.message || 'Error inesperado')
+      setVerifyError(err?.message || 'Error inesperado')
+      setSubmitting(false)
     } finally {
       setSubmitting(false)
     }

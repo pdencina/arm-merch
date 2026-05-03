@@ -1,8 +1,10 @@
 'use client'
+import { useNotify, NotifyModal } from '@/components/ui/notify-modal'
 
 import { useState } from 'react'
 
 export default function ResendVoucherButton({
+  const { notify, success, error: notifyError, close } = useNotify()
   orderId,
 }: {
   orderId: string
@@ -29,7 +31,7 @@ export default function ResendVoucherButton({
         return
       }
 
-      alert('Voucher reenviado correctamente')
+      success('Voucher enviado', 'El comprobante fue reenviado al correo del cliente', '📧')
       setLoading(false)
     } catch (error: any) {
       alert(error?.message || 'Error inesperado al reenviar')

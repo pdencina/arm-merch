@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from 'next/server'
 // El vendedor ingresa el código que aparece en el Smart POS (ej: TAAA2UTDS4R).
 // ─────────────────────────────────────────────────────────────────────────────
 
+const log = (...args: any[]) => process.env.NODE_ENV !== 'production' && console.log(...args)
+
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.SUMUP_API_KEY
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     const tx = await res.json()
-    console.log('[SumUp Verify] Transaction found:', tx?.status, tx?.amount, tx?.transaction_code)
+    log('[SumUp Verify] Transaction found:', tx?.status, tx?.amount, tx?.transaction_code)
 
     if (!tx || !tx.transaction_code) {
       return NextResponse.json({

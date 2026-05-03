@@ -1,24 +1,40 @@
 'use client'
 
-export default function GlobalError({
-  reset,
-}: {
+import { useEffect } from 'react'
+
+interface Props {
   error: Error & { digest?: string }
   reset: () => void
-}) {
+}
+
+export default function GlobalError({ error, reset }: Props) {
+  useEffect(() => {
+    console.error(error)
+  }, [error])
+
   return (
-    <html>
-      <body style={{ background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ color: '#a1a1aa', fontSize: '14px', marginBottom: '16px' }}>Error crítico de aplicación</p>
-          <button
-            onClick={reset}
-            style={{ background: '#f59e0b', color: '#0f0f0f', fontWeight: 'bold', borderRadius: '12px', padding: '8px 16px', border: 'none', cursor: 'pointer' }}
-          >
-            Reintentar
-          </button>
-        </div>
-      </body>
-    </html>
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f] p-6">
+      <div className="w-full max-w-sm rounded-3xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+        <div className="mb-4 text-5xl">⚠️</div>
+        <h2 className="mb-2 text-xl font-bold text-white">
+          Algo salió mal
+        </h2>
+        <p className="mb-6 text-sm text-zinc-400">
+          {error.message || 'Error inesperado. Intenta recargar la página.'}
+        </p>
+        <button
+          onClick={reset}
+          className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
+        >
+          Reintentar
+        </button>
+        <button
+          onClick={() => window.location.href = '/pos'}
+          className="mt-3 w-full rounded-2xl border border-zinc-700 py-3 text-sm text-zinc-400 transition hover:text-white"
+        >
+          Volver al POS
+        </button>
+      </div>
+    </div>
   )
 }

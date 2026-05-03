@@ -62,6 +62,9 @@ ${productLines}
 ¡Te esperamos pronto! — Equipo ARM Merch`
 }
 
+const log = (...args: any[]) => process.env.NODE_ENV !== 'production' && console.log(...args)
+
+
 export async function POST(req: NextRequest) {
   try {
     // Auth check
@@ -153,7 +156,7 @@ export async function POST(req: NextRequest) {
       }).then(() => {})  // fire and forget
     }
 
-    console.log('[WhatsApp] Sent to', toNumber, '| SID:', twilioData?.sid)
+    log('[WhatsApp] Sent to', toNumber, '| SID:', twilioData?.sid)
 
     return NextResponse.json({
       success: true,

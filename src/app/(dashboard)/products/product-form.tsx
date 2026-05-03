@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { NotifyModal, useNotify } from '@/components/ui/notify-modal'
 
 type Category = {
   id: string
@@ -70,7 +71,7 @@ export default function ProductForm() {
       } = await supabase.auth.getSession()
 
       if (sessionError || !session) {
-        alert('No autenticado')
+        notifyError('Sin sesión', 'Recarga la página e intenta de nuevo')
         setLoadingData(false)
         return
       }
@@ -82,7 +83,7 @@ export default function ProductForm() {
         .single()
 
       if (profileError || !profileData) {
-        alert(profileError?.message ?? 'No se pudo cargar el perfil')
+        notifyError('Error', profileError?.message ?? 'No se pudo cargar el perfil')
         setLoadingData(false)
         return
       }
@@ -96,7 +97,7 @@ export default function ProductForm() {
         .order('name')
 
       if (categoryError) {
-        alert(categoryError.message)
+        notifyError('Error', categoryError.message)
       }
 
       const safeCategories = (categoryData ?? []) as Category[]
@@ -115,7 +116,7 @@ export default function ProductForm() {
       const { data: campusData, error: campusError } = await campusQuery
 
       if (campusError) {
-        alert(campusError.message)
+        notifyError('Error', campusError.message)
       }
 
       const safeCampuses = (campusData ?? []) as Campus[]
@@ -182,12 +183,12 @@ export default function ProductForm() {
 
   async function handleSubmit() {
     if (!name.trim()) {
-      alert('El nombre es obligatorio')
+      notifyError('Campo requerido', 'El nombre del producto es obligatorio')
       return
     }
 
     if (Number(price) < 0) {
-      alert('El precio no puede ser negativo')
+      notifyError('Precio inválido', 'El precio no puede ser negativo')
       return
     }
 
@@ -200,7 +201,7 @@ export default function ProductForm() {
       }))
 
     if (selectedCampuses.length === 0) {
-      alert('Debes seleccionar al menos un campus')
+      notifyError('Campus requerido', 'Debes seleccionar al menos un campus')
       return
     }
 
@@ -213,7 +214,7 @@ export default function ProductForm() {
       } = await supabase.auth.getSession()
 
       if (sessionError || !session?.access_token) {
-        alert('No autenticado')
+        notifyError('Sin sesión', 'Recarga la página e intenta de nuevo')
         setLoading(false)
         return
       }
@@ -247,15 +248,15 @@ export default function ProductForm() {
       const data = await res.json()
 
       if (!res.ok) {
-        alert(data.error ?? 'No se pudo crear el producto')
+        notifyError('Error al guardar', data.error ?? 'No se pudo crear el producto')
         setLoading(false)
         return
       }
 
-      alert('Producto creado correctamente')
+      success('Producto creado', 'El producto fue agregado correctamente', '✅')
       window.location.href = '/products'
     } catch (err: any) {
-      alert(err?.message ?? 'Error inesperado al crear el producto')
+      notifyError('Error inesperado', err?.message ?? 'Error al crear el producto')
     }
 
     setLoading(false)

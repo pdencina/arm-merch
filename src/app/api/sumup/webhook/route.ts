@@ -7,10 +7,13 @@ import { createClient } from '@supabase/supabase-js'
 // Maneja: PAID, FAILED, CANCELLED
 // ─────────────────────────────────────────────────────────────────────────────
 
+const log = (...args: any[]) => process.env.NODE_ENV !== 'production' && console.log(...args)
+
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    console.log('[SumUp Webhook] Received:', JSON.stringify(body))
+    log('[SumUp Webhook] Received:', JSON.stringify(body))
 
     const { checkout_reference, status, id: checkout_id, transaction_code } = body
 
@@ -54,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     // Ya procesada — evitar duplicados
     if (order.status === 'paid' || order.status === 'cancelled') {
-      console.log('[SumUp Webhook] Already processed:', order.order_number, order.status)
+      log('[SumUp Webhook] Already processed:', order.order_number, order.status)
       return NextResponse.json({ received: true, action: 'already_processed' })
     }
 
@@ -81,7 +84,7 @@ export async function POST(req: NextRequest) {
           })
       }
 
-      console.log('[SumUp Webhook] ✅ Order PAID:', order.order_number)
+      log('[SumUp Webhook] ✅ Order PAID:', order.order_number)
       return NextResponse.json({ received: true, action: 'paid', order_number: order.order_number })
     }
 
@@ -95,12 +98,12 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', order.id)
 
-      console.log('[SumUp Webhook] ❌ Order', status, ':', order.order_number)
+      log('[SumUp Webhook] ❌ Order', status, ':', order.order_number)
       return NextResponse.json({ received: true, action: status.toLowerCase(), order_number: order.order_number })
     }
 
     // Otros estados (PENDING, etc) — solo loguear
-    console.log('[SumUp Webhook] Status ignored:', status)
+    log('[SumUp Webhook] Status ignored:', status)
     return NextResponse.json({ received: true, action: 'ignored', status })
 
   } catch (error: any) {

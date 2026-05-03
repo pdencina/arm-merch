@@ -6,6 +6,9 @@ import { createClient } from '@supabase/supabase-js'
 // El frontend envía esa URL por WhatsApp al cliente.
 // ─────────────────────────────────────────────────────────────────────────────
 
+const log = (...args: any[]) => process.env.NODE_ENV !== 'production' && console.log(...args)
+
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
@@ -82,7 +85,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    console.log('[SumUp] Checkout created:', checkoutId, paymentUrl)
+    log('[SumUp] Checkout created:', checkoutId, paymentUrl)
 
     return NextResponse.json({
       success: true,
