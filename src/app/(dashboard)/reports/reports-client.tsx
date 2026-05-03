@@ -18,9 +18,10 @@ const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
 
 export default function ReportsClient({ orders, products, sellers, campusName }: Props) {
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo]     = useState('')
-  const [sellerId, setSellerId] = useState('')
+  const [dateFrom,  setDateFrom]  = useState('')
+  const [dateTo,    setDateTo]    = useState('')
+  const [sellerId,  setSellerId]  = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const filtered = useMemo(() => {
     return orders.filter(o => {
@@ -32,22 +33,18 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
     })
   }, [orders, dateFrom, dateTo, sellerId])
 
-  const totalRevenue   = filtered.reduce((s, o) => s + Number(o.total), 0)
-  const totalOrders    = filtered.length
-  const avgTicket      = totalOrders > 0 ? totalRevenue / totalOrders : 0
-  const uniqueSellers  = new Set(filtered.map(o => o.seller_id)).size
+  const totalRevenue  = filtered.reduce((s, o) => s + Number(o.total), 0)
+  const totalOrders   = filtered.length
+  const avgTicket     = totalOrders > 0 ? totalRevenue / totalOrders : 0
+  const uniqueSellers = new Set(filtered.map(o => o.seller_id)).size
 
-  // Ventas por día
   const dailyMap: Record<string, number> = {}
   filtered.forEach(o => {
     const d = fmtDate(o.created_at)
     dailyMap[d] = (dailyMap[d] || 0) + Number(o.total)
   })
-  const dailyData = Object.entries(dailyMap)
-    .map(([day, total]) => ({ day, total }))
-    .slice(-14)
+  const dailyData = Object.entries(dailyMap).map(([day, total]) => ({ day, total })).slice(-14)
 
-  // Ventas por voluntario
   const sellerMap: Record<string, { name: string; total: number; count: number }> = {}
   filtered.forEach(o => {
     const name = o.seller?.full_name ?? 'Sin nombre'
@@ -57,7 +54,6 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
   })
   const sellerData = Object.values(sellerMap).sort((a, b) => b.total - a.total)
 
-  // Productos más vendidos
   const productMap: Record<string, { name: string; qty: number; revenue: number }> = {}
   filtered.forEach(o => {
     ;(o.order_items ?? []).forEach((item: any) => {
@@ -69,7 +65,6 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
   })
   const topProducts = Object.values(productMap).sort((a, b) => b.qty - a.qty).slice(0, 8)
 
-  // Exportar CSV
   async function exportCSV() {
     setExporting(true)
     const rows = [
@@ -82,14 +77,15 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
         o.total,
       ]),
     ]
-    const csv = rows.map(r => r.join(',')).join('\n')
+    const csv  = rows.map(r => r.join(',')).join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
-    a.href = url; a.download = `arm-merch-reporte-${new Date().toISOString().slice(0,10)}.csv`
+    a.href = url
+    a.download = `arm-merch-reporte-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
-      setExporting(false)
+    setExporting(false)
   }
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -104,7 +100,6 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
 
   return (
     <div className="flex flex-col gap-5">
-
       {/* Header + Exportar */}
       <div className="flex items-center justify-between">
         <div>
@@ -113,13 +108,11 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
         </div>
         <button
           onClick={exportCSV}
-          disabled={exporting || loading}
+          disabled={exporting}
           className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700
                      text-zinc-300 font-medium rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-50"
         >
-          {exporting
-            ? <Loader2 size={14} className="animate-spin" />
-            : <Download size={14} />}
+          {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
           {exporting ? 'Exportando...' : 'Exportar CSV'}
         </button>
       </div>
@@ -129,28 +122,21 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
         <div className="flex items-center gap-2">
           <label className="text-xs text-zinc-500">Desde</label>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl px-3 py-2 text-sm
-                       focus:outline-none focus:border-amber-500 transition"
-          />
+            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition" />
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-zinc-500">Hasta</label>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl px-3 py-2 text-sm
-                       focus:outline-none focus:border-amber-500 transition"
-          />
+            className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition" />
         </div>
         <select value={sellerId} onChange={e => setSellerId(e.target.value)}
-          className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl px-3 py-2 text-sm
-                     focus:outline-none focus:border-amber-500 transition"
-        >
+          className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 transition">
           <option value="">Todos los voluntarios</option>
           {sellers.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
         </select>
         {(dateFrom || dateTo || sellerId) && (
           <button onClick={() => { setDateFrom(''); setDateTo(''); setSellerId('') }}
-            className="text-xs text-zinc-500 hover:text-white transition"
-          >
+            className="text-xs text-zinc-500 hover:text-white transition">
             Limpiar filtros
           </button>
         )}
@@ -159,10 +145,10 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Ingresos totales', value: fmt(totalRevenue),        icon: TrendingUp, color: 'text-amber-400' },
-          { label: 'Total órdenes',    value: totalOrders.toString(),   icon: ShoppingBag,color: 'text-blue-400'  },
-          { label: 'Ticket promedio',  value: fmt(avgTicket),           icon: Package,    color: 'text-green-400' },
-          { label: 'Voluntarios',      value: uniqueSellers.toString(), icon: Users,      color: 'text-purple-400'},
+          { label: 'Ingresos totales', value: fmt(totalRevenue),       icon: TrendingUp, color: 'text-amber-400'  },
+          { label: 'Total órdenes',    value: totalOrders.toString(),   icon: ShoppingBag,color: 'text-blue-400'   },
+          { label: 'Ticket promedio',  value: fmt(avgTicket),           icon: Package,    color: 'text-green-400'  },
+          { label: 'Voluntarios',      value: uniqueSellers.toString(), icon: Users,      color: 'text-purple-400' },
         ].map(s => {
           const Icon = s.icon
           return (
@@ -179,7 +165,7 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
         })}
       </div>
 
-      {/* Gráfico ventas por día */}
+      {/* Gráfico */}
       <div className="bg-zinc-800/30 border border-zinc-700/40 rounded-xl p-4">
         <p className="text-sm font-medium text-white mb-4">Ventas por día</p>
         {dailyData.length === 0 ? (
@@ -190,7 +176,7 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
               <XAxis dataKey="day" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="total" radius={[4,4,0,0]}>
+              <Bar dataKey="total" radius={[4, 4, 0, 0]}>
                 {dailyData.map((_, i) => <Cell key={i} fill="#f59e0b" fillOpacity={0.85} />)}
               </Bar>
             </BarChart>
@@ -199,67 +185,60 @@ export default function ReportsClient({ orders, products, sellers, campusName }:
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
         {/* Top productos */}
         <div className="bg-zinc-800/30 border border-zinc-700/40 rounded-xl p-4">
           <p className="text-sm font-medium text-white mb-3">Productos más vendidos</p>
-          {topProducts.length === 0
-            ? <p className="text-zinc-600 text-xs py-4 text-center">Sin datos</p>
-            : <div className="flex flex-col gap-2">
-                {topProducts.map((p, i) => (
-                  <div key={p.name} className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-600 w-4">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-zinc-300 truncate">{p.name}</span>
-                        <span className="text-xs text-zinc-500 ml-2">{p.qty} uds.</span>
-                      </div>
-                      <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-amber-500 rounded-full"
-                          style={{ width: `${(p.qty / (topProducts[0]?.qty || 1)) * 100}%` }}
-                        />
-                      </div>
+          {topProducts.length === 0 ? <p className="text-zinc-600 text-xs py-4 text-center">Sin datos</p> : (
+            <div className="flex flex-col gap-2">
+              {topProducts.map((p, i) => (
+                <div key={p.name} className="flex items-center gap-3">
+                  <span className="text-xs text-zinc-600 w-4">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs text-zinc-300 truncate">{p.name}</span>
+                      <span className="text-xs text-zinc-500 ml-2">{p.qty} uds.</span>
                     </div>
-                    <span className="text-xs font-semibold text-amber-400 min-w-[65px] text-right">{fmt(p.revenue)}</span>
+                    <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full"
+                        style={{ width: `${(p.qty / (topProducts[0]?.qty || 1)) * 100}%` }} />
+                    </div>
                   </div>
-                ))}
-              </div>
-          }
+                  <span className="text-xs font-semibold text-amber-400 min-w-[65px] text-right">{fmt(p.revenue)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Ventas por voluntario */}
         <div className="bg-zinc-800/30 border border-zinc-700/40 rounded-xl p-4">
           <p className="text-sm font-medium text-white mb-3">Ventas por voluntario</p>
-          {sellerData.length === 0
-            ? <p className="text-zinc-600 text-xs py-4 text-center">Sin datos</p>
-            : <div className="flex flex-col gap-2">
-                {sellerData.map((s, i) => (
-                  <div key={s.name} className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-amber-400">{s.name[0]}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-zinc-300 truncate">{s.name}</span>
-                        <span className="text-xs text-zinc-500">{s.count} órdenes</span>
-                      </div>
-                      <div className="h-1 bg-zinc-700 rounded-full overflow-hidden mt-0.5">
-                        <div
-                          className="h-full bg-purple-500 rounded-full"
-                          style={{ width: `${(s.total / (sellerData[0]?.total || 1)) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold text-purple-400 min-w-[65px] text-right">{fmt(s.total)}</span>
+          {sellerData.length === 0 ? <p className="text-zinc-600 text-xs py-4 text-center">Sin datos</p> : (
+            <div className="flex flex-col gap-2">
+              {sellerData.map(s => (
+                <div key={s.name} className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-[10px] font-bold text-amber-400">{s.name[0]}</span>
                   </div>
-                ))}
-              </div>
-          }
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-300 truncate">{s.name}</span>
+                      <span className="text-xs text-zinc-500">{s.count} órdenes</span>
+                    </div>
+                    <div className="h-1 bg-zinc-700 rounded-full overflow-hidden mt-0.5">
+                      <div className="h-full bg-purple-500 rounded-full"
+                        style={{ width: `${(s.total / (sellerData[0]?.total || 1)) * 100}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold text-purple-400 min-w-[65px] text-right">{fmt(s.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Tabla de órdenes */}
+      {/* Tabla órdenes */}
       <div className="bg-zinc-800/30 border border-zinc-700/40 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-zinc-700/40">
           <p className="text-sm font-medium text-white">Detalle de órdenes</p>
