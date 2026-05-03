@@ -248,32 +248,132 @@ export async function POST(req: NextRequest) {
         const escHtml = (v: string) =>
           String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
+        // Fetch product names for the email
+        const { data: productData } = await adminClient
+          .from('products')
+          .select('id, name')
+          .in('id', normalizedItems.map(i => i.product_id))
+        const productMap: Record<string, string> = {}
+        ;(productData ?? []).forEach((p: any) => { productMap[p.id] = p.name })
+
         const itemsHtml = normalizedItems.map((item) => {
           const lineTotal = item.unit_price * item.quantity * (1 - item.discount_pct / 100)
+          const productName = escHtml(productMap[item.product_id] ?? item.product_id)
+          const sizeLabel = item.size ? `<br/><span style="color:#888;font-size:11px;">Talla: ${item.size}</span>` : ''
           return `<tr>
-            <td style="padding:6px 0;border-bottom:1px solid #eee;">${item.product_id}</td>
-            <td style="padding:6px 0;border-bottom:1px solid #eee;text-align:center;">${item.quantity}</td>
-            <td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right;">${fmtCLP(lineTotal)}</td>
+            <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;font-size:14px;">
+              ${productName}${sizeLabel}
+            </td>
+            <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:14px;color:#666;">${item.quantity}</td>
+            <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:14px;font-weight:600;">${fmtCLP(lineTotal)}</td>
           </tr>`
         }).join('')
 
-        const html = `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
-          <h2 style="color:#111;">Comprobante — ARM Merch</h2>
-          <p>Hola <strong>${escHtml(clientName ?? '')}</strong>, gracias por tu compra.</p>
-          <p><strong>Orden #${createdOrder.order_number}</strong></p>
-          <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-            <thead><tr style="background:#f5f5f5;">
-              <th style="padding:8px;text-align:left;">Producto</th>
-              <th style="padding:8px;text-align:center;">Cant.</th>
-              <th style="padding:8px;text-align:right;">Total</th>
-            </tr></thead>
-            <tbody>${itemsHtml}</tbody>
-          </table>
-          ${discount > 0 ? `<p style="color:green;">Descuento: -${fmtCLP(discount)}</p>` : ''}
-          <p style="font-size:20px;font-weight:bold;">Total: ${fmtCLP(Math.round(totalCalculado))}</p>
-          <hr style="border:none;border-top:1px solid #ddd;margin:16px 0;"/>
-          <p style="color:#666;font-size:12px;text-align:center;">Gracias por tu compra 🙌</p>
-        </div>`
+        const orderDate = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
+        const paymentLabel: Record<string,string> = {
+          efectivo:'Efectivo', transferencia:'Transferencia', debito:'Débito',
+          credito:'Crédito', link:'Link de pago', sumup:'Smart POS'
+        }
+
+        const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+      <!-- Header -->
+      <tr><td style="background:#18181b;border-radius:12px 12px 0 0;padding:32px 40px;text-align:center;">
+        <p style="margin:0 0 4px;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">ARM Merch</p>
+        <p style="margin:0;font-size:13px;color:#a1a1aa;">Sistema de Merch · ARM Global</p>
+      </td></tr>
+
+      <!-- Green confirmation bar -->
+      <tr><td style="background:#16a34a;padding:16px 40px;text-align:center;">
+        <p style="margin:0;font-size:15px;font-weight:600;color:#ffffff;">✓ &nbsp;Compra confirmada</p>
+      </td></tr>
+
+      <!-- Body -->
+      <tr><td style="background:#ffffff;padding:36px 40px;">
+
+        <!-- Greeting -->
+        <p style="margin:0 0 24px;font-size:16px;color:#18181b;">
+          Hola <strong>${escHtml(clientName ?? 'Cliente')}</strong>, gracias por tu compra. 
+          Aquí está el resumen de tu pedido.
+        </p>
+
+        <!-- Order info -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin-bottom:28px;">
+          <tr>
+            <td style="padding:16px 20px;border-bottom:1px solid #f0f0f0;">
+              <span style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Número de orden</span><br/>
+              <span style="font-size:18px;font-weight:700;color:#18181b;">#${createdOrder.order_number}</span>
+            </td>
+            <td style="padding:16px 20px;border-bottom:1px solid #f0f0f0;text-align:right;">
+              <span style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Fecha</span><br/>
+              <span style="font-size:14px;font-weight:500;color:#18181b;">${orderDate}</span>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding:16px 20px;">
+              <span style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Método de pago</span><br/>
+              <span style="font-size:14px;font-weight:500;color:#18181b;">${paymentLabel[paymentMethod] ?? paymentMethod}</span>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Products table -->
+        <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Detalle de compra</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
+          <thead>
+            <tr style="background:#f9fafb;">
+              <th style="padding:10px 8px;text-align:left;font-size:12px;color:#71717a;font-weight:600;border-bottom:2px solid #e4e4e7;">PRODUCTO</th>
+              <th style="padding:10px 8px;text-align:center;font-size:12px;color:#71717a;font-weight:600;border-bottom:2px solid #e4e4e7;">CANT.</th>
+              <th style="padding:10px 8px;text-align:right;font-size:12px;color:#71717a;font-weight:600;border-bottom:2px solid #e4e4e7;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+
+        <!-- Totals -->
+        ${discount > 0 ? `
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#666;">Subtotal</td>
+            <td style="padding:6px 0;font-size:14px;color:#666;text-align:right;">${fmtCLP(Math.round(totalCalculado + discount))}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#16a34a;">Descuento</td>
+            <td style="padding:6px 0;font-size:14px;color:#16a34a;text-align:right;">-${fmtCLP(discount)}</td>
+          </tr>
+        </table>
+        <hr style="border:none;border-top:1px solid #e4e4e7;margin:12px 0;"/>
+        ` : ''}
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:12px 0;font-size:18px;font-weight:700;color:#18181b;">Total pagado</td>
+            <td style="padding:12px 0;font-size:22px;font-weight:800;color:#18181b;text-align:right;">${fmtCLP(Math.round(totalCalculado))}</td>
+          </tr>
+        </table>
+
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="background:#f9fafb;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;border-top:1px solid #e4e4e7;">
+        <p style="margin:0 0 8px;font-size:13px;color:#71717a;">
+          ¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.
+        </p>
+        <p style="margin:0;font-size:12px;color:#a1a1aa;">
+          ARM Merch · ARM Global · armerch.com
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`
 
         const { error: mailError } = await resend.emails.send({
           from: 'ARM Merch <onboarding@resend.dev>',
