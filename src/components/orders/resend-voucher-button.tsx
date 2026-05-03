@@ -1,52 +1,53 @@
 'use client'
-import { useNotify, NotifyModal } from '@/components/ui/notify-modal'
 
 import { useState } from 'react'
+import { NotifyModal, useNotify } from '@/components/ui/notify-modal'
 
 export default function ResendVoucherButton({
-  const { notify, success, error: notifyError, close } = useNotify()
   orderId,
 }: {
   orderId: string
 }) {
   const [loading, setLoading] = useState(false)
+  const { notify, success, error: notifyError, close } = useNotify()
 
   async function handleResend() {
     try {
       setLoading(true)
+      const { data: { session } } = await (await import('@/lib/supabase/client')).createClient().auth.getSession()
 
       const res = await fetch('/api/orders/resend', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
         },
         body: JSON.stringify({ order_id: orderId }),
       })
-
       const data = await res.json()
 
       if (!res.ok) {
-        alert(data.error || 'No se pudo reenviar el voucher')
-        setLoading(false)
-        return
+        notifyError('Error', data.error ?? 'No se pudo reenviar el voucher')
+      } else {
+        success('Voucher enviado', 'El comprobante fue reenviado al correo del cliente', '📧')
       }
-
-      success('Voucher enviado', 'El comprobante fue reenviado al correo del cliente', '📧')
-      setLoading(false)
-    } catch (error: any) {
-      alert(error?.message || 'Error inesperado al reenviar')
+    } catch (err: any) {
+      notifyError('Error inesperado', err?.message ?? 'Intenta de nuevo')
+    } finally {
       setLoading(false)
     }
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleResend}
-      disabled={loading}
-      className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
-    >
-      {loading ? 'Reenviando...' : 'Reenviar voucher'}
-    </button>
+    <>
+      <NotifyModal notify={notify} onClose={close} />
+      <button
+        onClick={handleResend}
+        disabled={loading}
+        className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-50"
+      >
+        {loading ? '...' : '📧 Reenviar voucher'}
+      </button>
+    </>
   )
 }
