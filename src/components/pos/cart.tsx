@@ -333,9 +333,7 @@ export default function Cart() {
         setSumupSmartOrder({ id: orderId, number: orderNumber, total: orderTotal })
         setSumupStatus('waiting')
         setSumupSmartOpen(true)
-        clearCart()
-        setClientPhone('')
-        setIsPendingDelivery(false)
+        // NO clearCart aqui - se limpia después de confirmar la orden
 
         // 3. Iniciar polling cada 4 segundos
         let attempts = 0
