@@ -17,6 +17,9 @@ import {
   MapPin,
   Tags,
   X,
+  Truck,
+  Layers,
+  Barcode,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -28,26 +31,28 @@ interface NavItem {
   icon: React.ReactNode
   roles: Role[]
   section?: string
-  permKey?: string  // Permission key to check against module_permissions
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={16} />, roles: ['voluntario', 'admin', 'super_admin'], permKey: 'dashboard.view' },
+  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={16} />, roles: ['voluntario', 'admin', 'super_admin'] },
 
-  { label: 'Punto de Venta', href: '/pos', permKey: 'pos.view', icon: <ShoppingCart size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
-  { label: 'Órdenes', href: '/orders', permKey: 'orders.view', icon: <Receipt size={16} />, roles: ['voluntario', 'admin', 'super_admin'] },
+  { label: 'Punto de Venta', href: '/pos', icon: <ShoppingCart size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
+  { label: 'Órdenes', href: '/orders', icon: <Receipt size={16} />, roles: ['voluntario', 'admin', 'super_admin'] },
+  { label: 'Pedidos entrega', href: '/deliveries', icon: <Truck size={16} />, roles: ['voluntario', 'admin', 'super_admin'] },
 
-  { label: 'Inventario', href: '/inventory', permKey: 'inventory.view', icon: <Package size={16} />, roles: ['admin', 'super_admin'], section: 'Inventario' },
+  { label: 'Inventario', href: '/inventory', icon: <Package size={16} />, roles: ['admin', 'super_admin'], section: 'Inventario' },
   { label: 'Movimientos', href: '/inventory/movements', icon: <ArrowLeftRight size={16} />, roles: ['admin', 'super_admin'] },
   { label: 'Transferencias', href: '/transfers', icon: <ArrowRightLeft size={16} />, roles: ['super_admin'] },
 
   { label: 'Productos', href: '/products', icon: <ClipboardList size={16} />, roles: ['admin', 'super_admin'], section: 'Gestión' },
-  { label: 'Reportes', href: '/reports', permKey: 'reports.view', icon: <BarChart3 size={16} />, roles: ['admin', 'super_admin'] },
-  { label: 'Cierre de caja', href: '/close-day', permKey: 'close_day.view', icon: <Calculator size={16} />, roles: ['admin', 'super_admin'] },
+  { label: 'Reportes', href: '/reports', icon: <BarChart3 size={16} />, roles: ['admin', 'super_admin'] },
+  { label: 'Cierre de caja', href: '/close-day', icon: <Calculator size={16} />, roles: ['admin', 'super_admin'] },
 
   { label: 'Usuarios', href: '/settings/users', icon: <Users size={16} />, roles: ['super_admin'], section: 'Configuración' },
   { label: 'Campus', href: '/settings/campus', icon: <MapPin size={16} />, roles: ['super_admin'] },
   { label: 'Categorías', href: '/settings/categories', icon: <Tags size={16} />, roles: ['super_admin'] },
+
+  { label: 'Módulos' href: '/settings/modules', icon: <Layers size={16} />, roles: ['super_admin'], section: 'Configuración' },
 
   { label: 'Mi perfil', href: '/profile', icon: <User size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Mi cuenta' },
 ]
@@ -85,12 +90,7 @@ export default function Sidebar({
   onClose?: () => void
 }) {
   const pathname = usePathname()
-  const visible = NAV_ITEMS.filter((i) => {
-    if (!i.roles.includes(role)) return false
-    if (role === 'super_admin') return true  // Super admin sees everything
-    // For other roles, items without permKey are always visible
-    return true
-  })
+  const visible = NAV_ITEMS.filter((i) => i.roles.includes(role))
   const sections = Array.from(new Set(visible.map((i) => i.section ?? '')))
   const config = ROLE_CONFIG[role] ?? ROLE_CONFIG.voluntario
 
