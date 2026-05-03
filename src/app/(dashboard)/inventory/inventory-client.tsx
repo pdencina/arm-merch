@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, MapPin, RefreshCw } from 'lucide-react'
+import Link from 'next/link'
+import { Search, MapPin, RefreshCw, Barcode } from 'lucide-react'
 import ProductTable from '@/components/inventory/product-table'
 import MovementForm from '@/components/inventory/movement-form'
 import LowStockAlert from '@/components/inventory/low-stock-alert'
