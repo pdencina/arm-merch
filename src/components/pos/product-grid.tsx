@@ -125,23 +125,49 @@ export default function ProductGrid({ products, categories }: Props) {
             <button
               key={product.id}
               onClick={() => addProduct(product)}
-              className="rounded-xl bg-zinc-900 p-2 hover:bg-zinc-800"
+              disabled={(product.stock ?? 0) <= 0}
+              className={`relative rounded-xl bg-zinc-900 p-2 text-left transition hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed`}
             >
-              <div className="aspect-square bg-zinc-800 rounded mb-2 flex items-center justify-center">
+              {/* Stock badge */}
+              {product.stock !== null && (
+                <span className={`absolute top-2 right-2 rounded-full px-1.5 py-0.5 text-[10px] font-semibold z-10 ${
+                  (product.stock ?? 0) <= 0
+                    ? 'bg-red-500/20 text-red-400'
+                    : (product.stock ?? 0) <= (product.low_stock_alert ?? 5)
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'bg-green-500/20 text-green-400'
+                }`}>
+                  {product.stock} uds
+                </span>
+              )}
+
+              {/* Image */}
+              <div className="aspect-square bg-zinc-800 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
                 {product.image_url ? (
                   <Image
                     src={product.image_url}
                     alt={product.name}
-                    width={100}
-                    height={100}
+                    width={120}
+                    height={120}
+                    className="object-cover w-full h-full"
                   />
                 ) : (
-                  '📦'
+                  <span className="text-3xl">📦</span>
                 )}
               </div>
 
-              <p className="text-xs text-white">{product.name}</p>
-              <p className="text-sm font-bold text-slate-300">
+              {/* Name */}
+              <p className="text-xs font-medium text-white leading-tight mb-0.5 line-clamp-2">
+                {product.name}
+              </p>
+
+              {/* SKU */}
+              {product.sku && (
+                <p className="text-[10px] text-zinc-600 mb-1">{product.sku}</p>
+              )}
+
+              {/* Price */}
+              <p className="text-sm font-bold text-amber-400">
                 {fmt(product.price)}
               </p>
             </button>
