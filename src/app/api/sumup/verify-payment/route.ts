@@ -1,57 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// ─── POST /api/sumup/verify-payment ──────────────────────────────────────────
-// Consulta las últimas transacciones de SumUp y busca una que coincida
-// con el monto y la referencia de la orden. Si encuentra el pago,
-// actualiza la orden a 'paid' y descuenta el stock.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
+
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      )
     }
 
     const apiKey = process.env.SUMUP_API_KEY
+
     if (!apiKey) {
-      return NextResponse.json({ error: 'SUMUP_API_KEY no configurada' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'SUMUP_API_KEY no configurada' },
+        { status: 500 }
+      )
     }
 
-    const body      = await req.json()
-    const { order_id, amount, tolerance = 1 } = body
+    const body = await req.json()
 
-    if (!order_id || !amount) {
-      return NextResponse.json({ error: 'order_id y amount requeridos' }, { status: 400 })
+    const {
+      order_id,
+      tx_code,
+      amount,
+    } = body
+
+    if (!order_id || !tx_code) {
+      return NextResponse.json(
+        { error: 'order_id y tx_code requeridos' },
+        { status: 400 }
+      )
     }
 
     const adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
     )
 
-    // Verificar que la orden existe y está pending
+    // Buscar orden
     const { data: order } = await adminClient
       .from('orders')
-      .select('id, order_number, campus_id, status, order_items(product_id, quantity)')
+      .select(`
+        id,
+        order_number,
+        campus_id,
+        status,
+        total,
+        order_items (
+          product_id,
+          quantity
+        )
+      `)
       .eq('id', order_id)
-      .maybeSingle()
+      .single()
 
     if (!order) {
-      return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Orden no encontrada' },
+        { status: 404 }
+      )
     }
 
+    // Ya pagada
     if (order.status === 'paid') {
-      return NextResponse.json({ found: true, already_paid: true })
+      return NextResponse.json({
+        success: true,
+        already_paid: true,
+      })
     }
 
-    // Consultar últimas transacciones de SumUp (últimos 10 minutos)
-    const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-
-    const txRes = await fetch(
-      `https://api.sumup.com/v0.1/me/transactions/history?limit=10&newest_first=true`,
+    // Buscar transacción exacta
+    const res = await fetch(
+      `https://api.sumup.com/v0.1/me/transactions?transaction_code=${tx_code}`,
       {
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -60,68 +90,85 @@ export async function POST(req: NextRequest) {
       }
     )
 
-    if (!txRes.ok) {
-      const err = await txRes.json().catch(() => ({}))
-      console.error('[SumUp Verify] API error:', err)
-      return NextResponse.json({ found: false, error: 'Error consultando SumUp', detail: err })
+    const tx = await res.json()
+
+    console.log('[SMART POS VERIFY]', tx)
+
+    if (!tx?.transaction_code) {
+      return NextResponse.json({
+        success: false,
+        message: 'Transacción no encontrada',
+      })
     }
 
-    const txData = await txRes.json()
-    const transactions = txData.items ?? txData.transactions ?? []
+    const status = String(tx.status ?? '').toUpperCase()
 
-    console.log('[SumUp Verify] Transactions found:', transactions.length)
+    const approvedStatuses = [
+      'SUCCESSFUL',
+      'PAID',
+      'APPROVED',
+    ]
 
-    // Buscar transacción que coincida con el monto (tolerancia ±1 CLP)
-    const amountNum = Number(amount)
-    const match = transactions.find((tx: any) => {
-      const txAmount = Number(tx.amount ?? tx.total_amount ?? 0)
-      const txStatus = tx.status ?? tx.transaction_status ?? ''
-      const txTime   = new Date(tx.timestamp ?? tx.created_at ?? 0).getTime()
-      const isRecent = txTime > Date.now() - 15 * 60 * 1000 // últimos 15 min
-
-      return (
-        txStatus === 'SUCCESSFUL' &&
-        Math.abs(txAmount - amountNum) <= tolerance &&
-        isRecent
-      )
-    })
-
-    if (!match) {
-      return NextResponse.json({ found: false, checked: transactions.length })
+    if (!approvedStatuses.includes(status)) {
+      return NextResponse.json({
+        success: false,
+        message: `Transacción rechazada (${status})`,
+      })
     }
 
-    // ¡Pago encontrado! Actualizar orden
+    // Validar monto
+    const txAmount = Number(tx.amount ?? 0)
+    const orderAmount = Number(amount ?? order.total ?? 0)
+
+    if (Math.abs(txAmount - orderAmount) > 1) {
+      return NextResponse.json({
+        success: false,
+        message: 'Monto no coincide',
+      })
+    }
+
+    // Marcar orden pagada
     await adminClient
       .from('orders')
       .update({
         status: 'paid',
-        notes: `Smart POS SumUp | TX: ${match.transaction_code ?? match.id ?? 'unknown'}`,
+        notes: `Smart POS | TX ${tx.transaction_code}`,
       })
-      .eq('id', order_id)
+      .eq('id', order.id)
 
     // Descontar stock
-    for (const item of (order.order_items ?? [])) {
+    for (const item of order.order_items ?? []) {
       await adminClient
         .from('inventory_movements')
         .insert({
           product_id: item.product_id,
-          campus_id:  order.campus_id,
-          type:       'salida',
-          quantity:   item.quantity,
-          notes:      `Smart POS SumUp - Orden #${order.order_number}`,
+          campus_id: order.campus_id,
+          type: 'salida',
+          quantity: item.quantity,
+          notes: `Smart POS - Orden #${order.order_number}`,
         })
     }
 
-    console.log('[SumUp Verify] ✅ Payment confirmed for order:', order.order_number)
+    console.log(
+      '[SMART POS] Pago confirmado:',
+      order.order_number
+    )
 
     return NextResponse.json({
-      found:        true,
-      transaction:  match.transaction_code ?? match.id,
+      success: true,
       order_number: order.order_number,
+      tx_code: tx.transaction_code,
     })
 
   } catch (error: any) {
-    console.error('[SumUp Verify] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[SMART POS VERIFY ERROR]', error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+      },
+      { status: 500 }
+    )
   }
 }

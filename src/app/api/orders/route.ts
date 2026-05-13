@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
-// FIXES:
-//   1. Inserta 'subtotal' en order_items (requerido por schema original) → fix productos no visibles
-//   2. Usa inventario ya consultado (no re-consulta en el loop) → previene race conditions
-//   3. Compatible con order_contacts (tabla separada para datos del cliente)
+// Reglas importantes:
+// - Pagos normales: crean orden paid, descuentan stock y envían voucher inmediato.
+// - Link/QR SumUp: crean orden pending, NO descuentan stock y NO envían voucher hasta confirmar pago.
+// - Smart POS SumUp: crea orden pending, NO descuenta stock y NO envía voucher hasta validar código TX.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { autoRefreshToken: false, persistSession: false },
     })
+
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
@@ -47,17 +48,18 @@ export async function POST(req: NextRequest) {
       size?: string | null
     }> = Array.isArray(body.items) ? body.items : []
 
-    const paymentMethod: string  = body.payment_method ?? null
-    const discount                = Number(body.discount ?? 0)
-    const promoCode: string|null  = body.promo_code ?? null
-    const deliveryStatus: string|null = body.delivery_status ?? null
-    const extraNotes: string|null = body.notes ?? null
-    const requestedCampusId: string|null = body.campus_id ?? null
-    const clientName: string|null = String(body.client_name ?? '').trim() || null
-    const clientEmail: string|null = String(body.client_email ?? '').trim().toLowerCase() || null
-    const clientPhone: string|null = String(body.client_phone ?? '').trim() || null
+    const paymentMethod: string = body.payment_method ?? null
+    const discount = Number(body.discount ?? 0)
+    const promoCode: string | null = body.promo_code ?? null
+    const deliveryStatus: string | null = body.delivery_status ?? null
+    const extraNotes: string | null = body.notes ?? null
+    const requestedCampusId: string | null = body.campus_id ?? null
+    const clientName: string | null = String(body.client_name ?? '').trim() || null
+    const clientEmail: string | null = String(body.client_email ?? '').trim().toLowerCase() || null
+    const clientPhone: string | null = String(body.client_phone ?? '').trim() || null
 
-    const isSmartPOS = paymentMethod === 'credito' && body.notes?.includes('Smart POS')
+    const isSmartPOS = paymentMethod === 'sumup' || String(extraNotes ?? '').includes('Smart POS')
+
     if (!items.length || (!clientName && !isSmartPOS) || !paymentMethod) {
       return NextResponse.json(
         { error: 'Datos incompletos: items, nombre del cliente y método de pago son requeridos' },
@@ -97,11 +99,12 @@ export async function POST(req: NextRequest) {
     const invalidItem = normalizedItems.find(
       (i) => !i.product_id || i.quantity <= 0 || i.unit_price < 0
     )
+
     if (invalidItem) {
       return NextResponse.json({ error: 'Hay productos inválidos en la venta' }, { status: 400 })
     }
 
-    // ── Verificar stock (una sola consulta) ──
+    // ── Verificar stock una sola vez ──
     const productIds = normalizedItems.map((i) => i.product_id)
     const { data: inventoryRows, error: inventoryError } = await adminClient
       .from('inventory')
@@ -125,6 +128,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
+
       if (Number(inv.stock ?? 0) < item.quantity) {
         return NextResponse.json(
           { error: `Stock insuficiente. Disponible: ${inv.stock ?? 0}` },
@@ -155,6 +159,7 @@ export async function POST(req: NextRequest) {
     if (lastOrderError) {
       return NextResponse.json({ error: lastOrderError.message }, { status: 400 })
     }
+
     const orderNumber = Number(lastOrder?.order_number ?? 1000) + 1
 
     // ── Notas combinadas ──
@@ -162,6 +167,9 @@ export async function POST(req: NextRequest) {
       promoCode ? `Cupón: ${promoCode}` : null,
       extraNotes,
     ].filter(Boolean).join(' | ') || null
+
+    const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup'
+    const initialStatus = isDeferredPayment ? 'pending' : 'paid'
 
     // ── Crear orden ──
     const { data: createdOrder, error: orderError } = await adminClient
@@ -174,7 +182,7 @@ export async function POST(req: NextRequest) {
         discount,
         total: Math.round(totalCalculado),
         notes: combinedNotes,
-        status: paymentMethod === 'link' ? 'pending' : 'paid',
+        status: initialStatus,
         delivery_status: deliveryStatus,
         client_phone: clientPhone || null,
       })
@@ -188,18 +196,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ── Guardar contacto en order_contacts ──
-    if (clientName || clientEmail) {
+    // ── Guardar contacto ──
+    if (clientName || clientEmail || clientPhone) {
       const { error: contactError } = await adminClient
         .from('order_contacts')
-        .insert({ order_id: createdOrder.id, client_name: clientName, client_email: clientEmail, client_phone: clientPhone || null })
+        .insert({
+          order_id: createdOrder.id,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_phone: clientPhone || null,
+        })
+
       if (contactError) {
         return NextResponse.json({ error: contactError.message }, { status: 400 })
       }
     }
 
-    // ── Insertar order_items ──
-    // subtotal es columna GENERADA por la BD — no se puede insertar manualmente
+    // ── Insertar items ──
     const orderItemsRows = normalizedItems.map((item) => ({
       order_id: createdOrder.id,
       product_id: item.product_id,
@@ -216,9 +229,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: orderItemsError.message }, { status: 400 })
     }
 
-    // ── Actualizar stock vía trigger ──
-    // Si es pedido pendiente NO descontar stock — se descuenta al entregar.
-    if (deliveryStatus !== 'pending' && paymentMethod !== 'link') {
+    // ── Descontar stock solo en pagos confirmados inmediatos ──
+    // Link/QR y Smart POS nacen pending y se descuentan después de confirmar pago.
+    if (deliveryStatus !== 'pending' && !isDeferredPayment) {
       for (const item of normalizedItems) {
         const { error: movementError } = await adminClient
           .from('inventory_movements')
@@ -237,38 +250,46 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Email con Resend ──
+    // ── Email con Resend solo para pagos inmediatos ──
+    // Link/QR y Smart POS NO deben enviar voucher hasta que el pago esté confirmado.
     let emailSent = false
-
-    // IMPORTANTE:
-    // Para pagos por link/QR SumUp, la orden nace como pending.
-    // El voucher NO debe enviarse aquí, sino recién cuando /api/sumup/check-checkout
-    // confirme que el pago quedó PAID.
-    const shouldSendEmailImmediately =
-      paymentMethod !== 'link' &&
-      paymentMethod !== 'sumup'
+    const shouldSendEmailImmediately = !isDeferredPayment
 
     if (shouldSendEmailImmediately && clientEmail && process.env.RESEND_API_KEY) {
       try {
         const { Resend } = await import('resend')
         const resend = new Resend(process.env.RESEND_API_KEY)
-        const fmtCLP = (n: number) =>
-          new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
-        const escHtml = (v: string) =>
-          String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
-        // Fetch product names for the email
+        const fmtCLP = (n: number) =>
+          new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency: 'CLP',
+            maximumFractionDigits: 0,
+          }).format(n)
+
+        const escHtml = (v: string) =>
+          String(v ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+
         const { data: productData } = await adminClient
           .from('products')
           .select('id, name')
-          .in('id', normalizedItems.map(i => i.product_id))
+          .in('id', normalizedItems.map((i) => i.product_id))
+
         const productMap: Record<string, string> = {}
-        ;(productData ?? []).forEach((p: any) => { productMap[p.id] = p.name })
+        ;(productData ?? []).forEach((p: any) => {
+          productMap[p.id] = p.name
+        })
 
         const itemsHtml = normalizedItems.map((item) => {
           const lineTotal = item.unit_price * item.quantity * (1 - item.discount_pct / 100)
           const productName = escHtml(productMap[item.product_id] ?? item.product_id)
-          const sizeLabel = item.size ? `<br/><span style="color:#888;font-size:11px;">Talla: ${item.size}</span>` : ''
+          const sizeLabel = item.size
+            ? `<br/><span style="color:#888;font-size:11px;">Talla: ${item.size}</span>`
+            : ''
+
           return `<tr>
             <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;font-size:14px;">
               ${productName}${sizeLabel}
@@ -278,10 +299,19 @@ export async function POST(req: NextRequest) {
           </tr>`
         }).join('')
 
-        const orderDate = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
-        const paymentLabel: Record<string,string> = {
-          efectivo:'Efectivo', transferencia:'Transferencia', debito:'Débito',
-          credito:'Crédito', link:'Link de pago', sumup:'Smart POS'
+        const orderDate = new Date().toLocaleDateString('es-CL', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        })
+
+        const paymentLabel: Record<string, string> = {
+          efectivo: 'Efectivo',
+          transferencia: 'Transferencia',
+          debito: 'Débito',
+          credito: 'Crédito',
+          link: 'Link de pago',
+          sumup: 'Smart POS',
         }
 
         const html = `<!DOCTYPE html>
@@ -291,28 +321,18 @@ export async function POST(req: NextRequest) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0;">
   <tr><td align="center">
     <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
-
-      <!-- Header -->
       <tr><td style="background:#18181b;border-radius:12px 12px 0 0;padding:32px 40px;text-align:center;">
         <p style="margin:0 0 4px;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">ARM Merch</p>
         <p style="margin:0;font-size:13px;color:#a1a1aa;">Sistema de Merch · ARM Global</p>
       </td></tr>
-
-      <!-- Green confirmation bar -->
       <tr><td style="background:#16a34a;padding:16px 40px;text-align:center;">
         <p style="margin:0;font-size:15px;font-weight:600;color:#ffffff;">✓ &nbsp;Compra confirmada</p>
       </td></tr>
-
-      <!-- Body -->
       <tr><td style="background:#ffffff;padding:36px 40px;">
-
-        <!-- Greeting -->
         <p style="margin:0 0 24px;font-size:16px;color:#18181b;">
-          Hola <strong>${escHtml(clientName ?? 'Cliente')}</strong>, gracias por tu compra. 
+          Hola <strong>${escHtml(clientName ?? 'Cliente')}</strong>, gracias por tu compra.
           Aquí está el resumen de tu pedido.
         </p>
-
-        <!-- Order info -->
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin-bottom:28px;">
           <tr>
             <td style="padding:16px 20px;border-bottom:1px solid #f0f0f0;">
@@ -331,8 +351,6 @@ export async function POST(req: NextRequest) {
             </td>
           </tr>
         </table>
-
-        <!-- Products table -->
         <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Detalle de compra</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
           <thead>
@@ -344,8 +362,6 @@ export async function POST(req: NextRequest) {
           </thead>
           <tbody>${itemsHtml}</tbody>
         </table>
-
-        <!-- Totals -->
         ${discount > 0 ? `
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
@@ -365,19 +381,11 @@ export async function POST(req: NextRequest) {
             <td style="padding:12px 0;font-size:22px;font-weight:800;color:#18181b;text-align:right;">${fmtCLP(Math.round(totalCalculado))}</td>
           </tr>
         </table>
-
       </td></tr>
-
-      <!-- Footer -->
       <tr><td style="background:#f9fafb;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;border-top:1px solid #e4e4e7;">
-        <p style="margin:0 0 8px;font-size:13px;color:#71717a;">
-          ¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.
-        </p>
-        <p style="margin:0;font-size:12px;color:#a1a1aa;">
-          ARM Merch · ARM Global · armerch.com
-        </p>
+        <p style="margin:0 0 8px;font-size:13px;color:#71717a;">¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.</p>
+        <p style="margin:0;font-size:12px;color:#a1a1aa;">ARM Merch · ARM Global · armerch.com</p>
       </td></tr>
-
     </table>
   </td></tr>
 </table>
@@ -390,6 +398,7 @@ export async function POST(req: NextRequest) {
           subject: `Comprobante Orden #${createdOrder.order_number}`,
           html,
         })
+
         if (!mailError) emailSent = true
         else console.error('Email error:', mailError)
       } catch (e) {
