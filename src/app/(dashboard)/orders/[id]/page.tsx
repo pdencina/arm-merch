@@ -17,6 +17,7 @@ type OrderRow = {
   created_at: string
   status?: string | null
   notes?: string | null
+  tracking_token?: string | null
 }
 
 type CampusRow = {
@@ -115,7 +116,8 @@ export default function OrderDetailPage() {
             discount,
             created_at,
             status,
-            notes
+            notes,
+            tracking_token
           `)
           .eq('id', orderId)
           .single(),
@@ -356,6 +358,16 @@ export default function OrderDetailPage() {
           </Link>
 
           <ResendVoucherButton orderId={order.id} />
+
+          {order.tracking_token && (
+            <Link
+              href={`/track/${order.tracking_token}`}
+              target="_blank"
+              className="inline-flex items-center justify-center rounded-xl border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              Ver tracking cliente
+            </Link>
+          )}
         </div>
 
         <div className="mt-5">

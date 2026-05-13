@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── Ventas ───────────────────────────────────────────────
   { label: 'Punto de Venta',   href: '/pos', permKey: 'pos.view',                 icon: <ShoppingCart size={16} />,    roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
   { label: 'Órdenes',          href: '/orders', permKey: 'orders.view',              icon: <Receipt size={16} />,          roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
-  { label: 'Pedidos entrega',  href: '/deliveries', permKey: 'deliveries.view',          icon: <Truck size={16} />,            roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
+  { label: 'Pedidos entrega',  href: '/production', permKey: 'deliveries.view',          icon: <Truck size={16} />,            roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
 
   // ── Inventario ───────────────────────────────────────────
   { label: 'Inventario',       href: '/inventory', permKey: 'inventory.view',           icon: <Package size={16} />,          roles: ['admin', 'super_admin'],              section: 'Inventario' },
@@ -84,7 +84,6 @@ export default function Sidebar({
 
   return (
     <aside className="flex h-full w-[280px] shrink-0 flex-col overflow-y-auto border-r border-[#222831] bg-[#0F1216] px-3 py-5 lg:w-56">
-      {/* Logo */}
       <div className="mb-5 flex items-center justify-between gap-3 px-2">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E8EEF8]">
@@ -103,7 +102,6 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Role badge */}
       <div className={`mx-2 mb-4 rounded-2xl border px-3 py-3 ${config.color}`}>
         <p className="text-[10px] font-bold uppercase tracking-widest">{config.label}</p>
         <p className="mt-1 text-[10px] opacity-70">
@@ -111,7 +109,6 @@ export default function Sidebar({
         </p>
       </div>
 
-      {/* Nav */}
       <nav className="flex flex-1 flex-col gap-1">
         {SECTION_ORDER.map(section => {
           const items = visible.filter(i => i.section === section)
