@@ -239,7 +239,16 @@ export async function POST(req: NextRequest) {
 
     // ── Email con Resend ──
     let emailSent = false
-    if (clientEmail && process.env.RESEND_API_KEY) {
+
+    // IMPORTANTE:
+    // Para pagos por link/QR SumUp, la orden nace como pending.
+    // El voucher NO debe enviarse aquí, sino recién cuando /api/sumup/check-checkout
+    // confirme que el pago quedó PAID.
+    const shouldSendEmailImmediately =
+      paymentMethod !== 'link' &&
+      paymentMethod !== 'sumup'
+
+    if (shouldSendEmailImmediately && clientEmail && process.env.RESEND_API_KEY) {
       try {
         const { Resend } = await import('resend')
         const resend = new Resend(process.env.RESEND_API_KEY)
