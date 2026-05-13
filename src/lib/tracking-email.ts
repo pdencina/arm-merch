@@ -1,14 +1,33 @@
 import { Resend } from 'resend'
+import { createClient } from '@supabase/supabase-js'
 
 export type TrackingEmailStatus =
   | 'confirmed'
   | 'pending_production'
+  | 'in_preparation'
   | 'in_production'
   | 'ready_pickup'
   | 'delivered'
   | 'cancelled'
 
 type TrackingEmailInput = {
+  // Modo simple usado por fulfillment:
+  // sendTrackingEmail({ orderId, status, appUrl })
+  orderId?: string
+
+  // Modo completo usado por otros endpoints:
+  to?: string
+  clientName?: string | null
+  orderNumber?: string | number
+  trackingToken?: string | null
+  status: TrackingEmailStatus
+  campusName?: string | null
+  pickupAddress?: string | null
+  total?: number | null
+  appUrl?: string | null
+}
+
+type ResolvedEmailData = {
   to: string
   clientName?: string | null
   orderNumber: string | number
@@ -34,7 +53,8 @@ const STATUS_COPY: Record<
     subject: 'Compra confirmada',
     title: 'Tu compra fue confirmada',
     eyebrow: 'Compra confirmada',
-    message: 'Recibimos tu pedido correctamente. Puedes revisar el avance desde el botón de seguimiento.',
+    message:
+      'Recibimos tu pedido correctamente. Puedes revisar el avance desde el botón de seguimiento.',
     color: '#16a34a',
   },
   pending_production: {
@@ -42,6 +62,13 @@ const STATUS_COPY: Record<
     title: 'Recibimos tu pedido',
     eyebrow: 'Pedido recibido',
     message: 'Tu pedido ya está en nuestra cola de preparación.',
+    color: '#f59e0b',
+  },
+  in_preparation: {
+    subject: 'Tu pedido está en preparación',
+    title: 'Tu pedido está en preparación',
+    eyebrow: 'En preparación',
+    message: 'Estamos preparando los detalles de tu pedido.',
     color: '#f59e0b',
   },
   in_production: {
@@ -89,24 +116,142 @@ function esc(value?: string | number | null) {
     .replace(/>/g, '&gt;')
 }
 
+function buildTrackingTokenFallback(orderNumber: string | number) {
+  return `ARM-${String(orderNumber).padStart(6, '0')}`
+}
+
+async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmailData | null> {
+  // Si viene completo, no consultamos BD.
+  if (input.to && input.orderNumber && input.trackingToken) {
+    return {
+      to: input.to,
+      clientName: input.clientName,
+      orderNumber: input.orderNumber,
+      trackingToken: input.trackingToken,
+      status: input.status,
+      campusName: input.campusName,
+      pickupAddress: input.pickupAddress,
+      total: input.total,
+      appUrl: input.appUrl,
+    }
+  }
+
+  // Si viene orderId, consultamos BD.
+  if (!input.orderId) {
+    console.warn('[Tracking Email] Faltan datos: se requiere orderId o payload completo')
+    return null
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn('[Tracking Email] Supabase admin env no configurada')
+    return null
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+
+  const { data: order, error: orderError } = await adminClient
+    .from('orders')
+    .select(
+      `
+      id,
+      order_number,
+      tracking_token,
+      total,
+      campus_id,
+      pickup_campus_id
+    `,
+    )
+    .eq('id', input.orderId)
+    .maybeSingle()
+
+  if (orderError || !order) {
+    console.error('[Tracking Email] Orden no encontrada:', orderError)
+    return null
+  }
+
+  const [
+    { data: contact },
+    { data: campus },
+    { data: pickupCampus },
+  ] = await Promise.all([
+    adminClient
+      .from('order_contacts')
+      .select('client_name, client_email, client_phone')
+      .eq('order_id', input.orderId)
+      .maybeSingle(),
+
+    order.campus_id
+      ? adminClient
+          .from('campus')
+          .select('id, name, address')
+          .eq('id', order.campus_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+
+    order.pickup_campus_id
+      ? adminClient
+          .from('campus')
+          .select('id, name, address')
+          .eq('id', order.pickup_campus_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const email = contact?.client_email
+
+  if (!email) {
+    console.warn('[Tracking Email] La orden no tiene email de cliente')
+    return null
+  }
+
+  const destinationCampus = pickupCampus || campus
+
+  return {
+    to: email,
+    clientName: contact?.client_name,
+    orderNumber: order.order_number,
+    trackingToken:
+      order.tracking_token || buildTrackingTokenFallback(order.order_number),
+    status: input.status,
+    campusName: destinationCampus?.name,
+    pickupAddress: destinationCampus?.address,
+    total: order.total,
+    appUrl: input.appUrl,
+  }
+}
+
 export async function sendTrackingEmail(input: TrackingEmailInput) {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[Tracking Email] RESEND_API_KEY no configurada')
     return { sent: false, error: 'RESEND_API_KEY no configurada' }
   }
 
-  if (!input.to?.includes('@')) {
+  const data = await resolveEmailData(input)
+
+  if (!data) {
+    return { sent: false, error: 'No se pudo resolver información del correo' }
+  }
+
+  if (!data.to?.includes('@')) {
     return { sent: false, error: 'Email inválido' }
   }
 
   const appUrl =
-    input.appUrl ||
+    data.appUrl ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}` ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
     'https://armerch.com'
 
-  const copy = STATUS_COPY[input.status] ?? STATUS_COPY.confirmed
-  const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(input.trackingToken)}`
+  const copy = STATUS_COPY[data.status] ?? STATUS_COPY.confirmed
+  const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(data.trackingToken)}`
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
 
   const html = `<!DOCTYPE html>
@@ -134,33 +279,33 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
               </div>
 
               <p style="margin:22px 0 0;color:#18181b;font-size:16px;line-height:1.6;">
-                Hola <strong>${esc(input.clientName || 'Cliente')}</strong>, ${esc(copy.message)}
+                Hola <strong>${esc(data.clientName || 'Cliente')}</strong>, ${esc(copy.message)}
               </p>
 
               <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background:#f4f4f5;border-radius:18px;overflow:hidden;">
                 <tr>
                   <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
                     <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Número de seguimiento</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-family:monospace;font-size:20px;font-weight:900;">${esc(input.trackingToken)}</p>
+                    <p style="margin:6px 0 0;color:#18181b;font-family:monospace;font-size:20px;font-weight:900;">${esc(data.trackingToken)}</p>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
                     <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Orden</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-size:16px;font-weight:800;">#${esc(input.orderNumber)}</p>
+                    <p style="margin:6px 0 0;color:#18181b;font-size:16px;font-weight:800;">#${esc(data.orderNumber)}</p>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
                     <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Campus retiro</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:700;">${esc(input.campusName || 'Por confirmar')}</p>
-                    ${input.pickupAddress ? `<p style="margin:4px 0 0;color:#71717a;font-size:13px;">${esc(input.pickupAddress)}</p>` : ''}
+                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:700;">${esc(data.campusName || 'Por confirmar')}</p>
+                    ${data.pickupAddress ? `<p style="margin:4px 0 0;color:#71717a;font-size:13px;">${esc(data.pickupAddress)}</p>` : ''}
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:18px 20px;">
                     <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Total</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-size:22px;font-weight:900;">${fmtCLP(input.total)}</p>
+                    <p style="margin:6px 0 0;color:#18181b;font-size:22px;font-weight:900;">${fmtCLP(data.total)}</p>
                   </td>
                 </tr>
               </table>
@@ -189,10 +334,10 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const { error, data } = await resend.emails.send({
+    const { error, data: resendData } = await resend.emails.send({
       from: `ARM Merch <${fromEmail}>`,
-      to: input.to,
-      subject: `${copy.subject} · Orden #${input.orderNumber}`,
+      to: data.to,
+      subject: `${copy.subject} · Orden #${data.orderNumber}`,
       html,
     })
 
@@ -201,7 +346,7 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
       return { sent: false, error: error.message }
     }
 
-    return { sent: true, id: data?.id }
+    return { sent: true, id: resendData?.id }
   } catch (error: any) {
     console.error('[Tracking Email] Exception:', error)
     return { sent: false, error: error?.message ?? 'Error enviando email' }
