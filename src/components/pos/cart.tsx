@@ -195,6 +195,7 @@ export default function Cart() {
   const [paymentQrMessage, setPaymentQrMessage] = useState(
     "Esperando confirmación automática del pago...",
   );
+  const [paymentRejectedOpen, setPaymentRejectedOpen] = useState(false);
   const [paymentQrCheckoutId, setPaymentQrCheckoutId] = useState<string | null>(
     null,
   );
@@ -249,89 +250,43 @@ export default function Cart() {
     if (!showPaymentQR || !createdOrder?.id || !paymentQrCheckoutId) return;
 
     let stopped = false;
-    let interval: ReturnType<typeof setInterval> | null = null;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const stopWatching = () => {
-      stopped = true;
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-      if (channel) {
-        supabase.removeChannel(channel);
-        channel = null;
-      }
-    };
 
     const handleStatus = (statusValue: string | null | undefined) => {
-      if (stopped) return;
-
       const status = String(statusValue ?? "").toLowerCase();
-      console.log("[POS QR SumUp] Estado recibido:", status);
 
-      // ─────────────────────────────────────────
-      // PAGO EXITOSO
-      // ─────────────────────────────────────────
-      if (
-        [
-          "paid",
-          "pagado",
-          "approved",
-          "completed",
-          "success",
-          "successful",
-        ].includes(status)
-      ) {
-        console.log("[POS QR SumUp] Pago aprobado");
-
-        stopWatching();
+      if (["paid", "pagado", "approved", "completed"].includes(status)) {
         setPaymentQrStatus("paid");
-        setPaymentQrMessage("✅ Pago confirmado correctamente.");
+        setPaymentQrMessage("Pago confirmado correctamente.");
+        setShowPaymentQR(false);
+        setPaymentLinkUrl(null);
+        setSuccessOpen(true);
+        clearCart();
+        return;
+      }
+
+      if (
+        ["cancelled", "canceled", "failed", "rejected", "expired"].includes(
+          status,
+        )
+      ) {
+        setPaymentQrStatus("rejected");
+        setPaymentQrMessage(
+          "❌ El pago fue rechazado o expiró. El stock NO fue descontado.",
+        );
 
         setTimeout(() => {
           setShowPaymentQR(false);
           setPaymentLinkUrl(null);
           setPaymentQrCheckoutId(null);
           setPaymentQrCheckoutRef(null);
-          setSuccessOpen(true);
-          setClientPhone("");
-          clearCart();
-        }, 900);
+          setPaymentRejectedOpen(true);
+        }, 1200);
 
         return;
       }
-
-      // ─────────────────────────────────────────
-      // PAGO RECHAZADO / CANCELADO / EXPIRADO
-      // ─────────────────────────────────────────
-      if (
-        [
-          "cancelled",
-          "canceled",
-          "failed",
-          "rejected",
-          "expired",
-          "declined",
-        ].includes(status)
-      ) {
-        console.log("[POS QR SumUp] Pago rechazado");
-
-        stopWatching();
-        setPaymentQrStatus("rejected");
-        setPaymentQrMessage(
-          "❌ El pago fue rechazado o expiró. El stock NO fue descontado.",
-        );
-
-        return;
-      }
-
-      console.log("[POS QR SumUp] Estado pendiente:", status || "sin_estado");
     };
 
     const checkOrderStatus = async () => {
-      if (stopped) return;
-
       const { data, error } = await supabase
         .from("orders")
         .select("status")
@@ -344,8 +299,6 @@ export default function Cart() {
     };
 
     const checkSumUpCheckout = async () => {
-      if (stopped) return;
-
       try {
         const {
           data: { session },
@@ -366,22 +319,15 @@ export default function Cart() {
         });
 
         const data = await res.json().catch(() => null);
-        console.log("[POS QR SumUp] check-checkout response:", data);
-
         if (!stopped && data?.order_status) {
           handleStatus(data.order_status);
-          return;
-        }
-
-        if (!stopped && data?.sumup_status) {
-          handleStatus(data.sumup_status);
         }
       } catch (error) {
-        console.error("[POS QR SumUp] checkout polling error:", error);
+        console.error("SumUp checkout polling error:", error);
       }
     };
 
-    channel = supabase
+    const channel = supabase
       .channel(`order-payment-${createdOrder.id}`)
       .on(
         "postgres_changes",
@@ -392,7 +338,6 @@ export default function Cart() {
           filter: `id=eq.${createdOrder.id}`,
         },
         (payload) => {
-          console.log("[POS QR SumUp] realtime order update:", payload.new);
           handleStatus((payload.new as any)?.status);
         },
       )
@@ -401,21 +346,21 @@ export default function Cart() {
     checkOrderStatus();
     checkSumUpCheckout();
 
-    interval = setInterval(() => {
-      if (stopped) return;
+    const interval = setInterval(() => {
       checkOrderStatus();
       checkSumUpCheckout();
     }, 4000);
 
     return () => {
-      stopWatching();
+      stopped = true;
+      clearInterval(interval);
+      supabase.removeChannel(channel);
     };
   }, [
     showPaymentQR,
     createdOrder?.id,
     paymentQrCheckoutId,
     paymentQrCheckoutRef,
-    supabase,
   ]);
 
   // ── confirmar venta ──
@@ -1316,6 +1261,69 @@ export default function Cart() {
                 clearCart();
               }}
               className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
+            >
+              Nueva venta
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PAGO RECHAZADO */}
+      {paymentRejectedOpen && createdOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-red-500/30 bg-zinc-900 p-6 text-center shadow-2xl">
+            <div className="mb-4 text-6xl">❌</div>
+
+            <h2 className="mb-2 text-xl font-bold text-white">
+              Pago rechazado
+            </h2>
+
+            <p className="mb-5 text-sm text-zinc-400">
+              SumUp rechazó o canceló el pago. La orden no fue pagada y el inventario no fue descontado.
+            </p>
+
+            <div className="mb-5 rounded-2xl border border-zinc-700 bg-zinc-800 p-4 text-left space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Orden</span>
+                <span className="font-bold text-white">#{createdOrder.number}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Total</span>
+                <span className="font-bold text-amber-400 text-base">
+                  {fmt(paymentQrTotal || createdOrder.total)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Estado</span>
+                <span className="font-semibold text-red-400">❌ Rechazado</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Stock descontado</span>
+                <span className="font-semibold text-zinc-400">No</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setPaymentRejectedOpen(false);
+                setPaymentQrStatus("pending");
+                setPaymentQrMessage("Esperando confirmación automática del pago...");
+                setSubmitting(false);
+              }}
+              className="mb-3 w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
+            >
+              Intentar nuevamente
+            </button>
+
+            <button
+              onClick={() => {
+                setPaymentRejectedOpen(false);
+                setPaymentQrStatus("pending");
+                setPaymentQrMessage("Esperando confirmación automática del pago...");
+                setClientPhone("");
+                clearCart();
+              }}
+              className="w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
             >
               Nueva venta
             </button>

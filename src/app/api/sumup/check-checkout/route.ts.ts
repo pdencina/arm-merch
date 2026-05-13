@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 // Ruta: src/app/api/sumup/check-checkout/route.ts
-// Objetivo:
-// - Fallback del POS cuando el webhook de SumUp demora o no llega.
-// - Consulta el checkout en SumUp.
-// - Si está PAID, marca la orden como paid y descuenta stock una sola vez.
-// - Si está FAILED / EXPIRED / CANCELLED, marca la orden como cancelled y NO descuenta stock.
+// Consulta el checkout de SumUp y actualiza la orden.
+// Importante: SumUp puede dejar el checkout como PENDING aunque una transacción interna venga FAILED.
+// Por eso se evalúa tanto checkout.status como transactions[0].status.
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,8 +65,8 @@ export async function POST(req: NextRequest) {
       checkout = { raw: checkoutText };
     }
 
-    console.log("[SumUp Check Checkout] Status:", checkoutRes.status);
-    console.log("[SumUp Check Checkout] Response:", checkout);
+    console.log("[SumUp Check Checkout] HTTP Status:", checkoutRes.status);
+    console.log("[SumUp Check Checkout] Response:", JSON.stringify(checkout));
 
     if (!checkoutRes.ok) {
       return NextResponse.json(
@@ -82,12 +80,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const sumupStatus = String(checkout?.status ?? "").toUpperCase();
+    const checkoutStatus = String(checkout?.status ?? "").toUpperCase();
+    const transaction = Array.isArray(checkout?.transactions)
+      ? checkout.transactions[0]
+      : null;
+
+    const transactionStatus = String(transaction?.status ?? "").toUpperCase();
+    const transactionCode = transaction?.transaction_code ?? transaction?.id ?? "";
     const checkoutReference =
-      checkout?.checkout_reference ?? checkoutReferenceFromBody;
-    const transaction = checkout?.transactions?.[0] ?? null;
-    const transactionCode =
-      transaction?.transaction_code ?? transaction?.id ?? "";
+      checkout?.checkout_reference ?? checkoutReferenceFromBody ?? "";
+
+    const paidStatuses = ["PAID", "SUCCESSFUL", "SUCCESS", "COMPLETED"];
+    const failedStatuses = [
+      "FAILED",
+      "EXPIRED",
+      "CANCELLED",
+      "CANCELED",
+      "REJECTED",
+      "DECLINED",
+      "ERROR",
+    ];
+
+    // Estado efectivo: prioriza transacción si existe, porque puede venir FAILED
+    // aunque el checkout siga PENDING.
+    const effectiveStatus = paidStatuses.includes(transactionStatus)
+      ? "PAID"
+      : failedStatuses.includes(transactionStatus)
+        ? "FAILED"
+        : paidStatuses.includes(checkoutStatus)
+          ? "PAID"
+          : failedStatuses.includes(checkoutStatus)
+            ? "FAILED"
+            : "PENDING";
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
@@ -124,28 +148,24 @@ export async function POST(req: NextRequest) {
         ok: true,
         action: "already_processed",
         order_status: order.status,
-        sumup_status: sumupStatus,
+        sumup_status: checkoutStatus,
+        transaction_status: transactionStatus,
+        effective_status: effectiveStatus,
         order_number: order.order_number,
       });
     }
 
-    const paidStatuses = ["PAID", "SUCCESSFUL", "SUCCESS", "COMPLETED"];
-    const failedStatuses = ["FAILED", "EXPIRED", "CANCELLED", "CANCELED"];
-
-    if (paidStatuses.includes(sumupStatus)) {
+    if (effectiveStatus === "PAID") {
       const { error: updateError } = await adminClient
         .from("orders")
         .update({
           status: "paid",
-          notes: `Pagado via SumUp | Ref: ${checkoutReference ?? ""} | TXN: ${transactionCode}`,
+          notes: `Pagado via SumUp | Ref: ${checkoutReference} | TXN: ${transactionCode}`,
         })
         .eq("id", order.id);
 
       if (updateError) {
-        console.error(
-          "[SumUp Check Checkout] Error updating paid order:",
-          updateError,
-        );
+        console.error("[SumUp Check Checkout] Error updating paid order:", updateError);
         return NextResponse.json(
           { ok: false, error: "paid_update_error" },
           { status: 500 },
@@ -164,10 +184,7 @@ export async function POST(req: NextRequest) {
           });
 
         if (movementError) {
-          console.error(
-            "[SumUp Check Checkout] Inventory movement error:",
-            movementError,
-          );
+          console.error("[SumUp Check Checkout] Inventory movement error:", movementError);
         }
       }
 
@@ -175,25 +192,24 @@ export async function POST(req: NextRequest) {
         ok: true,
         action: "paid",
         order_status: "paid",
-        sumup_status: sumupStatus,
+        sumup_status: checkoutStatus,
+        transaction_status: transactionStatus,
+        effective_status: effectiveStatus,
         order_number: order.order_number,
       });
     }
 
-    if (failedStatuses.includes(sumupStatus)) {
+    if (effectiveStatus === "FAILED") {
       const { error: cancelError } = await adminClient
         .from("orders")
         .update({
           status: "cancelled",
-          notes: `Pago ${sumupStatus.toLowerCase()} via SumUp | Ref: ${checkoutReference ?? ""}`,
+          notes: `Pago rechazado/cancelado via SumUp | Ref: ${checkoutReference} | Checkout: ${checkoutStatus} | TX: ${transactionStatus}`,
         })
         .eq("id", order.id);
 
       if (cancelError) {
-        console.error(
-          "[SumUp Check Checkout] Error cancelling order:",
-          cancelError,
-        );
+        console.error("[SumUp Check Checkout] Error cancelling order:", cancelError);
         return NextResponse.json(
           { ok: false, error: "cancel_update_error" },
           { status: 500 },
@@ -204,7 +220,9 @@ export async function POST(req: NextRequest) {
         ok: true,
         action: "cancelled",
         order_status: "cancelled",
-        sumup_status: sumupStatus,
+        sumup_status: checkoutStatus,
+        transaction_status: transactionStatus,
+        effective_status: effectiveStatus,
         order_number: order.order_number,
       });
     }
@@ -213,7 +231,9 @@ export async function POST(req: NextRequest) {
       ok: true,
       action: "pending",
       order_status: "pending",
-      sumup_status: sumupStatus,
+      sumup_status: checkoutStatus,
+      transaction_status: transactionStatus,
+      effective_status: effectiveStatus,
       order_number: order.order_number,
     });
   } catch (error: any) {
