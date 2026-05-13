@@ -196,6 +196,49 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // ── Tracking / producción ───────────────────────────────────────────────
+    // No falla la venta si la migración aún no está aplicada; solo registra logs.
+    const shouldTrackProduction = deliveryStatus === 'pending'
+
+    try {
+      if (shouldTrackProduction) {
+        await adminClient
+          .from('orders')
+          .update({
+            production_status: 'pending_production',
+            pickup_campus_id: sellingCampusId,
+          })
+          .eq('id', createdOrder.id)
+
+        await adminClient.from('order_status_history').insert([
+          {
+            order_id: createdOrder.id,
+            status: 'purchase_confirmed',
+            title: 'Compra confirmada',
+            message: 'Recibimos tu compra correctamente.',
+            created_by: profile.id,
+          },
+          {
+            order_id: createdOrder.id,
+            status: 'pending_production',
+            title: 'En preparación',
+            message: 'Tu pedido quedó pendiente para producción.',
+            created_by: profile.id,
+          },
+        ])
+      } else {
+        await adminClient.from('order_status_history').insert({
+          order_id: createdOrder.id,
+          status: 'purchase_confirmed',
+          title: 'Compra confirmada',
+          message: 'Tu compra fue confirmada correctamente.',
+          created_by: profile.id,
+        })
+      }
+    } catch (trackingError) {
+      console.error('Tracking history warning:', trackingError)
+    }
+
     // ── Guardar contacto ──
     if (clientName || clientEmail || clientPhone) {
       const { error: contactError } = await adminClient
