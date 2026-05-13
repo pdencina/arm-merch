@@ -1,54 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+// Ruta: src/app/api/sumup/verify-payment/route.ts
+// Smart POS real:
+// 1) La orden nace pending desde /api/orders con payment_method=sumup.
+// 2) El vendedor cobra en la máquina SumUp.
+// 3) Ingresa el código TX en ARM Merch.
+// 4) Esta ruta valida la transacción exacta, marca paid y descuenta stock.
+
+const APPROVED_STATUSES = ['SUCCESSFUL', 'PAID', 'APPROVED', 'COMPLETED', 'SUCCESS']
+
+function normalize(value: unknown) {
+  return String(value ?? '').trim().toUpperCase()
+}
+
+function fmtStatus(value: unknown) {
+  return String(value ?? 'SIN_ESTADO')
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization')
 
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'No autenticado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
 
     const apiKey = process.env.SUMUP_API_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!apiKey) {
+      return NextResponse.json({ success: false, error: 'SUMUP_API_KEY no configurada' }, { status: 500 })
+    }
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ success: false, error: 'Supabase admin env no configurada' }, { status: 500 })
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const orderId = body?.order_id
+    const txCode = normalize(body?.tx_code)
+    const amount = Number(body?.amount ?? 0)
+
+    if (!orderId || !txCode) {
       return NextResponse.json(
-        { error: 'SUMUP_API_KEY no configurada' },
-        { status: 500 }
+        { success: false, error: 'order_id y tx_code requeridos' },
+        { status: 400 },
       )
     }
 
-    const body = await req.json()
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
-    const {
-      order_id,
-      tx_code,
-      amount,
-    } = body
-
-    if (!order_id || !tx_code) {
-      return NextResponse.json(
-        { error: 'order_id y tx_code requeridos' },
-        { status: 400 }
-      )
-    }
-
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    )
-
-    // Buscar orden
-    const { data: order } = await adminClient
+    const { data: order, error: orderError } = await adminClient
       .from('orders')
       .select(`
         id,
@@ -56,119 +62,215 @@ export async function POST(req: NextRequest) {
         campus_id,
         status,
         total,
-        order_items (
-          product_id,
-          quantity
-        )
+        order_items(product_id, quantity, unit_price, size)
       `)
-      .eq('id', order_id)
-      .single()
+      .eq('id', orderId)
+      .maybeSingle()
 
-    if (!order) {
-      return NextResponse.json(
-        { error: 'Orden no encontrada' },
-        { status: 404 }
-      )
+    if (orderError) {
+      console.error('[Smart POS Verify] Order query error:', orderError)
+      return NextResponse.json({ success: false, error: 'Error consultando la orden' }, { status: 500 })
     }
 
-    // Ya pagada
+    if (!order) {
+      return NextResponse.json({ success: false, error: 'Orden no encontrada' }, { status: 404 })
+    }
+
     if (order.status === 'paid') {
       return NextResponse.json({
         success: true,
         already_paid: true,
+        order_number: order.order_number,
+        tx_code: txCode,
       })
     }
 
-    // Buscar transacción exacta
-    const res = await fetch(
-      `https://api.sumup.com/v0.1/me/transactions?transaction_code=${tx_code}`,
+    if (order.status === 'cancelled') {
+      return NextResponse.json({
+        success: false,
+        message: 'La orden ya está cancelada. Genera una nueva venta.',
+      })
+    }
+
+    const sumupRes = await fetch(
+      `https://api.sumup.com/v0.1/me/transactions?transaction_code=${encodeURIComponent(txCode)}`,
       {
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-      }
+        cache: 'no-store',
+      },
     )
 
-    const tx = await res.json()
+    const rawText = await sumupRes.text()
+    let tx: any = {}
 
-    console.log('[SMART POS VERIFY]', tx)
+    try {
+      tx = JSON.parse(rawText)
+    } catch {
+      tx = { raw: rawText }
+    }
 
-    if (!tx?.transaction_code) {
+    console.log('[Smart POS Verify] SumUp HTTP:', sumupRes.status)
+    console.log('[Smart POS Verify] SumUp TX:', JSON.stringify(tx, null, 2))
+
+    if (!sumupRes.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'No se pudo consultar SumUp. Revisa el código de transacción.',
+          detail: tx,
+        },
+        { status: 400 },
+      )
+    }
+
+    const returnedCode = normalize(tx?.transaction_code ?? tx?.id)
+
+    if (!returnedCode || returnedCode !== txCode) {
       return NextResponse.json({
         success: false,
-        message: 'Transacción no encontrada',
+        message: `No se encontró la transacción ${txCode}`,
       })
     }
 
-    const status = String(tx.status ?? '').toUpperCase()
+    const txStatus = normalize(tx?.status ?? tx?.transaction_status)
 
-    const approvedStatuses = [
-      'SUCCESSFUL',
-      'PAID',
-      'APPROVED',
-    ]
-
-    if (!approvedStatuses.includes(status)) {
+    if (!APPROVED_STATUSES.includes(txStatus)) {
       return NextResponse.json({
         success: false,
-        message: `Transacción rechazada (${status})`,
+        message: `La transacción ${txCode} no está aprobada. Estado: ${fmtStatus(tx?.status ?? tx?.transaction_status)}`,
+        sumup_status: txStatus,
       })
     }
 
-    // Validar monto
-    const txAmount = Number(tx.amount ?? 0)
-    const orderAmount = Number(amount ?? order.total ?? 0)
+    const txAmount = Number(tx?.amount ?? tx?.total_amount ?? 0)
+    const expectedAmount = Number(amount || order.total || 0)
 
-    if (Math.abs(txAmount - orderAmount) > 1) {
+    if (Math.abs(txAmount - expectedAmount) > 1) {
       return NextResponse.json({
         success: false,
-        message: 'Monto no coincide',
+        message: `El monto no coincide. SumUp: $${txAmount.toLocaleString('es-CL')} / Orden: $${expectedAmount.toLocaleString('es-CL')}`,
+        tx_amount: txAmount,
+        order_amount: expectedAmount,
       })
     }
 
-    // Marcar orden pagada
-    await adminClient
+    const { error: updateError } = await adminClient
       .from('orders')
       .update({
         status: 'paid',
-        notes: `Smart POS | TX ${tx.transaction_code}`,
+        notes: `Smart POS SumUp | TX: ${txCode}`,
       })
       .eq('id', order.id)
 
-    // Descontar stock
+    if (updateError) {
+      console.error('[Smart POS Verify] Error updating order:', updateError)
+      return NextResponse.json({ success: false, error: 'No se pudo marcar la orden como pagada' }, { status: 500 })
+    }
+
     for (const item of order.order_items ?? []) {
-      await adminClient
+      const { error: movementError } = await adminClient
         .from('inventory_movements')
         .insert({
           product_id: item.product_id,
           campus_id: order.campus_id,
           type: 'salida',
           quantity: item.quantity,
-          notes: `Smart POS - Orden #${order.order_number}`,
+          notes: `Smart POS SumUp - Orden #${order.order_number} - TX ${txCode}`,
         })
+
+      if (movementError) {
+        console.error('[Smart POS Verify] Inventory movement error:', movementError)
+      }
     }
 
-    console.log(
-      '[SMART POS] Pago confirmado:',
-      order.order_number
-    )
+    // Voucher por correo solo después de pago confirmado.
+    let emailSent = false
+    try {
+      const { data: contact } = await adminClient
+        .from('order_contacts')
+        .select('client_name, client_email')
+        .eq('order_id', order.id)
+        .maybeSingle()
+
+      if (contact?.client_email && process.env.RESEND_API_KEY) {
+        const { Resend } = await import('resend')
+        const resend = new Resend(process.env.RESEND_API_KEY)
+
+        const { data: itemsData } = await adminClient
+          .from('order_items')
+          .select('quantity, unit_price, products(name)')
+          .eq('order_id', order.id)
+
+        const fmtCLP = (n: number) =>
+          new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency: 'CLP',
+            maximumFractionDigits: 0,
+          }).format(n)
+
+        const rows = (itemsData ?? [])
+          .map((item: any) => {
+            const name = item.products?.name ?? 'Producto'
+            const lineTotal = Number(item.unit_price) * Number(item.quantity)
+            return `<tr>
+              <td style="padding:10px 6px;border-bottom:1px solid #eee;">${name}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #eee;text-align:center;">${item.quantity}</td>
+              <td style="padding:10px 6px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">${fmtCLP(lineTotal)}</td>
+            </tr>`
+          })
+          .join('')
+
+        const { error: mailError } = await resend.emails.send({
+          from: 'ARM Merch <onboarding@resend.dev>',
+          to: contact.client_email,
+          subject: `Comprobante Orden #${order.order_number}`,
+          html: `
+            <div style="font-family:Arial,sans-serif;padding:24px;max-width:560px;margin:auto;">
+              <h2>✅ Pago confirmado</h2>
+              <p>Hola <strong>${contact.client_name ?? 'Cliente'}</strong>, gracias por tu compra.</p>
+              <p><strong>Orden:</strong> #${order.order_number}</p>
+              <p><strong>Método:</strong> Smart POS SumUp</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;">
+                <thead>
+                  <tr>
+                    <th align="left" style="padding:8px 6px;border-bottom:2px solid #ddd;">Producto</th>
+                    <th align="center" style="padding:8px 6px;border-bottom:2px solid #ddd;">Cant.</th>
+                    <th align="right" style="padding:8px 6px;border-bottom:2px solid #ddd;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+              <h3 style="text-align:right;margin-top:18px;">Total pagado: ${fmtCLP(Number(order.total ?? expectedAmount))}</h3>
+              <p style="font-size:12px;color:#777;">TX: ${txCode}</p>
+            </div>
+          `,
+        })
+
+        if (!mailError) emailSent = true
+        else console.error('[Smart POS Verify] Email error:', mailError)
+      }
+    } catch (emailError) {
+      console.error('[Smart POS Verify] Email exception:', emailError)
+    }
+
+    console.log('[Smart POS Verify] ✅ Orden pagada:', order.order_number)
 
     return NextResponse.json({
       success: true,
+      found: true,
       order_number: order.order_number,
-      tx_code: tx.transaction_code,
+      tx_code: txCode,
+      email_sent: emailSent,
     })
-
   } catch (error: any) {
-    console.error('[SMART POS VERIFY ERROR]', error)
-
+    console.error('[Smart POS Verify] Error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message,
-      },
-      { status: 500 }
+      { success: false, error: error?.message ?? 'Error interno' },
+      { status: 500 },
     )
   }
 }
