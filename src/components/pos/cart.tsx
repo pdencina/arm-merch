@@ -244,6 +244,23 @@ export default function Cart() {
     { key: "sumup", label: "Smart POS", icon: CreditCard },
   ];
 
+  // 🔥 Actualiza el stock visual del catálogo sin recargar la página.
+  // El backend ya descuenta inventario; esto solo sincroniza la UI del POS al instante.
+  const notifyLocalStockDiscount = () => {
+    if (typeof window === "undefined" || items.length === 0) return;
+
+    window.dispatchEvent(
+      new CustomEvent("arm-merch-stock-update", {
+        detail: {
+          items: items.map((item) => ({
+            product_id: item.product.id,
+            quantity: item.quantity,
+          })),
+        },
+      }),
+    );
+  };
+
   // ── QR SumUp: confirmar pago por webhook + polling fallback ───────────────
   useEffect(() => {
     if (!showPaymentQR || !createdOrder?.id || !paymentQrCheckoutId) return;
@@ -269,6 +286,7 @@ export default function Cart() {
           if (stopped) {
             setShowPaymentQR(false);
             setPaymentLinkUrl(null);
+            notifyLocalStockDiscount();
             setSuccessOpen(true);
             clearCart();
           }
@@ -457,6 +475,7 @@ export default function Cart() {
         total: total(),
         emailSent: orderData.email_sent,
       });
+      notifyLocalStockDiscount();
       setSuccessOpen(true);
       setClientPhone("");
       clearCart();
@@ -667,6 +686,7 @@ export default function Cart() {
         setShowPaymentQR(true);
       } else {
         setPaymentLinkUrl(null);
+        notifyLocalStockDiscount();
         setSuccessOpen(true);
         setClientPhone("");
         clearCart();
@@ -1168,6 +1188,7 @@ export default function Cart() {
                     total: transferTotal,
                     emailSent: data.email_sent,
                   });
+                  notifyLocalStockDiscount();
                   setSuccessOpen(true);
                   setClientPhone("");
                   clearCart();

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Search, Package2 } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { useBarcode } from '@/lib/hooks/use-barcode'
 
@@ -37,13 +37,59 @@ function playAddSound() {
 }
 
 export default function ProductGrid({ products, categories }: Props) {
-  const { addItem, items } = useCart()
+  const { addItem } = useCart()
+
+  // 🔥 STOCK LOCAL EN TIEMPO REAL
+  const [liveProducts, setLiveProducts] = useState(products)
+
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // 🔥 SI CAMBIA EL SERVER STATE
+  useEffect(() => {
+    setLiveProducts(products)
+  }, [products])
+
+  // 🔥 ESCUCHAR DESCUENTO DE STOCK
+  useEffect(() => {
+    const handler = (event: any) => {
+      const items = event.detail?.items || []
+
+      setLiveProducts((prev) =>
+        prev.map((product) => {
+          const sold = items.find(
+            (i: any) => i.product_id === product.id
+          )
+
+          if (!sold) return product
+
+          return {
+            ...product,
+            stock: Math.max(
+              0,
+              (product.stock ?? 0) - sold.quantity
+            ),
+          }
+        })
+      )
+    }
+
+    window.addEventListener(
+      'arm-merch-stock-update',
+      handler
+    )
+
+    return () => {
+      window.removeEventListener(
+        'arm-merch-stock-update',
+        handler
+      )
+    }
+  }, [])
+
   const filtered = useMemo(() => {
-    return products.filter((p) => {
+    return liveProducts.filter((p) => {
       const matchSearch =
         !search ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -51,16 +97,18 @@ export default function ProductGrid({ products, categories }: Props) {
         (p.barcode ?? '').toLowerCase().includes(search.toLowerCase())
 
       const matchCat = !category || p.category_id === category
+
       return matchSearch && matchCat
     })
-  }, [products, search, category])
+  }, [liveProducts, search, category])
 
-  // Auto-add product when exact barcode match (scanner sends fast + Enter)
   useEffect(() => {
     if (!search) return
-    const exactMatch = filtered.find(p =>
-      p.barcode === search || p.sku === search
+
+    const exactMatch = filtered.find(
+      (p) => p.barcode === search || p.sku === search
     )
+
     if (exactMatch && filtered.length === 1) {
       addProduct(exactMatch)
       setSearch('')
@@ -81,9 +129,8 @@ export default function ProductGrid({ products, categories }: Props) {
     playAddSound()
   }
 
-  // 🔥 SCANNER DE CÓDIGO DE BARRAS
   useBarcode((code) => {
-    const product = products.find(
+    const product = liveProducts.find(
       (p) =>
         p.sku?.toLowerCase() === code.toLowerCase() ||
         p.id === code
@@ -100,14 +147,13 @@ export default function ProductGrid({ products, categories }: Props) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-
-      {/* BUSCADOR */}
       <div className="border-b border-zinc-800 px-4 py-3">
         <div className="relative">
           <Search
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
           />
+
           <input
             ref={inputRef}
             value={search}
@@ -118,7 +164,6 @@ export default function ProductGrid({ products, categories }: Props) {
         </div>
       </div>
 
-      {/* GRID */}
       <div className="flex-1 overflow-y-auto p-3">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((product) => (
@@ -126,22 +171,23 @@ export default function ProductGrid({ products, categories }: Props) {
               key={product.id}
               onClick={() => addProduct(product)}
               disabled={(product.stock ?? 0) <= 0}
-              className={`relative rounded-xl bg-zinc-900 p-2 text-left transition hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed`}
+              className="relative rounded-xl bg-zinc-900 p-2 text-left transition hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {/* Stock badge */}
               {product.stock !== null && (
-                <span className={`absolute top-2 right-2 rounded-full px-1.5 py-0.5 text-[10px] font-semibold z-10 ${
-                  (product.stock ?? 0) <= 0
-                    ? 'bg-red-500/20 text-red-400'
-                    : (product.stock ?? 0) <= (product.low_stock_alert ?? 5)
-                    ? 'bg-amber-500/20 text-amber-400'
-                    : 'bg-green-500/20 text-green-400'
-                }`}>
+                <span
+                  className={`absolute top-2 right-2 rounded-full px-1.5 py-0.5 text-[10px] font-semibold z-10 ${
+                    (product.stock ?? 0) <= 0
+                      ? 'bg-red-500/20 text-red-400'
+                      : (product.stock ?? 0) <=
+                        (product.low_stock_alert ?? 5)
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-green-500/20 text-green-400'
+                  }`}
+                >
                   {product.stock} uds
                 </span>
               )}
 
-              {/* Image */}
               <div className="aspect-square bg-zinc-800 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
                 {product.image_url ? (
                   <Image
@@ -156,17 +202,16 @@ export default function ProductGrid({ products, categories }: Props) {
                 )}
               </div>
 
-              {/* Name */}
               <p className="text-xs font-medium text-white leading-tight mb-0.5 line-clamp-2">
                 {product.name}
               </p>
 
-              {/* SKU */}
               {product.sku && (
-                <p className="text-[10px] text-zinc-600 mb-1">{product.sku}</p>
+                <p className="text-[10px] text-zinc-600 mb-1">
+                  {product.sku}
+                </p>
               )}
 
-              {/* Price */}
               <p className="text-sm font-bold text-amber-400">
                 {fmt(product.price)}
               </p>
