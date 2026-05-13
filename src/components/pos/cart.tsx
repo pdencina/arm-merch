@@ -368,7 +368,7 @@ export default function Cart() {
 
       checkOrderStatus();
       checkSumUpCheckout();
-    }, 4000);
+    }, 2000);
 
     return () => {
       stopped = true;
@@ -570,7 +570,7 @@ export default function Cart() {
           } catch (e) {
             console.error("SumUp verify error:", e);
           }
-        }, 4000);
+        }, 2000);
 
         return; // No continuar con el flujo normal
       }
