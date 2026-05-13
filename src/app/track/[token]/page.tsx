@@ -1,101 +1,232 @@
-import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
-import { CheckCircle2, Circle, Clock, Home, PackageCheck, Shirt, Truck } from 'lucide-react'
+import Link from 'next/link'
+import {
+  CheckCircle2,
+  Clock3,
+  PackageCheck,
+  Shirt,
+  Store,
+  Truck,
+  MapPin,
+  ReceiptText,
+  CalendarDays,
+  Sparkles,
+  Home,
+} from 'lucide-react'
 
-type Props = { params: { token: string } }
+export const dynamic = 'force-dynamic'
 
-const STATUS_ORDER = ['pending_production', 'in_production', 'ready_pickup', 'delivered']
+type PageProps = {
+  params: {
+    token: string
+  }
+}
 
-const STEPS = [
+type OrderData = {
+  id: string
+  order_number: number | string
+  tracking_token: string | null
+  production_status: string | null
+  status: string | null
+  total: number | null
+  created_at: string
+  ready_at?: string | null
+  delivered_at?: string | null
+  campus_id: string | null
+  pickup_campus_id?: string | null
+  payment_method?: string | null
+  notes?: string | null
+}
+
+type ContactData = {
+  client_name: string | null
+  client_email: string | null
+  client_phone: string | null
+}
+
+type CampusData = {
+  id: string
+  name: string
+  address?: string | null
+}
+
+type ItemData = {
+  id: string
+  quantity: number
+  unit_price: number
+  size?: string | null
+  products:
+    | {
+        name?: string | null
+        sku?: string | null
+        image_url?: string | null
+      }
+    | Array<{
+        name?: string | null
+        sku?: string | null
+        image_url?: string | null
+      }>
+    | null
+}
+
+type HistoryData = {
+  id: string
+  status: string
+  message: string | null
+  created_at: string
+}
+
+const STATUS_CONFIG: Record<
+  string,
+  {
+    title: string
+    subtitle: string
+    icon: any
+    badge: string
+    percent: number
+  }
+> = {
+  pending_production: {
+    title: 'Pedido recibido',
+    subtitle: 'Recibimos tu compra y ya está en nuestra cola de preparación.',
+    icon: ReceiptText,
+    badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    percent: 25,
+  },
+  in_preparation: {
+    title: 'En preparación',
+    subtitle: 'Estamos preparando los detalles de tu pedido.',
+    icon: Clock3,
+    badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    percent: 35,
+  },
+  in_production: {
+    title: 'En producción',
+    subtitle: 'Tu producto está siendo preparado por el equipo ARM Merch.',
+    icon: Shirt,
+    badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+    percent: 60,
+  },
+  ready_pickup: {
+    title: 'Listo para retiro',
+    subtitle: 'Tu pedido ya está disponible para retirar en el campus indicado.',
+    icon: PackageCheck,
+    badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    percent: 85,
+  },
+  delivered: {
+    title: 'Pedido entregado',
+    subtitle: 'El pedido fue retirado exitosamente. ¡Gracias por tu compra!',
+    icon: CheckCircle2,
+    badge: 'bg-green-500/15 text-green-300 border-green-500/30',
+    percent: 100,
+  },
+  cancelled: {
+    title: 'Pedido cancelado',
+    subtitle: 'Este pedido fue cancelado o no pudo ser confirmado.',
+    icon: Clock3,
+    badge: 'bg-red-500/15 text-red-300 border-red-500/30',
+    percent: 0,
+  },
+}
+
+const TIMELINE = [
   {
     key: 'pending_production',
-    title: 'En preparación',
-    message: 'Recibimos tu compra y el pedido quedó en preparación.',
-    icon: Clock,
+    title: 'Compra confirmada',
+    description: 'Recibimos tu compra correctamente.',
+    icon: ReceiptText,
   },
   {
     key: 'in_production',
     title: 'En producción',
-    message: 'Estamos preparando tu producto con el equipo ARM Merch.',
+    description: 'Estamos preparando tu producto.',
     icon: Shirt,
   },
   {
     key: 'ready_pickup',
     title: 'Listo para retiro',
-    message: 'Tu pedido ya está disponible para retirar en el campus indicado.',
+    description: 'Disponible en el campus seleccionado.',
     icon: PackageCheck,
   },
   {
     key: 'delivered',
     title: 'Entregado',
-    message: 'El pedido fue entregado correctamente.',
-    icon: Truck,
+    description: 'Pedido retirado exitosamente.',
+    icon: CheckCircle2,
   },
 ]
 
-function fmt(n: number) {
+function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',
     currency: 'CLP',
     maximumFractionDigits: 0,
-  }).format(n || 0)
+  }).format(value || 0)
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return ''
+  if (!value) return 'Pendiente'
   return new Date(value).toLocaleString('es-CL', {
     day: '2-digit',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
 }
 
-function currentLabel(status?: string | null) {
-  const map: Record<string, string> = {
-    pending_production: 'En preparación',
-    in_production: 'En producción',
-    ready_pickup: 'Listo para retiro',
-    delivered: 'Entregado',
-    not_required: 'Compra confirmada',
-  }
-  return map[String(status ?? '')] ?? 'Seguimiento'
+function normalizeStatus(order: OrderData | null) {
+  if (!order) return 'pending_production'
+
+  if (order.status === 'cancelled') return 'cancelled'
+
+  return (
+    order.production_status ||
+    (order.status === 'paid' ? 'pending_production' : 'pending_production')
+  )
 }
 
-function getStepState(current: string | null | undefined, step: string) {
-  const normalizedCurrent = String(current ?? 'pending_production')
-  const currentIndex = STATUS_ORDER.indexOf(normalizedCurrent)
-  const stepIndex = STATUS_ORDER.indexOf(step)
-
-  if (currentIndex < 0) return stepIndex === 0 ? 'active' : 'pending'
-  if (stepIndex < currentIndex) return 'done'
-  if (stepIndex === currentIndex) return 'active'
-  return 'pending'
+function getStatusIndex(status: string) {
+  if (status === 'cancelled') return -1
+  const index = TIMELINE.findIndex((step) => step.key === status)
+  return index >= 0 ? index : 0
 }
 
-function StepIcon({ state, icon: Icon }: { state: string; icon: any }) {
-  if (state === 'done') return <CheckCircle2 className="h-7 w-7 text-green-400" />
-  if (state === 'active') return <Icon className="h-7 w-7 text-amber-400" />
-  return <Circle className="h-7 w-7 text-zinc-600" />
+function getProduct(item: ItemData) {
+  return Array.isArray(item.products) ? item.products[0] : item.products
 }
 
-export default async function TrackingPage({ params }: Props) {
+export default async function TrackingPage({ params }: PageProps) {
+  const token = decodeURIComponent(params.token || '').trim()
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return <TrackingError message="Servicio de seguimiento no configurado." />
+    return (
+      <main className="min-h-screen bg-[#0b0d12] px-4 py-10 text-white">
+        <div className="mx-auto max-w-xl rounded-3xl border border-red-500/20 bg-red-950/30 p-6">
+          <h1 className="text-xl font-bold">Configuración incompleta</h1>
+          <p className="mt-2 text-sm text-red-200">
+            No se encontraron variables de entorno para consultar el seguimiento.
+          </p>
+        </div>
+      </main>
+    )
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
   })
-
-  const token = decodeURIComponent(params.token || '').replace(/^ARM-/i, '').toLowerCase()
 
   const { data: order } = await supabase
     .from('orders')
-    .select(`
+    .select(
+      `
       id,
       order_number,
       tracking_token,
@@ -107,142 +238,314 @@ export default async function TrackingPage({ params }: Props) {
       delivered_at,
       campus_id,
       pickup_campus_id,
-      order_contacts(client_name, client_email),
-      order_items(quantity, unit_price, size, products(name, sku))
-    `)
+      payment_method,
+      notes
+    `,
+    )
     .eq('tracking_token', token)
-    .maybeSingle()
+    .maybeSingle<OrderData>()
 
   if (!order) {
-    return <TrackingError message="No encontramos un pedido con este número de seguimiento." />
+    return (
+      <main className="min-h-screen bg-[#0b0d12] px-4 py-10 text-white">
+        <div className="mx-auto max-w-xl rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center shadow-2xl">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-500/15 text-amber-300">
+            <ReceiptText size={32} />
+          </div>
+          <h1 className="text-2xl font-black">Seguimiento no encontrado</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">
+            No encontramos un pedido asociado a este código. Revisa el enlace del correo o consulta con el equipo ARM Merch.
+          </p>
+          <Link
+            href="/"
+            className="mt-6 inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-black"
+          >
+            <Home size={16} className="mr-2" />
+            Ir al inicio
+          </Link>
+        </div>
+      </main>
+    )
   }
 
-  const pickupCampusId = order.pickup_campus_id || order.campus_id
-  const [{ data: pickupCampus }, { data: purchaseCampus }, { data: historyRows }] = await Promise.all([
-    pickupCampusId ? supabase.from('campus').select('name').eq('id', pickupCampusId).maybeSingle() : Promise.resolve({ data: null }),
-    order.campus_id ? supabase.from('campus').select('name').eq('id', order.campus_id).maybeSingle() : Promise.resolve({ data: null }),
+  const [
+    { data: contact },
+    { data: items },
+    { data: campus },
+    { data: pickupCampus },
+    { data: history },
+  ] = await Promise.all([
+    supabase
+      .from('order_contacts')
+      .select('client_name, client_email, client_phone')
+      .eq('order_id', order.id)
+      .maybeSingle<ContactData>(),
+
+    supabase
+      .from('order_items')
+      .select(
+        `
+        id,
+        quantity,
+        unit_price,
+        size,
+        products (
+          name,
+          sku,
+          image_url
+        )
+      `,
+      )
+      .eq('order_id', order.id),
+
+    order.campus_id
+      ? supabase.from('campus').select('id, name, address').eq('id', order.campus_id).maybeSingle<CampusData>()
+      : Promise.resolve({ data: null }),
+
+    order.pickup_campus_id
+      ? supabase.from('campus').select('id, name, address').eq('id', order.pickup_campus_id).maybeSingle<CampusData>()
+      : Promise.resolve({ data: null }),
+
     supabase
       .from('order_status_history')
-      .select('status, title, message, created_at')
+      .select('id, status, message, created_at')
       .eq('order_id', order.id)
       .order('created_at', { ascending: true }),
   ])
 
-  const contact = Array.isArray(order.order_contacts) ? order.order_contacts[0] : order.order_contacts
-  const status = String(order.production_status ?? 'pending_production')
-  const displayToken = `ARM-${String(order.tracking_token).slice(0, 8).toUpperCase()}`
-  const currentIndex = Math.max(0, STATUS_ORDER.indexOf(status))
-  const progress = status === 'delivered' ? 100 : Math.max(20, Math.round(((currentIndex + 1) / STATUS_ORDER.length) * 100))
-  const items = order.order_items ?? []
+  const currentStatus = normalizeStatus(order)
+  const config = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.pending_production
+  const CurrentIcon = config.icon
+  const currentIndex = getStatusIndex(currentStatus)
+  const safeItems = (items ?? []) as ItemData[]
+  const customerName = contact?.client_name || 'Cliente ARM Merch'
+  const destinationCampus = pickupCampus || campus
+  const progress = config.percent
 
   return (
-    <main className="min-h-screen bg-[#0b0c10] px-4 py-8 text-white">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <section className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
-          <div className="bg-gradient-to-br from-zinc-900 to-black p-6 sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-400">ARM Merch</p>
-                <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Seguimiento de pedido</h1>
-                <p className="mt-2 text-sm text-zinc-400">Orden #{order.order_number} · {displayToken}</p>
-              </div>
-              <div className="rounded-2xl bg-amber-500 px-4 py-3 text-center text-black">
-                <p className="text-xs font-bold uppercase tracking-wide">Estado actual</p>
-                <p className="mt-1 text-sm font-black">{currentLabel(status)}</p>
-              </div>
-            </div>
+    <main className="min-h-screen bg-[#090b10] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.14),transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.12),transparent_35%)]" />
 
-            <div className="mt-6 rounded-full bg-zinc-800 p-1">
-              <div className="h-3 rounded-full bg-amber-500 transition-all" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-
-          <div className="grid gap-4 border-t border-zinc-800 p-5 sm:grid-cols-3">
-            <InfoCard label="Cliente" value={contact?.client_name ?? 'Cliente'} />
-            <InfoCard label="Total" value={fmt(Number(order.total ?? 0))} />
-            <InfoCard label="Campus retiro" value={pickupCampus?.name ?? 'Por confirmar'} />
-          </div>
-        </section>
-
-        <section className="rounded-[2rem] border border-zinc-800 bg-zinc-950 p-5 sm:p-6">
-          <h2 className="mb-5 text-xl font-black">Detalle del pedido</h2>
+      <section className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+        <header className="flex items-center justify-between py-4">
           <div>
-            {STEPS.map((step, index) => {
-              const state = getStepState(status, step.key)
-              const history = (historyRows ?? []).find((h: any) => h.status === step.key)
-              const date = history?.created_at || (step.key === 'ready_pickup' ? order.ready_at : step.key === 'delivered' ? order.delivered_at : null)
-              return (
-                <div key={step.key} className="relative flex gap-4">
-                  {index < STEPS.length - 1 && <div className="absolute left-[13px] top-9 h-full w-px bg-zinc-800" />}
-                  <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-950">
-                    <StepIcon state={state} icon={step.icon} />
-                  </div>
-                  <div className="pb-7">
-                    <p className={`font-black ${state === 'pending' ? 'text-zinc-500' : 'text-white'}`}>{history?.title ?? step.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-zinc-400">{history?.message ?? step.message}</p>
-                    {date && <p className="mt-1 text-xs text-zinc-600">{formatDate(date)}</p>}
-                  </div>
-                </div>
-              )
-            })}
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">
+              ARM Merch
+            </p>
+            <h1 className="mt-1 text-lg font-black sm:text-xl">
+              Seguimiento de pedido
+            </h1>
           </div>
-        </section>
 
-        <section className="grid gap-5 md:grid-cols-2">
-          <div className="rounded-[2rem] border border-zinc-800 bg-zinc-950 p-5">
-            <h2 className="mb-4 text-lg font-black">Productos</h2>
-            <div className="space-y-3">
-              {items.map((item: any, idx: number) => {
-                const product = Array.isArray(item.products) ? item.products[0] : item.products
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-right">
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500">
+              Código
+            </p>
+            <p className="font-mono text-sm font-black text-white">
+              {order.tracking_token}
+            </p>
+          </div>
+        </header>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 shadow-2xl backdrop-blur sm:p-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.7rem] bg-amber-500 text-black shadow-[0_0_40px_rgba(245,158,11,0.22)]">
+                <CurrentIcon size={42} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${config.badge}`}>
+                  {config.title}
+                </span>
+                <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                  {config.title}
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">
+                  {config.subtitle}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7">
+              <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
+                <span>Progreso del pedido</span>
+                <span className="font-bold text-amber-300">{progress}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-400 to-emerald-400 transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 space-y-0">
+              {TIMELINE.map((step, index) => {
+                const Icon = step.icon
+                const isDone = currentStatus !== 'cancelled' && index <= currentIndex
+                const isActive = currentStatus !== 'cancelled' && index === currentIndex
+                const historyItem = (history ?? []).find((h: HistoryData) => h.status === step.key)
+
                 return (
-                  <div key={idx} className="rounded-2xl bg-zinc-900 p-4">
-                    <p className="font-bold text-white">{product?.name ?? 'Producto'}</p>
-                    <p className="mt-1 text-sm text-zinc-500">Cantidad: {item.quantity}{item.size ? ` · Talla: ${item.size}` : ''}</p>
+                  <div key={step.key} className="relative flex gap-4 pb-7 last:pb-0">
+                    {index !== TIMELINE.length - 1 && (
+                      <div
+                        className={`absolute left-[22px] top-11 h-[calc(100%-44px)] w-px ${
+                          index < currentIndex ? 'bg-emerald-500/70' : 'bg-white/10'
+                        }`}
+                      />
+                    )}
+
+                    <div
+                      className={`relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${
+                        isDone
+                          ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-300'
+                          : 'border-white/10 bg-white/[0.04] text-zinc-500'
+                      } ${isActive ? 'ring-4 ring-amber-500/10' : ''}`}
+                    >
+                      <Icon size={21} />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className={`font-bold ${isDone ? 'text-white' : 'text-zinc-500'}`}>
+                          {step.title}
+                        </h3>
+                        {isActive && (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-black text-amber-300">
+                            Actual
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-zinc-500">
+                        {historyItem?.message || step.description}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-600">
+                        {historyItem ? formatDate(historyItem.created_at) : 'Pendiente'}
+                      </p>
+                    </div>
                   </div>
                 )
               })}
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-[2rem] border border-zinc-800 bg-zinc-950 p-5">
-            <h2 className="mb-4 text-lg font-black">Retiro</h2>
-            <div className="space-y-3 text-sm leading-6 text-zinc-400">
-              <p><span className="text-zinc-500">Campus venta:</span> {purchaseCampus?.name ?? 'Sin campus'}</p>
-              <p><span className="text-zinc-500">Campus retiro:</span> {pickupCampus?.name ?? 'Por confirmar'}</p>
-              <p>Cuando tu pedido esté listo, recibirás una notificación en tu correo.</p>
+          <aside className="space-y-5">
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur sm:p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-300">
+                  <Store size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    Retiro en campus
+                  </p>
+                  <h3 className="mt-1 text-lg font-black">
+                    {destinationCampus?.name || 'Campus por confirmar'}
+                  </h3>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {destinationCampus?.address || 'Te avisaremos cuando el pedido esté listo para retirar.'}
+                  </p>
+                </div>
+              </div>
+
+              {currentStatus === 'ready_pickup' && (
+                <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+                  <div className="flex gap-2">
+                    <MapPin size={18} className="mt-0.5 shrink-0" />
+                    <p>
+                      Tu pedido ya está listo. Acércate al campus indicado y menciona tu código de seguimiento.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </section>
 
-        <div className="text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300">
-            <Home size={14} /> ARM Merch
-          </Link>
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-black">Resumen</h3>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-zinc-400">
+                  Orden #{order.order_number}
+                </span>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-3 rounded-2xl bg-black/20 p-3">
+                  <Sparkles size={18} className="text-amber-300" />
+                  <div>
+                    <p className="text-zinc-500">Cliente</p>
+                    <p className="font-semibold text-white">{customerName}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl bg-black/20 p-3">
+                  <CalendarDays size={18} className="text-amber-300" />
+                  <div>
+                    <p className="text-zinc-500">Compra realizada</p>
+                    <p className="font-semibold text-white">{formatDate(order.created_at)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl bg-black/20 p-3">
+                  <Truck size={18} className="text-amber-300" />
+                  <div>
+                    <p className="text-zinc-500">Estado actual</p>
+                    <p className="font-semibold text-white">{config.title}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur sm:p-6">
+              <h3 className="mb-4 text-lg font-black">Productos</h3>
+
+              <div className="space-y-3">
+                {safeItems.length === 0 ? (
+                  <p className="text-sm text-zinc-500">
+                    No hay productos asociados.
+                  </p>
+                ) : (
+                  safeItems.map((item) => {
+                    const product = getProduct(item)
+                    const lineTotal = Number(item.quantity ?? 0) * Number(item.unit_price ?? 0)
+
+                    return (
+                      <div key={item.id} className="rounded-2xl bg-black/20 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-white">
+                              {product?.name || 'Producto'}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
+                              {item.size ? ` · Talla ${item.size}` : ''}
+                            </p>
+                          </div>
+                          <p className="shrink-0 font-black text-amber-300">
+                            {formatCurrency(lineTotal)}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+                <span className="font-bold text-zinc-300">Total pagado</span>
+                <span className="text-2xl font-black text-white">
+                  {formatCurrency(Number(order.total ?? 0))}
+                </span>
+              </div>
+            </div>
+          </aside>
         </div>
-      </div>
-    </main>
-  )
-}
 
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-zinc-900 p-4">
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">{label}</p>
-      <p className="mt-2 font-bold text-white">{value}</p>
-    </div>
-  )
-}
-
-function TrackingError({ message }: { message: string }) {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#0b0c10] px-4 text-white">
-      <div className="max-w-md rounded-[2rem] border border-zinc-800 bg-zinc-950 p-8 text-center">
-        <h1 className="text-2xl font-black">Seguimiento no disponible</h1>
-        <p className="mt-3 text-sm leading-6 text-zinc-400">{message}</p>
-        <Link href="/" className="mt-6 inline-flex rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-black">
-          Volver
-        </Link>
-      </div>
+        <footer className="py-8 text-center text-xs text-zinc-600">
+          ARM Merch · Seguimiento generado automáticamente
+        </footer>
+      </section>
     </main>
   )
 }
