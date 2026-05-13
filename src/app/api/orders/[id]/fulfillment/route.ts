@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendTrackingEmail } from '@/lib/tracking-email'
 
 const STATUS_CONFIG: Record<string, { title: string; message: string }> = {
   pending_production: {
@@ -18,6 +19,14 @@ const STATUS_CONFIG: Record<string, { title: string; message: string }> = {
     title: 'Entregado',
     message: 'Tu pedido fue entregado correctamente.',
   },
+}
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending_production: ['in_production'],
+  in_production: ['ready_pickup'],
+  ready_pickup: ['delivered'],
+  delivered: [],
+  not_required: ['pending_production'],
 }
 
 function getAppUrl(req: NextRequest) {
@@ -80,7 +89,7 @@ export async function PATCH(
 
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, order_number, campus_id, pickup_campus_id, tracking_token, production_status')
+      .select('id, order_number, campus_id, pickup_campus_id, tracking_token, production_status, status')
       .eq('id', params.id)
       .single()
 
@@ -88,8 +97,25 @@ export async function PATCH(
       return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
     }
 
+    if (order.status !== 'paid') {
+      return NextResponse.json(
+        { error: 'Solo se puede avanzar producción de órdenes pagadas' },
+        { status: 400 }
+      )
+    }
+
+    const currentStatus = String(order.production_status ?? 'pending_production')
+    const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? []
+    if (!allowed.includes(nextStatus)) {
+      return NextResponse.json(
+        { error: `Transición inválida: ${currentStatus} → ${nextStatus}` },
+        { status: 400 }
+      )
+    }
+
+    const pickupCampusId = order.pickup_campus_id || order.campus_id
     const isSuperAdmin = profile.role === 'super_admin'
-    const sameCampus = profile.campus_id === (order.pickup_campus_id || order.campus_id)
+    const sameCampus = profile.campus_id === pickupCampusId
 
     if (!isSuperAdmin && !(nextStatus === 'delivered' && sameCampus)) {
       return NextResponse.json({ error: 'No autorizado para cambiar este estado' }, { status: 403 })
@@ -124,67 +150,17 @@ export async function PATCH(
       created_by: profile.id,
     })
 
-    let emailSent = false
-
-    if (nextStatus === 'ready_pickup' && process.env.RESEND_API_KEY) {
-      try {
-        const [{ data: contact }, { data: campus }] = await Promise.all([
-          adminClient
-            .from('order_contacts')
-            .select('client_name, client_email')
-            .eq('order_id', order.id)
-            .maybeSingle(),
-          adminClient
-            .from('campus')
-            .select('name')
-            .eq('id', order.pickup_campus_id || order.campus_id)
-            .maybeSingle(),
-        ])
-
-        if (contact?.client_email) {
-          const { Resend } = await import('resend')
-          const resend = new Resend(process.env.RESEND_API_KEY)
-          const appUrl = getAppUrl(req)
-          const trackingUrl = `${appUrl}/track/${order.tracking_token}`
-          const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
-
-          const { error } = await resend.emails.send({
-            from: `ARM Merch <${fromEmail}>`,
-            to: contact.client_email,
-            subject: `Tu pedido #${order.order_number} está listo para retiro`,
-            html: `
-              <div style="font-family:Arial,sans-serif;background:#f4f4f5;padding:32px;">
-                <div style="max-width:560px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;">
-                  <div style="background:#18181b;color:#fff;padding:28px;text-align:center;">
-                    <h1 style="margin:0;font-size:24px;">ARM Merch</h1>
-                    <p style="margin:8px 0 0;color:#a1a1aa;">Pedido listo para retiro</p>
-                  </div>
-                  <div style="padding:32px;color:#18181b;">
-                    <h2 style="margin:0 0 12px;">¡Tu pedido está listo! 🙌</h2>
-                    <p>Hola <strong>${contact.client_name ?? 'Cliente'}</strong>, tu pedido <strong>#${order.order_number}</strong> ya está listo para retirar.</p>
-                    <p><strong>Campus de retiro:</strong> ${campus?.name ?? 'Campus informado por el equipo'}</p>
-                    <p style="margin:28px 0;">
-                      <a href="${trackingUrl}" style="background:#f59e0b;color:#000;padding:14px 20px;border-radius:12px;text-decoration:none;font-weight:700;display:inline-block;">Ver seguimiento</a>
-                    </p>
-                    <p style="font-size:13px;color:#71717a;">Presenta tu número de orden al momento de retirar.</p>
-                  </div>
-                </div>
-              </div>
-            `,
-          })
-
-          if (!error) emailSent = true
-          else console.error('Ready pickup email error:', error)
-        }
-      } catch (emailError) {
-        console.error('Ready pickup email exception:', emailError)
-      }
-    }
+    const emailResult = await sendTrackingEmail({
+      orderId: order.id,
+      status: nextStatus as any,
+      appUrl: getAppUrl(req),
+    })
 
     return NextResponse.json({
       success: true,
       status: nextStatus,
-      email_sent: emailSent,
+      email_sent: Boolean((emailResult as any)?.sent),
+      email_result: emailResult,
     })
   } catch (error: any) {
     console.error('PATCH /api/orders/[id]/fulfillment error:', error)

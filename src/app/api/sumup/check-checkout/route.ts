@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sendTrackingEmail } from "@/lib/tracking-email";
 
 // Ruta: src/app/api/sumup/check-checkout/route.ts
 // Consulta SumUp por el checkout, actualiza la orden y devuelve siempre status + order_status.
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
     const { data: order, error: orderError } = await adminClient
       .from("orders")
       .select(
-        "id, order_number, campus_id, status, notes, order_items(product_id, quantity, size)",
+        "id, order_number, campus_id, pickup_campus_id, status, notes, tracking_token, production_status, order_items(product_id, quantity, size)",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -373,6 +374,16 @@ export async function POST(req: NextRequest) {
         }
       } catch (emailError) {
         console.error("[SumUp Check Checkout] Error enviando voucher:", emailError);
+      }
+
+      try {
+        await sendTrackingEmail({
+          orderId: order.id,
+          status: order.production_status === "pending_production" ? "pending_production" : "purchase_confirmed",
+          appUrl: process.env.NEXT_PUBLIC_APP_URL || "https://armerch.com",
+        });
+      } catch (trackingEmailError) {
+        console.error("[SumUp Check Checkout] Tracking email error:", trackingEmailError);
       }
 
       return NextResponse.json({

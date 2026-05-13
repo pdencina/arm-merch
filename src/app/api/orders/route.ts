@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'crypto'
+import { sendTrackingEmail } from '@/lib/tracking-email'
 
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
 // Reglas importantes:
@@ -7,6 +9,14 @@ import { createClient } from '@supabase/supabase-js'
 // - Link/QR SumUp: crean orden pending, NO descuentan stock y NO envían voucher hasta confirmar pago.
 // - Smart POS SumUp: crea orden pending, NO descuenta stock y NO envía voucher hasta validar código TX.
 // ─────────────────────────────────────────────────────────────────────────────
+
+function createTrackingToken() {
+  return randomUUID().replace(/-/g, '')
+}
+
+function getAppUrl(req: NextRequest) {
+  return (process.env.NEXT_PUBLIC_APP_URL || req.headers.get('origin') || 'https://armerch.com').replace(/\/$/, '')
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -170,6 +180,10 @@ export async function POST(req: NextRequest) {
 
     const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup'
     const initialStatus = isDeferredPayment ? 'pending' : 'paid'
+    const trackingToken = createTrackingToken()
+    const isProductionOrder = deliveryStatus === 'pending'
+    const productionStatus = isProductionOrder ? 'pending_production' : 'not_required'
+    const pickupCampusId = body.pickup_campus_id || sellingCampusId
 
     // ── Crear orden ──
     const { data: createdOrder, error: orderError } = await adminClient
@@ -185,8 +199,11 @@ export async function POST(req: NextRequest) {
         status: initialStatus,
         delivery_status: deliveryStatus,
         client_phone: clientPhone || null,
+        tracking_token: trackingToken,
+        production_status: productionStatus,
+        pickup_campus_id: pickupCampusId,
       })
-      .select('id, order_number, status, created_at, total, discount, payment_method, notes')
+      .select('id, order_number, status, created_at, total, discount, payment_method, notes, tracking_token, production_status, pickup_campus_id')
       .single()
 
     if (orderError || !createdOrder) {
@@ -194,49 +211,6 @@ export async function POST(req: NextRequest) {
         { error: orderError?.message ?? 'No se pudo crear la orden' },
         { status: 400 }
       )
-    }
-
-    // ── Tracking / producción ───────────────────────────────────────────────
-    // No falla la venta si la migración aún no está aplicada; solo registra logs.
-    const shouldTrackProduction = deliveryStatus === 'pending'
-
-    try {
-      if (shouldTrackProduction) {
-        await adminClient
-          .from('orders')
-          .update({
-            production_status: 'pending_production',
-            pickup_campus_id: sellingCampusId,
-          })
-          .eq('id', createdOrder.id)
-
-        await adminClient.from('order_status_history').insert([
-          {
-            order_id: createdOrder.id,
-            status: 'purchase_confirmed',
-            title: 'Compra confirmada',
-            message: 'Recibimos tu compra correctamente.',
-            created_by: profile.id,
-          },
-          {
-            order_id: createdOrder.id,
-            status: 'pending_production',
-            title: 'En preparación',
-            message: 'Tu pedido quedó pendiente para producción.',
-            created_by: profile.id,
-          },
-        ])
-      } else {
-        await adminClient.from('order_status_history').insert({
-          order_id: createdOrder.id,
-          status: 'purchase_confirmed',
-          title: 'Compra confirmada',
-          message: 'Tu compra fue confirmada correctamente.',
-          created_by: profile.id,
-        })
-      }
-    } catch (trackingError) {
-      console.error('Tracking history warning:', trackingError)
     }
 
     // ── Guardar contacto ──
@@ -270,6 +244,27 @@ export async function POST(req: NextRequest) {
 
     if (orderItemsError) {
       return NextResponse.json({ error: orderItemsError.message }, { status: 400 })
+    }
+
+    // ── Historial público de seguimiento ──
+    await adminClient.from('order_status_history').insert({
+      order_id: createdOrder.id,
+      status: 'purchase_confirmed',
+      title: 'Compra confirmada',
+      message: initialStatus === 'paid'
+        ? 'Tu compra fue confirmada correctamente.'
+        : 'Recibimos tu pedido y estamos esperando confirmación del pago.',
+      created_by: profile.id,
+    })
+
+    if (isProductionOrder) {
+      await adminClient.from('order_status_history').insert({
+        order_id: createdOrder.id,
+        status: 'pending_production',
+        title: 'En preparación',
+        message: 'Tu pedido quedó registrado para producción.',
+        created_by: profile.id,
+      })
     }
 
     // ── Descontar stock solo en pagos confirmados inmediatos ──
@@ -424,6 +419,13 @@ export async function POST(req: NextRequest) {
             <td style="padding:12px 0;font-size:22px;font-weight:800;color:#18181b;text-align:right;">${fmtCLP(Math.round(totalCalculado))}</td>
           </tr>
         </table>
+
+        ${createdOrder.tracking_token ? `
+        <div style="margin:28px 0 6px;text-align:center;">
+          <a href="${getAppUrl(req)}/track/${createdOrder.tracking_token}" style="display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-weight:800;border-radius:12px;padding:14px 20px;">Ver seguimiento del pedido</a>
+        </div>
+        <p style="margin:10px 0 0;text-align:center;font-size:12px;color:#71717a;">Número de seguimiento: <strong>ARM-${String(createdOrder.tracking_token).slice(0,8).toUpperCase()}</strong></p>
+        ` : ''}
       </td></tr>
       <tr><td style="background:#f9fafb;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;border-top:1px solid #e4e4e7;">
         <p style="margin:0 0 8px;font-size:13px;color:#71717a;">¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.</p>
@@ -455,6 +457,8 @@ export async function POST(req: NextRequest) {
       order_number: createdOrder.order_number,
       status: createdOrder.status,
       email_sent: emailSent,
+      tracking_token: createdOrder.tracking_token,
+      tracking_url: createdOrder.tracking_token ? `${getAppUrl(req)}/track/${createdOrder.tracking_token}` : null,
     })
   } catch (error: any) {
     console.error('POST /api/orders error:', error)

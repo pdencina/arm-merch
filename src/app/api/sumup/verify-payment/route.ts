@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendTrackingEmail } from '@/lib/tracking-email'
 
 // Ruta: src/app/api/sumup/verify-payment/route.ts
 // Smart POS real:
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest) {
         campus_id,
         status,
         total,
+        tracking_token,
+        production_status,
         order_items(product_id, quantity, unit_price, size)
       `)
       .eq('id', orderId)
@@ -258,6 +261,16 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[Smart POS Verify] ✅ Orden pagada:', order.order_number)
+
+    try {
+      await sendTrackingEmail({
+        orderId: order.id,
+        status: order.production_status === 'pending_production' ? 'pending_production' : 'purchase_confirmed',
+        appUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://armerch.com',
+      })
+    } catch (trackingEmailError) {
+      console.error('[Smart POS Verify] Tracking email error:', trackingEmailError)
+    }
 
     return NextResponse.json({
       success: true,
