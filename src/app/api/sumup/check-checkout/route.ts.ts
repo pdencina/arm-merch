@@ -1,108 +1,258 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+// Ruta: src/app/api/sumup/check-checkout/route.ts
+// Consulta SumUp por el checkout, actualiza la orden y devuelve siempre status + order_status.
+
+const paidStatuses = ["PAID", "SUCCESSFUL", "SUCCESS", "COMPLETED", "APPROVED"];
+const failedStatuses = [
+  "FAILED",
+  "DECLINED",
+  "REJECTED",
+  "EXPIRED",
+  "CANCELLED",
+  "CANCELED",
+  "CANCELLED_BY_USER",
+  "CANCELED_BY_USER",
+];
+
+function getMostRelevantTransaction(checkout: any) {
+  const transactions = Array.isArray(checkout?.transactions)
+    ? checkout.transactions
+    : Array.isArray(checkout?.transaction)
+      ? checkout.transaction
+      : [];
+
+  return transactions?.[0] ?? null;
+}
+
+function normalizeStatus(value: any) {
+  return String(value ?? "").trim().toUpperCase();
+}
 
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
 
     if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "No autenticado" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
     const apiKey = process.env.SUMUP_API_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
         { error: "SUMUP_API_KEY no configurada" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
-    const body = await req.json();
-
-    const checkoutId = body.checkout_id;
-
-    if (!checkoutId) {
+    if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
-        { error: "checkout_id requerido" },
-        { status: 400 }
+        { error: "Supabase admin env no configurada" },
+        { status: 500 },
       );
     }
 
-    const response = await fetch(
+    const body = await req.json().catch(() => ({}));
+    const orderId = body?.order_id;
+    const checkoutId = body?.checkout_id;
+    const checkoutReferenceFromBody = body?.checkout_reference;
+    const forceCancel = Boolean(body?.force_cancel);
+
+    if (!orderId || !checkoutId) {
+      return NextResponse.json(
+        { error: "order_id y checkout_id son requeridos" },
+        { status: 400 },
+      );
+    }
+
+    const checkoutRes = await fetch(
       `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
       {
+        method: "GET",
         headers: {
           Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
         cache: "no-store",
-      }
+      },
     );
 
-    const data = await response.json();
+    const checkoutText = await checkoutRes.text();
+    let checkout: any = {};
 
-    console.log("[CHECKOUT STATUS]", JSON.stringify(data, null, 2));
+    try {
+      checkout = JSON.parse(checkoutText);
+    } catch {
+      checkout = { raw: checkoutText };
+    }
 
-    const checkoutStatus = String(
-      data?.status || ""
-    ).toUpperCase();
+    console.log("[SumUp Check Checkout] HTTP Status:", checkoutRes.status);
+    console.log("[SumUp Check Checkout] Checkout Response:", JSON.stringify(checkout, null, 2));
 
-    const transactionStatus = String(
-      data?.transactions?.[0]?.status || ""
-    ).toUpperCase();
+    if (!checkoutRes.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "pending",
+          order_status: "pending",
+          sumup_status: null,
+          detail: checkout,
+        },
+        { status: checkoutRes.status },
+      );
+    }
 
-    console.log("checkoutStatus:", checkoutStatus);
-    console.log("transactionStatus:", transactionStatus);
+    const checkoutStatus = normalizeStatus(checkout?.status);
+    const transaction = getMostRelevantTransaction(checkout);
+    const transactionStatus = normalizeStatus(transaction?.status);
+    const checkoutReference = checkout?.checkout_reference ?? checkoutReferenceFromBody;
+    const transactionCode = transaction?.transaction_code ?? transaction?.id ?? "";
 
-    // ─────────────────────────────
-    // APROBADO
-    // ─────────────────────────────
-    if (
-      ["SUCCESSFUL", "PAID", "COMPLETED"].includes(
-        transactionStatus
+    console.log("[SumUp Check Checkout] checkoutStatus:", checkoutStatus);
+    console.log("[SumUp Check Checkout] transactionStatus:", transactionStatus);
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const { data: order, error: orderError } = await adminClient
+      .from("orders")
+      .select(
+        "id, order_number, campus_id, status, notes, order_items(product_id, quantity, size)",
       )
-    ) {
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (orderError) {
+      console.error("[SumUp Check Checkout] Order query error:", orderError);
+      return NextResponse.json(
+        { ok: false, error: "order_query_error" },
+        { status: 500 },
+      );
+    }
+
+    if (!order) {
+      return NextResponse.json(
+        { ok: false, error: "order_not_found" },
+        { status: 404 },
+      );
+    }
+
+    if (order.status === "paid" || order.status === "cancelled") {
       return NextResponse.json({
         ok: true,
+        action: "already_processed",
+        status: order.status,
+        order_status: order.status,
+        sumup_status: transactionStatus || checkoutStatus,
+        order_number: order.order_number,
+      });
+    }
+
+    const resolvedStatus = transactionStatus || checkoutStatus;
+
+    // Pago aprobado: descontar stock una sola vez.
+    if (paidStatuses.includes(transactionStatus) || paidStatuses.includes(checkoutStatus)) {
+      const { error: updateError } = await adminClient
+        .from("orders")
+        .update({
+          status: "paid",
+          notes: `Pagado via SumUp | Ref: ${checkoutReference ?? ""} | TXN: ${transactionCode}`,
+        })
+        .eq("id", order.id);
+
+      if (updateError) {
+        console.error("[SumUp Check Checkout] Error updating paid order:", updateError);
+        return NextResponse.json(
+          { ok: false, error: "paid_update_error" },
+          { status: 500 },
+        );
+      }
+
+      for (const item of order.order_items ?? []) {
+        const { error: movementError } = await adminClient
+          .from("inventory_movements")
+          .insert({
+            product_id: item.product_id,
+            campus_id: order.campus_id,
+            type: "salida",
+            quantity: item.quantity,
+            notes: `Pago link SumUp - Orden #${order.order_number} - TXN ${transactionCode}`,
+          });
+
+        if (movementError) {
+          console.error("[SumUp Check Checkout] Inventory movement error:", movementError);
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        action: "paid",
         status: "paid",
+        order_status: "paid",
+        sumup_status: resolvedStatus,
+        order_number: order.order_number,
       });
     }
 
-    // ─────────────────────────────
-    // RECHAZADO
-    // ─────────────────────────────
+    // Pago rechazado, expirado o cancelación forzada por timeout del POS.
     if (
-      [
-        "FAILED",
-        "DECLINED",
-        "CANCELLED",
-        "CANCELED",
-        "EXPIRED",
-      ].includes(transactionStatus)
+      failedStatuses.includes(transactionStatus) ||
+      failedStatuses.includes(checkoutStatus) ||
+      forceCancel
     ) {
+      const cancelReason = forceCancel ? "timeout" : (transactionStatus || checkoutStatus || "cancelled");
+
+      const { error: cancelError } = await adminClient
+        .from("orders")
+        .update({
+          status: "cancelled",
+          notes: `Pago ${String(cancelReason).toLowerCase()} via SumUp | Ref: ${checkoutReference ?? ""}`,
+        })
+        .eq("id", order.id);
+
+      if (cancelError) {
+        console.error("[SumUp Check Checkout] Error cancelling order:", cancelError);
+        return NextResponse.json(
+          { ok: false, error: "cancel_update_error" },
+          { status: 500 },
+        );
+      }
+
       return NextResponse.json({
         ok: true,
+        action: "cancelled",
         status: "cancelled",
+        order_status: "cancelled",
+        sumup_status: resolvedStatus || "TIMEOUT",
+        order_number: order.order_number,
       });
     }
 
-    // ─────────────────────────────
-    // PENDIENTE
-    // ─────────────────────────────
     return NextResponse.json({
       ok: true,
+      action: "pending",
       status: "pending",
+      order_status: "pending",
+      sumup_status: resolvedStatus || "PENDING",
+      order_number: order.order_number,
     });
   } catch (error: any) {
-    console.error(error);
+    console.error("[SumUp Check Checkout] Error:", error);
 
     return NextResponse.json(
       {
-        error: error.message,
+        ok: false,
+        error: error?.message ?? "Error interno",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

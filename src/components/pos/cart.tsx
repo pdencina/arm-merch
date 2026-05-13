@@ -195,7 +195,6 @@ export default function Cart() {
   const [paymentQrMessage, setPaymentQrMessage] = useState(
     "Esperando confirmación automática del pago...",
   );
-  const [paymentRejectedOpen, setPaymentRejectedOpen] = useState(false);
   const [paymentQrCheckoutId, setPaymentQrCheckoutId] = useState<string | null>(
     null,
   );
@@ -250,40 +249,42 @@ export default function Cart() {
     if (!showPaymentQR || !createdOrder?.id || !paymentQrCheckoutId) return;
 
     let stopped = false;
+    let attempts = 0;
+    const maxAttempts = 45; // 45 * 4s = 3 minutos
+
+    const stopPolling = () => {
+      stopped = true;
+    };
 
     const handleStatus = (statusValue: string | null | undefined) => {
       const status = String(statusValue ?? "").toLowerCase();
+      console.log("[POS QR] Estado recibido:", status);
 
-      if (["paid", "pagado", "approved", "completed"].includes(status)) {
+      if (["paid", "pagado", "approved", "completed", "success", "successful"].includes(status)) {
         setPaymentQrStatus("paid");
-        setPaymentQrMessage("Pago confirmado correctamente.");
-        setShowPaymentQR(false);
-        setPaymentLinkUrl(null);
-        setSuccessOpen(true);
-        clearCart();
-        return;
-      }
-
-      if (
-        ["cancelled", "canceled", "failed", "rejected", "expired"].includes(
-          status,
-        )
-      ) {
-        setPaymentQrStatus("rejected");
-        setPaymentQrMessage(
-          "❌ El pago fue rechazado o expiró. El stock NO fue descontado.",
-        );
+        setPaymentQrMessage("✅ Pago confirmado correctamente. Inventario descontado.");
+        stopPolling();
 
         setTimeout(() => {
-          setShowPaymentQR(false);
-          setPaymentLinkUrl(null);
-          setPaymentQrCheckoutId(null);
-          setPaymentQrCheckoutRef(null);
-          setPaymentRejectedOpen(true);
-        }, 1200);
+          if (stopped) {
+            setShowPaymentQR(false);
+            setPaymentLinkUrl(null);
+            setSuccessOpen(true);
+            clearCart();
+          }
+        }, 900);
 
-        return;
+        return true;
       }
+
+      if (["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(status)) {
+        setPaymentQrStatus("rejected");
+        setPaymentQrMessage("❌ Pago rechazado, expirado o no confirmado. El stock NO fue descontado.");
+        stopPolling();
+        return true;
+      }
+
+      return false;
     };
 
     const checkOrderStatus = async () => {
@@ -298,7 +299,7 @@ export default function Cart() {
       }
     };
 
-    const checkSumUpCheckout = async () => {
+    const checkSumUpCheckout = async (forceCancel = false) => {
       try {
         const {
           data: { session },
@@ -315,12 +316,16 @@ export default function Cart() {
             order_id: createdOrder.id,
             checkout_id: paymentQrCheckoutId,
             checkout_reference: paymentQrCheckoutRef,
+            force_cancel: forceCancel,
           }),
         });
 
         const data = await res.json().catch(() => null);
-        if (!stopped && data?.order_status) {
-          handleStatus(data.order_status);
+        console.log("[POS QR] check-checkout response:", data);
+
+        const status = data?.order_status ?? data?.status ?? data?.sumup_status;
+        if (!stopped && status) {
+          handleStatus(status);
         }
       } catch (error) {
         console.error("SumUp checkout polling error:", error);
@@ -347,6 +352,20 @@ export default function Cart() {
     checkSumUpCheckout();
 
     const interval = setInterval(() => {
+      if (stopped) {
+        clearInterval(interval);
+        return;
+      }
+
+      attempts += 1;
+
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        checkSumUpCheckout(true);
+        handleStatus("timeout");
+        return;
+      }
+
       checkOrderStatus();
       checkSumUpCheckout();
     }, 4000);
@@ -1261,69 +1280,6 @@ export default function Cart() {
                 clearCart();
               }}
               className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
-            >
-              Nueva venta
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL PAGO RECHAZADO */}
-      {paymentRejectedOpen && createdOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-red-500/30 bg-zinc-900 p-6 text-center shadow-2xl">
-            <div className="mb-4 text-6xl">❌</div>
-
-            <h2 className="mb-2 text-xl font-bold text-white">
-              Pago rechazado
-            </h2>
-
-            <p className="mb-5 text-sm text-zinc-400">
-              SumUp rechazó o canceló el pago. La orden no fue pagada y el inventario no fue descontado.
-            </p>
-
-            <div className="mb-5 rounded-2xl border border-zinc-700 bg-zinc-800 p-4 text-left space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Orden</span>
-                <span className="font-bold text-white">#{createdOrder.number}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Total</span>
-                <span className="font-bold text-amber-400 text-base">
-                  {fmt(paymentQrTotal || createdOrder.total)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Estado</span>
-                <span className="font-semibold text-red-400">❌ Rechazado</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Stock descontado</span>
-                <span className="font-semibold text-zinc-400">No</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                setPaymentRejectedOpen(false);
-                setPaymentQrStatus("pending");
-                setPaymentQrMessage("Esperando confirmación automática del pago...");
-                setSubmitting(false);
-              }}
-              className="mb-3 w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
-            >
-              Intentar nuevamente
-            </button>
-
-            <button
-              onClick={() => {
-                setPaymentRejectedOpen(false);
-                setPaymentQrStatus("pending");
-                setPaymentQrMessage("Esperando confirmación automática del pago...");
-                setClientPhone("");
-                clearCart();
-              }}
-              className="w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
             >
               Nueva venta
             </button>
