@@ -189,6 +189,18 @@ export default function Cart() {
   const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
   const [paymentQrTotal, setPaymentQrTotal] = useState(0);
+  const [paymentQrStatus, setPaymentQrStatus] = useState<
+    "pending" | "paid" | "rejected"
+  >("pending");
+  const [paymentQrMessage, setPaymentQrMessage] = useState(
+    "Esperando confirmación automática del pago...",
+  );
+  const [paymentQrCheckoutId, setPaymentQrCheckoutId] = useState<string | null>(
+    null,
+  );
+  const [paymentQrCheckoutRef, setPaymentQrCheckoutRef] = useState<
+    string | null
+  >(null);
   const [sumupSmartOpen, setSumupSmartOpen] = useState(false);
   const [sumupSmartOrder, setSumupSmartOrder] = useState<{
     id: string;
@@ -211,7 +223,6 @@ export default function Cart() {
   const [isPendingDelivery, setIsPendingDelivery] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
-  const [linkSentOpen, setLinkSentOpen] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<{
     id: string;
     number: number | string;
@@ -232,6 +243,114 @@ export default function Cart() {
     { key: "link", label: "Link pago", icon: Link },
     { key: "sumup", label: "Smart POS", icon: CreditCard },
   ];
+
+  // ── QR SumUp: confirmar pago por webhook + polling fallback ───────────────
+  useEffect(() => {
+    if (!showPaymentQR || !createdOrder?.id || !paymentQrCheckoutId) return;
+
+    let stopped = false;
+
+    const handleStatus = (statusValue: string | null | undefined) => {
+      const status = String(statusValue ?? "").toLowerCase();
+
+      if (["paid", "pagado", "approved", "completed"].includes(status)) {
+        setPaymentQrStatus("paid");
+        setPaymentQrMessage("Pago confirmado correctamente.");
+        setShowPaymentQR(false);
+        setPaymentLinkUrl(null);
+        setSuccessOpen(true);
+        clearCart();
+        return;
+      }
+
+      if (
+        ["cancelled", "canceled", "failed", "rejected", "expired"].includes(
+          status,
+        )
+      ) {
+        setPaymentQrStatus("rejected");
+        setPaymentQrMessage(
+          "El pago fue rechazado o expiró. El stock no fue descontado.",
+        );
+      }
+    };
+
+    const checkOrderStatus = async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("status")
+        .eq("id", createdOrder.id)
+        .maybeSingle();
+
+      if (!stopped && !error && data?.status) {
+        handleStatus(data.status);
+      }
+    };
+
+    const checkSumUpCheckout = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+
+        const res = await fetch("/api/sumup/check-checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            order_id: createdOrder.id,
+            checkout_id: paymentQrCheckoutId,
+            checkout_reference: paymentQrCheckoutRef,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!stopped && data?.order_status) {
+          handleStatus(data.order_status);
+        }
+      } catch (error) {
+        console.error("SumUp checkout polling error:", error);
+      }
+    };
+
+    const channel = supabase
+      .channel(`order-payment-${createdOrder.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "orders",
+          filter: `id=eq.${createdOrder.id}`,
+        },
+        (payload) => {
+          handleStatus((payload.new as any)?.status);
+        },
+      )
+      .subscribe();
+
+    checkOrderStatus();
+    checkSumUpCheckout();
+
+    const interval = setInterval(() => {
+      checkOrderStatus();
+      checkSumUpCheckout();
+    }, 4000);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [
+    showPaymentQR,
+    createdOrder?.id,
+    paymentQrCheckoutId,
+    paymentQrCheckoutRef,
+  ]);
 
   // ── confirmar venta ──
   // ── Verificar pago Smart POS en SumUp ─────────────────────────────────────
@@ -465,7 +584,11 @@ export default function Cart() {
 
         window.__sumupCheckoutRef = checkoutData.checkout_reference;
         setPaymentLinkUrl(checkoutData.payment_url);
+        setPaymentQrCheckoutId(checkoutData.checkout_id);
+        setPaymentQrCheckoutRef(checkoutData.checkout_reference);
         setPaymentQrTotal(total());
+        setPaymentQrStatus("pending");
+        setPaymentQrMessage("Esperando confirmación automática del pago...");
       }
 
       const res = await fetch("/api/orders", {
@@ -500,21 +623,24 @@ export default function Cart() {
       if (!res.ok)
         throw new Error(data?.error || "Error al registrar la venta.");
 
+      const orderTotal = total();
+
       setIsPendingDelivery(false);
       setCreatedOrder({
         id: data.order_id,
         number: data.order_number ?? data.order_id,
-        total: total(),
+        total: orderTotal,
         emailSent: data.email_sent,
       });
+
       if (paymentMethod === "link") {
         setShowPaymentQR(true);
       } else {
         setPaymentLinkUrl(null);
         setSuccessOpen(true);
+        setClientPhone("");
+        clearCart();
       }
-      setClientPhone("");
-      clearCart();
     } catch (err: any) {
       setVerifyError(err?.message || "Error inesperado");
       setSubmitting(false);
@@ -1040,27 +1166,29 @@ export default function Cart() {
       {showPaymentQR && paymentLinkUrl && createdOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-6 text-center shadow-2xl">
-            <div className="mb-4 text-5xl">📲</div>
+            <div className="mb-4 text-5xl">
+              {paymentQrStatus === "rejected" ? "❌" : "📲"}
+            </div>
 
             <h2 className="mb-2 text-xl font-bold text-white">
-              Escanea para pagar
+              {paymentQrStatus === "rejected"
+                ? "Pago rechazado"
+                : "Escanea para pagar"}
             </h2>
 
             <p className="mb-5 text-sm text-zinc-400">
-              El cliente puede pagar con Apple Pay, Google Pay o tarjeta desde
-              su celular.
+              {paymentQrStatus === "rejected"
+                ? "El cliente puede intentar pagar nuevamente generando una nueva venta."
+                : "El cliente puede pagar con Apple Pay, Google Pay o tarjeta desde su celular."}
             </p>
 
-            <div className="mb-5 flex justify-center">
-              <div className="rounded-3xl bg-white p-4">
-                <QRCodeCanvas
-                  value={paymentLinkUrl}
-                  size={240}
-                  level="H"
-                  includeMargin
-                />
+            {paymentQrStatus === "pending" && (
+              <div className="mb-5 flex justify-center">
+                <div className="rounded-3xl bg-white p-4">
+                  <QRCodeCanvas value={paymentLinkUrl} size={240} level="H" />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="mb-5 rounded-2xl border border-zinc-700 bg-zinc-800 p-4 text-left space-y-2">
               <div className="flex items-center justify-between text-xs">
@@ -1077,72 +1205,12 @@ export default function Cart() {
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-500">Estado</span>
-                <span className="font-semibold text-amber-400">
-                  ⏳ Pendiente de pago
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Confirmación</span>
-                <span className="font-semibold text-zinc-400">
-                  Automática por SumUp
-                </span>
-              </div>
-            </div>
-
-            <p className="mb-5 text-xs text-zinc-600">
-              Cuando el cliente pague, SumUp confirmará el pago mediante webhook
-              y la orden se actualizará automáticamente.
-            </p>
-
-            <button
-              onClick={() => {
-                setShowPaymentQR(false);
-                setPaymentLinkUrl(null);
-                setPaymentQrTotal(0);
-                setCreatedOrder(null);
-              }}
-              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 mb-3"
-            >
-              Nueva venta
-            </button>
-
-            <button
-              onClick={() => {
-                window.open(paymentLinkUrl, "_blank");
-              }}
-              className="w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
-            >
-              Abrir link de pago
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Link de pago enviado */}
-      {linkSentOpen && createdOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-8 text-center shadow-2xl">
-            <div className="mb-4 text-6xl">📱</div>
-            <h2 className="mb-3 text-xl font-bold text-white">
-              Link enviado al cliente
-            </h2>
-            <p className="mb-1 text-sm text-zinc-400">
-              Orden{" "}
-              <span className="font-bold text-white">
-                #{createdOrder.number}
-              </span>
-            </p>
-            <p className="mb-5 text-sm text-zinc-500">
-              El cliente recibirá el link por WhatsApp para pagar con tarjeta,
-              Apple Pay o Google Pay.
-            </p>
-
-            {/* Estado visual */}
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 mb-6 text-left space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Estado orden</span>
-                <span className="font-semibold text-amber-400">
-                  ⏳ Pendiente de pago
+                <span
+                  className={`font-semibold ${paymentQrStatus === "rejected" ? "text-red-400" : "text-amber-400"}`}
+                >
+                  {paymentQrStatus === "rejected"
+                    ? "❌ Rechazado"
+                    : "⏳ Pendiente de pago"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -1151,22 +1219,34 @@ export default function Cart() {
                   No — se descuenta al pagar
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">Confirmación</span>
-                <span className="font-semibold text-zinc-400">
-                  Automática al pagar
-                </span>
-              </div>
             </div>
 
-            <p className="mb-5 text-xs text-zinc-600">
-              Si el cliente no paga, la orden quedará pendiente sin afectar el
-              inventario.
+            <p
+              className={`mb-5 text-xs ${paymentQrStatus === "rejected" ? "text-red-400" : "text-zinc-600"}`}
+            >
+              {paymentQrMessage}
             </p>
+
+            {paymentQrStatus === "pending" && (
+              <button
+                onClick={() => window.open(paymentLinkUrl, "_blank")}
+                className="mb-3 w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
+              >
+                Abrir link de pago
+              </button>
+            )}
 
             <button
               onClick={() => {
-                setLinkSentOpen(false);
+                setShowPaymentQR(false);
+                setPaymentLinkUrl(null);
+                setPaymentQrCheckoutId(null);
+                setPaymentQrCheckoutRef(null);
+                setPaymentQrStatus("pending");
+                setPaymentQrMessage(
+                  "Esperando confirmación automática del pago...",
+                );
+                setClientPhone("");
                 clearCart();
               }}
               className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400"
