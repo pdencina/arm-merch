@@ -1,113 +1,199 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// ─── POST /api/sumup/webhook ──────────────────────────────────────────────────
-// SumUp llama automáticamente a este endpoint cuando el estado del checkout cambia.
-// Se configura via return_url en la creación del checkout.
-// Maneja: PAID, FAILED, CANCELLED
-// ─────────────────────────────────────────────────────────────────────────────
-
-const log = (...args: any[]) => process.env.NODE_ENV !== 'production' && console.log(...args)
-
+// Ruta: src/app/api/sumup/webhook/route.ts
+// Objetivo:
+// - SumUp avisa cambio de estado del checkout.
+// - Este webhook consulta a SumUp para obtener el estado real.
+// - Si PAID: marca orden como paid y descuenta stock.
+// - Si FAILED / EXPIRED / CANCELLED: marca orden como cancelled y NO descuenta stock.
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    log('[SumUp Webhook] Received:', JSON.stringify(body))
+    const body = await req.json().catch(() => ({}))
+    console.log('[SumUp Webhook] Received:', JSON.stringify(body))
 
-    const { checkout_reference, status, id: checkout_id, transaction_code } = body
+    const eventType = body?.event_type
+    const checkoutId = body?.id ?? body?.checkout_id
 
-    if (!checkout_reference) {
-      return NextResponse.json({ received: true, action: 'no_reference' })
+    if (eventType && eventType !== 'CHECKOUT_STATUS_CHANGED') {
+      return NextResponse.json({ received: true, action: 'ignored_event' })
     }
 
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    if (!checkoutId) {
+      return NextResponse.json({ received: true, action: 'missing_checkout_id' })
+    }
 
-    // Buscar la orden por checkout_reference (enviamos arm-{timestamp} al crear)
-    // También intentamos por sumup_checkout_id como fallback
-    let order: any = null
+    const apiKey = process.env.SUMUP_API_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    // Intento 1: por checkout_reference en notes
-    const { data: o1 } = await adminClient
+    if (!apiKey) {
+      console.error('[SumUp Webhook] Missing SUMUP_API_KEY')
+      return NextResponse.json({ received: true, action: 'missing_sumup_api_key' })
+    }
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('[SumUp Webhook] Missing Supabase admin env vars')
+      return NextResponse.json({ received: true, action: 'missing_supabase_env' })
+    }
+
+    // 1) Consultar estado real del checkout en SumUp
+    const checkoutRes = await fetch(`https://api.sumup.com/v0.1/checkouts/${checkoutId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    const checkoutText = await checkoutRes.text()
+    let checkout: any = {}
+
+    try {
+      checkout = JSON.parse(checkoutText)
+    } catch {
+      checkout = { raw: checkoutText }
+    }
+
+    console.log('[SumUp Webhook] Checkout status:', checkoutRes.status)
+    console.log('[SumUp Webhook] Checkout response:', checkout)
+
+    if (!checkoutRes.ok) {
+      return NextResponse.json({
+        received: true,
+        action: 'checkout_fetch_failed',
+        status: checkoutRes.status,
+        detail: checkout,
+      })
+    }
+
+    const checkoutReference = checkout?.checkout_reference
+    const sumupStatus = String(checkout?.status ?? '').toUpperCase()
+    const transaction = checkout?.transactions?.[0] ?? null
+    const transactionCode = transaction?.transaction_code ?? transaction?.id ?? ''
+
+    if (!checkoutReference) {
+      return NextResponse.json({ received: true, action: 'missing_checkout_reference' })
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+
+    // 2) Buscar orden creada por ARM Merch.
+    // El cart.tsx guarda notes como: sumup:<checkout_reference>
+    const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, order_number, campus_id, status, order_items(product_id, quantity, size)')
-      .ilike('notes', `%${checkout_reference}%`)
+      .select('id, order_number, campus_id, status, notes, order_items(product_id, quantity, size)')
+      .ilike('notes', `%${checkoutReference}%`)
       .maybeSingle()
 
-    if (o1) order = o1
-
-    // Intento 2: por sumup_checkout_id si existe la columna
-    if (!order && checkout_id) {
-      const { data: o2 } = await adminClient
-        .from('orders')
-        .select('id, order_number, campus_id, status, order_items(product_id, quantity, size)')
-        .eq('sumup_checkout_id', checkout_id)
-        .maybeSingle()
-      if (o2) order = o2
+    if (orderError) {
+      console.error('[SumUp Webhook] Order query error:', orderError)
+      return NextResponse.json({ received: true, action: 'order_query_error' })
     }
 
     if (!order) {
-      console.error('[SumUp Webhook] Order not found for reference:', checkout_reference)
-      return NextResponse.json({ received: true, action: 'order_not_found', checkout_reference })
+      console.error('[SumUp Webhook] Order not found for reference:', checkoutReference)
+      return NextResponse.json({ received: true, action: 'order_not_found', checkout_reference: checkoutReference })
     }
 
-    // Ya procesada — evitar duplicados
+    // Evitar duplicar descuentos de stock si SumUp reintenta el webhook
     if (order.status === 'paid' || order.status === 'cancelled') {
-      log('[SumUp Webhook] Already processed:', order.order_number, order.status)
-      return NextResponse.json({ received: true, action: 'already_processed' })
+      return NextResponse.json({
+        received: true,
+        action: 'already_processed',
+        order_number: order.order_number,
+        status: order.status,
+      })
     }
 
-    // ── PAGO ACEPTADO ─────────────────────────────────────────────────────────
-    if (status === 'PAID') {
-      await adminClient
+    const paidStatuses = ['PAID', 'SUCCESSFUL', 'SUCCESS', 'COMPLETED']
+    const failedStatuses = ['FAILED', 'EXPIRED', 'CANCELLED', 'CANCELED']
+
+    // 3) Pago aprobado: marcar paid y descontar stock
+    if (paidStatuses.includes(sumupStatus)) {
+      const { error: updateError } = await adminClient
         .from('orders')
         .update({
           status: 'paid',
-          notes: `Pagado via SumUp | Ref: ${checkout_reference} | TXN: ${transaction_code ?? ''}`,
+          notes: `Pagado via SumUp | Ref: ${checkoutReference} | TXN: ${transactionCode}`,
         })
         .eq('id', order.id)
 
-      // Descontar stock por campus
-      for (const item of (order.order_items ?? [])) {
-        await adminClient
+      if (updateError) {
+        console.error('[SumUp Webhook] Error updating paid order:', updateError)
+        return NextResponse.json({ received: true, action: 'paid_update_error' })
+      }
+
+      for (const item of order.order_items ?? []) {
+        const { error: movementError } = await adminClient
           .from('inventory_movements')
           .insert({
             product_id: item.product_id,
-            campus_id:  order.campus_id,
-            type:       'salida',
-            quantity:   item.quantity,
-            notes:      `Pago link SumUp - Orden #${order.order_number}`,
+            campus_id: order.campus_id,
+            type: 'salida',
+            quantity: item.quantity,
+            notes: `Pago link SumUp - Orden #${order.order_number} - TXN ${transactionCode}`,
           })
+
+        if (movementError) {
+          console.error('[SumUp Webhook] Inventory movement error:', movementError)
+        }
       }
 
-      log('[SumUp Webhook] ✅ Order PAID:', order.order_number)
-      return NextResponse.json({ received: true, action: 'paid', order_number: order.order_number })
+      console.log('[SumUp Webhook] ✅ Order paid:', order.order_number)
+
+      return NextResponse.json({
+        received: true,
+        action: 'paid',
+        order_number: order.order_number,
+      })
     }
 
-    // ── PAGO FALLIDO O CANCELADO ──────────────────────────────────────────────
-    if (status === 'FAILED' || status === 'CANCELLED' || status === 'EXPIRED') {
-      await adminClient
+    // 4) Pago rechazado/expirado: marcar cancelled y NO tocar stock
+    if (failedStatuses.includes(sumupStatus)) {
+      const { error: cancelError } = await adminClient
         .from('orders')
         .update({
           status: 'cancelled',
-          notes: `Pago ${status.toLowerCase()} via SumUp | Ref: ${checkout_reference}`,
+          notes: `Pago ${sumupStatus.toLowerCase()} via SumUp | Ref: ${checkoutReference}`,
         })
         .eq('id', order.id)
 
-      log('[SumUp Webhook] ❌ Order', status, ':', order.order_number)
-      return NextResponse.json({ received: true, action: status.toLowerCase(), order_number: order.order_number })
+      if (cancelError) {
+        console.error('[SumUp Webhook] Error cancelling order:', cancelError)
+        return NextResponse.json({ received: true, action: 'cancel_update_error' })
+      }
+
+      console.log('[SumUp Webhook] ❌ Order cancelled:', order.order_number, sumupStatus)
+
+      return NextResponse.json({
+        received: true,
+        action: 'cancelled',
+        order_number: order.order_number,
+        sumup_status: sumupStatus,
+      })
     }
 
-    // Otros estados (PENDING, etc) — solo loguear
-    log('[SumUp Webhook] Status ignored:', status)
-    return NextResponse.json({ received: true, action: 'ignored', status })
-
+    return NextResponse.json({
+      received: true,
+      action: 'status_ignored',
+      order_number: order.order_number,
+      sumup_status: sumupStatus,
+    })
   } catch (error: any) {
     console.error('[SumUp Webhook] Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({
+      received: true,
+      action: 'internal_error',
+      error: error?.message ?? 'Error interno',
+    })
   }
 }
