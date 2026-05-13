@@ -3,33 +3,29 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-type TrackingAutoRefreshProps = {
-  intervalMs?: number
-}
-
 export default function TrackingAutoRefresh({
   intervalMs = 8000,
-}: TrackingAutoRefreshProps) {
+}: {
+  intervalMs?: number
+}) {
   const router = useRouter()
 
   useEffect(() => {
-    const refresh = () => {
+    const timer = window.setInterval(() => {
       router.refresh()
-    }
+    }, intervalMs)
 
-    const interval = window.setInterval(refresh, intervalMs)
-
-    const onVisibilityChange = () => {
+    const onVisible = () => {
       if (document.visibilityState === 'visible') {
-        refresh()
+        router.refresh()
       }
     }
 
-    document.addEventListener('visibilitychange', onVisibilityChange)
+    document.addEventListener('visibilitychange', onVisible)
 
     return () => {
-      window.clearInterval(interval)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [router, intervalMs])
 
