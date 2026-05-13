@@ -249,33 +249,89 @@ export default function Cart() {
     if (!showPaymentQR || !createdOrder?.id || !paymentQrCheckoutId) return;
 
     let stopped = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    const handleStatus = (statusValue: string | null | undefined) => {
-      const status = String(statusValue ?? "").toLowerCase();
-
-      if (["paid", "pagado", "approved", "completed"].includes(status)) {
-        setPaymentQrStatus("paid");
-        setPaymentQrMessage("Pago confirmado correctamente.");
-        setShowPaymentQR(false);
-        setPaymentLinkUrl(null);
-        setSuccessOpen(true);
-        clearCart();
-        return;
+    const stopWatching = () => {
+      stopped = true;
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
       }
-
-      if (
-        ["cancelled", "canceled", "failed", "rejected", "expired"].includes(
-          status,
-        )
-      ) {
-        setPaymentQrStatus("rejected");
-        setPaymentQrMessage(
-          "El pago fue rechazado o expiró. El stock no fue descontado.",
-        );
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
       }
     };
 
+    const handleStatus = (statusValue: string | null | undefined) => {
+      if (stopped) return;
+
+      const status = String(statusValue ?? "").toLowerCase();
+      console.log("[POS QR SumUp] Estado recibido:", status);
+
+      // ─────────────────────────────────────────
+      // PAGO EXITOSO
+      // ─────────────────────────────────────────
+      if (
+        [
+          "paid",
+          "pagado",
+          "approved",
+          "completed",
+          "success",
+          "successful",
+        ].includes(status)
+      ) {
+        console.log("[POS QR SumUp] Pago aprobado");
+
+        stopWatching();
+        setPaymentQrStatus("paid");
+        setPaymentQrMessage("✅ Pago confirmado correctamente.");
+
+        setTimeout(() => {
+          setShowPaymentQR(false);
+          setPaymentLinkUrl(null);
+          setPaymentQrCheckoutId(null);
+          setPaymentQrCheckoutRef(null);
+          setSuccessOpen(true);
+          setClientPhone("");
+          clearCart();
+        }, 900);
+
+        return;
+      }
+
+      // ─────────────────────────────────────────
+      // PAGO RECHAZADO / CANCELADO / EXPIRADO
+      // ─────────────────────────────────────────
+      if (
+        [
+          "cancelled",
+          "canceled",
+          "failed",
+          "rejected",
+          "expired",
+          "declined",
+        ].includes(status)
+      ) {
+        console.log("[POS QR SumUp] Pago rechazado");
+
+        stopWatching();
+        setPaymentQrStatus("rejected");
+        setPaymentQrMessage(
+          "❌ El pago fue rechazado o expiró. El stock NO fue descontado.",
+        );
+
+        return;
+      }
+
+      console.log("[POS QR SumUp] Estado pendiente:", status || "sin_estado");
+    };
+
     const checkOrderStatus = async () => {
+      if (stopped) return;
+
       const { data, error } = await supabase
         .from("orders")
         .select("status")
@@ -288,6 +344,8 @@ export default function Cart() {
     };
 
     const checkSumUpCheckout = async () => {
+      if (stopped) return;
+
       try {
         const {
           data: { session },
@@ -308,15 +366,22 @@ export default function Cart() {
         });
 
         const data = await res.json().catch(() => null);
+        console.log("[POS QR SumUp] check-checkout response:", data);
+
         if (!stopped && data?.order_status) {
           handleStatus(data.order_status);
+          return;
+        }
+
+        if (!stopped && data?.sumup_status) {
+          handleStatus(data.sumup_status);
         }
       } catch (error) {
-        console.error("SumUp checkout polling error:", error);
+        console.error("[POS QR SumUp] checkout polling error:", error);
       }
     };
 
-    const channel = supabase
+    channel = supabase
       .channel(`order-payment-${createdOrder.id}`)
       .on(
         "postgres_changes",
@@ -327,6 +392,7 @@ export default function Cart() {
           filter: `id=eq.${createdOrder.id}`,
         },
         (payload) => {
+          console.log("[POS QR SumUp] realtime order update:", payload.new);
           handleStatus((payload.new as any)?.status);
         },
       )
@@ -335,21 +401,21 @@ export default function Cart() {
     checkOrderStatus();
     checkSumUpCheckout();
 
-    const interval = setInterval(() => {
+    interval = setInterval(() => {
+      if (stopped) return;
       checkOrderStatus();
       checkSumUpCheckout();
     }, 4000);
 
     return () => {
-      stopped = true;
-      clearInterval(interval);
-      supabase.removeChannel(channel);
+      stopWatching();
     };
   }, [
     showPaymentQR,
     createdOrder?.id,
     paymentQrCheckoutId,
     paymentQrCheckoutRef,
+    supabase,
   ]);
 
   // ── confirmar venta ──
