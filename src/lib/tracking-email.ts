@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export type TrackingEmailStatus =
   | 'confirmed'
+  | 'purchase_confirmed'
   | 'pending_production'
   | 'in_preparation'
   | 'in_production'
@@ -50,6 +51,14 @@ const STATUS_COPY: Record<
   }
 > = {
   confirmed: {
+    subject: 'Compra confirmada',
+    title: 'Tu compra fue confirmada',
+    eyebrow: 'Compra confirmada',
+    message:
+      'Recibimos tu pedido correctamente. Puedes revisar el avance desde el botón de seguimiento.',
+    color: '#16a34a',
+  },
+  purchase_confirmed: {
     subject: 'Compra confirmada',
     title: 'Tu compra fue confirmada',
     eyebrow: 'Compra confirmada',
