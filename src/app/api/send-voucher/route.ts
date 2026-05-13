@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
     }
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
+    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'no-reply@armerch.com'
 
     const { data, error } = await resend.emails.send({
       from:    `ARM Merch <${fromEmail}>`,

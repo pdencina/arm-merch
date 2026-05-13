@@ -261,7 +261,7 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
 
   const copy = STATUS_COPY[data.status] ?? STATUS_COPY.confirmed
   const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(data.trackingToken)}`
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@armerch.com'
 
   const html = `<!DOCTYPE html>
 <html lang="es">

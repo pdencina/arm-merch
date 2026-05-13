@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
             year: "numeric",
           });
 
-          const fromEmail = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+          const fromEmail = process.env.RESEND_FROM_EMAIL ?? "no-reply@armerch.com";
 
           const html = `<!DOCTYPE html>
 <html lang="es">

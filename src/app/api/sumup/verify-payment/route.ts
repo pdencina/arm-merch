@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
           .join('')
 
         const { error: mailError } = await resend.emails.send({
-          from: 'ARM Merch <onboarding@resend.dev>',
+          from: 'ARM Merch <no-reply@armerch.com>',
           to: contact.client_email,
           subject: `Comprobante Orden #${order.order_number}`,
           html: `

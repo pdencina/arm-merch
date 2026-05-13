@@ -171,7 +171,7 @@ export async function POST(req: Request) {
     `
 
     const { error: sendError } = await resend.emails.send({
-      from: 'ARM Merch <onboarding@resend.dev>',
+      from: 'ARM Merch <no-reply@armerch.com>',
       to: email,
       subject: `Comprobante Orden #${order.order_number}`,
       html,
