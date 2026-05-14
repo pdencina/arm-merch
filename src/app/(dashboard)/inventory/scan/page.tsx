@@ -82,10 +82,28 @@ export default function ScanInventoryPage() {
         return
       }
 
-      // Search product by barcode or SKU
+      // Obtener campus del usuario
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('campus_id')
+        .eq('id', session.user.id)
+        .single()
+
+      const currentCampusId = profile?.campus_id
+
+      // Buscar producto SOLO del campus actual
       const { data: products } = await supabase
         .from('products_with_stock')
-        .select('id, name, sku, barcode, stock, inventory_id, campus_id')
+        .select(`
+          id,
+          name,
+          sku,
+          barcode,
+          stock,
+          inventory_id,
+          campus_id
+        `)
+        .eq('campus_id', currentCampusId)
         .or(`barcode.eq.${code},sku.eq.${code}`)
         .limit(1)
 
