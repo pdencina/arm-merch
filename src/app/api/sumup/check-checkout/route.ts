@@ -376,15 +376,18 @@ export async function POST(req: NextRequest) {
         console.error("[SumUp Check Checkout] Error enviando voucher:", emailError);
       }
 
-      try {
-        await sendTrackingEmail({
-          orderId: order.id,
-          status: order.production_status === "pending_production" ? "pending_production" : "purchase_confirmed",
-          appUrl: process.env.NEXT_PUBLIC_APP_URL || "https://armerch.com",
-        });
-      } catch (trackingEmailError) {
-        console.error("[SumUp Check Checkout] Tracking email error:", trackingEmailError);
-      }
+// Enviar tracking SOLO para pedidos en producción
+if (order.production_status === 'pending_production') {
+  try {
+    await sendTrackingEmail({
+      orderId: order.id,
+      status: 'pending_production',
+      appUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://armerch.com',
+    })
+  } catch (trackingEmailError) {
+    console.error('[SumUp Check Checkout] Tracking email error:', trackingEmailError)
+  }
+}
 
       return NextResponse.json({
         ok: true,
