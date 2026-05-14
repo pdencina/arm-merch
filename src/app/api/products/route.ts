@@ -80,6 +80,47 @@ export async function POST(req: Request) {
       )
     }
 
+    const normalizedSku = String(product.sku ?? '').trim() || null
+    const normalizedBarcode = String(product.barcode ?? '').trim() || null
+
+    if (normalizedBarcode) {
+      const { data: existingBarcode, error: barcodeError } = await adminClient
+        .from('products')
+        .select('id, name')
+        .eq('barcode', normalizedBarcode)
+        .maybeSingle()
+
+      if (barcodeError) {
+        return NextResponse.json({ error: barcodeError.message }, { status: 400 })
+      }
+
+      if (existingBarcode) {
+        return NextResponse.json(
+          { error: `Ya existe un producto con ese código de barra: ${existingBarcode.name}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (normalizedSku) {
+      const { data: existingSku, error: skuError } = await adminClient
+        .from('products')
+        .select('id, name')
+        .eq('sku', normalizedSku)
+        .maybeSingle()
+
+      if (skuError) {
+        return NextResponse.json({ error: skuError.message }, { status: 400 })
+      }
+
+      if (existingSku) {
+        return NextResponse.json(
+          { error: `Ya existe un producto con ese SKU: ${existingSku.name}` },
+          { status: 400 }
+        )
+      }
+    }
+
     let normalizedCampusStocks = campusStocks.map((item: any) => ({
       campus_id: item.campus_id,
       stock: Number(item.stock ?? 0),
@@ -112,7 +153,8 @@ export async function POST(req: Request) {
         name: product.name.trim(),
         description: product.description ?? null,
         price: Number(product.price),
-        sku: product.sku ?? null,
+        sku: normalizedSku,
+        barcode: normalizedBarcode,
         category_id: product.category_id ?? null,
         image_url: product.image_url ?? null,
         active: product.active ?? true,
@@ -141,10 +183,7 @@ export async function POST(req: Request) {
       .insert(inventoryRows)
 
     if (inventoryError) {
-      return NextResponse.json(
-        { error: inventoryError.message },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: inventoryError.message }, { status: 400 })
     }
 
     const movementRows = normalizedCampusStocks
@@ -164,10 +203,7 @@ export async function POST(req: Request) {
         .insert(movementRows)
 
       if (movementsError) {
-        return NextResponse.json(
-          { error: movementsError.message },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: movementsError.message }, { status: 400 })
       }
     }
 

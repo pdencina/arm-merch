@@ -1,34 +1,57 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
-export function useBarcode(onScan: (code: string) => void) {
+export function useBarcode(
+  onScan: (code: string) => void,
+  options?: {
+    minLength?: number
+    timeout?: number
+  }
+) {
+  const buffer = useRef('')
+  const lastKeyTime = useRef(0)
+
+  const minLength = options?.minLength ?? 3
+  const timeout = options?.timeout ?? 90
+
   useEffect(() => {
-    let buffer = ''
-    let lastTime = Date.now()
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      const isEditable = tag === 'input' || tag === 'textarea' || target?.isContentEditable
 
-    function handleKey(e: KeyboardEvent) {
+      // Si el scanner escribe en un input, ese input maneja el ENTER.
+      if (isEditable) return
+
       const now = Date.now()
 
-      // Si pasa mucho tiempo entre teclas → reinicia
-      if (now - lastTime > 100) buffer = ''
+      if (now - lastKeyTime.current > timeout) {
+        buffer.current = ''
+      }
 
-      lastTime = now
+      lastKeyTime.current = now
 
-      if (e.key === 'Enter') {
-        if (buffer.length > 3) {
-          onScan(buffer)
+      if (event.key === 'Enter') {
+        const code = buffer.current.trim()
+
+        if (code.length >= minLength) {
+          onScan(code)
         }
-        buffer = ''
+
+        buffer.current = ''
         return
       }
 
-      if (/^[a-zA-Z0-9]$/.test(e.key)) {
-        buffer += e.key
+      if (event.key.length === 1) {
+        buffer.current += event.key
       }
     }
 
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [onScan])
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onScan, minLength, timeout])
 }
