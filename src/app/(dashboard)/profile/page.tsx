@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  User,
-  TrendingUp,
-  ShoppingBag,
-  Award,
   ArrowRight,
-  ScanLine,
+  Award,
   Package,
-  Receipt
+  Receipt,
+  ScanLine,
+  ShoppingBag,
+  TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -19,7 +18,7 @@ const fmt = (n: number) =>
     style: 'currency',
     currency: 'CLP',
     maximumFractionDigits: 0,
-  }).format(n)
+  }).format(Number(n || 0))
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('es-CL', {
@@ -35,20 +34,56 @@ const ROLE_LABEL: Record<string, string> = {
   voluntario: 'Voluntario',
 }
 
+type PermissionMap = Record<string, boolean>
+
+const QUICK_ACCESS = [
+  {
+    icon: ShoppingBag,
+    label: 'Punto de venta',
+    href: '/pos',
+    permission: 'pos.view',
+  },
+  {
+    icon: ScanLine,
+    label: 'Escanear inventario',
+    href: '/inventory/scan',
+    permission: 'inventory.scan',
+  },
+  {
+    icon: Package,
+    label: 'Pedidos',
+    href: '/deliveries',
+    permission: 'deliveries.view',
+  },
+  {
+    icon: Receipt,
+    label: 'Reportes',
+    href: '/reports',
+    permission: 'reports.view',
+  },
+]
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null)
   const [stats, setStats] = useState<any>(null)
   const [orders, setOrders] = useState<any[]>([])
+  const [permissions, setPermissions] = useState<PermissionMap>({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
+      setLoading(true)
+
       const {
         data: { session },
       } = await supabase.auth.getSession()
 
-      if (!session) return
+      if (!session) {
+        setLoading(false)
+        return
+      }
 
       const [{ data: p }, { data: o }] = await Promise.all([
         supabase
@@ -73,45 +108,56 @@ export default function ProfilePage() {
           .limit(50),
       ])
 
+      const role = p?.role ?? 'voluntario'
+      let permissionMap: PermissionMap = {}
+
+      if (role === 'super_admin') {
+        QUICK_ACCESS.forEach((item) => {
+          permissionMap[item.permission] = true
+        })
+      } else {
+        const { data: permissionRows } = await supabase
+          .from('module_permissions')
+          .select('module, enabled')
+          .eq('role', role)
+
+        permissionMap = Object.fromEntries(
+          (permissionRows ?? []).map((row: any) => [
+            row.module,
+            row.enabled === true,
+          ])
+        )
+      }
+
       const myOrders = (o ?? []) as any[]
-
-      const paidOrders = myOrders.filter(
-        (x: any) => x.status === 'paid'
-      )
-
+      const paidOrders = myOrders.filter((x: any) => x.status === 'paid')
       const today = new Date().toDateString()
 
       const todayOrders = paidOrders.filter(
-        (x: any) =>
-          new Date(x.created_at).toDateString() === today
+        (x: any) => new Date(x.created_at).toDateString() === today
+      )
+
+      const totalSales = paidOrders.reduce(
+        (sum: number, order: any) => sum + Number(order.total ?? 0),
+        0
       )
 
       setProfile(p)
       setOrders(myOrders)
+      setPermissions(permissionMap)
 
       setStats({
-        total: paidOrders.reduce(
-          (s: number, x: any) => s + Number(x.total),
-          0
-        ),
-
+        total: totalSales,
         count: paidOrders.length,
-
         todayTotal: todayOrders.reduce(
-          (s: number, x: any) => s + Number(x.total),
+          (sum: number, order: any) => sum + Number(order.total ?? 0),
           0
         ),
-
         todayCount: todayOrders.length,
-
-        avg:
-          paidOrders.length > 0
-            ? paidOrders.reduce(
-                (s: number, x: any) => s + Number(x.total),
-                0
-              ) / paidOrders.length
-            : 0,
+        avg: paidOrders.length > 0 ? totalSales / paidOrders.length : 0,
       })
+
+      setLoading(false)
     }
 
     load()
@@ -123,16 +169,33 @@ export default function ProfilePage() {
       .map((w: string) => w[0])
       .slice(0, 2)
       .join('')
-      .toUpperCase() ?? '?'
+      .toUpperCase() ??
+    profile?.email?.[0]?.toUpperCase() ??
+    '?'
+
+  const visibleQuickAccess = useMemo(() => {
+    if (!profile) return []
+
+    if (profile.role === 'super_admin') {
+      return QUICK_ACCESS
+    }
+
+    return QUICK_ACCESS.filter((item) => permissions[item.permission] === true)
+  }, [profile, permissions])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[45vh] items-center justify-center">
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-5 max-w-5xl">
-
-      {/* HEADER */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex items-center justify-between flex-wrap gap-4">
-
+    <div className="flex max-w-5xl flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/20">
             <span className="text-2xl font-bold text-amber-400">
               {initials}
             </span>
@@ -140,42 +203,35 @@ export default function ProfilePage() {
 
           <div>
             <h1 className="text-2xl font-bold text-white">
-              {profile?.full_name ?? 'Usuario'}
+              {profile?.full_name ?? profile?.email ?? 'Usuario'}
             </h1>
 
-            <p className="text-zinc-500 text-sm">
-              {profile?.email}
+            <p className="text-sm text-zinc-500">
+              {profile?.email ?? 'Sin correo'}
             </p>
 
-            <div className="flex gap-2 mt-3 flex-wrap">
-              <span className="px-3 py-1 rounded-full text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                {ROLE_LABEL[profile?.role ?? 'voluntario']}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1 text-xs text-purple-400">
+                {ROLE_LABEL[profile?.role ?? 'voluntario'] ?? profile?.role}
               </span>
 
               {profile?.campus?.name && (
-                <span className="px-3 py-1 rounded-full text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  {profile?.campus?.name}
+                <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-400">
+                  {profile.campus.name}
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        <div className="text-right">
-          <p className="text-zinc-500 text-sm">
-            Plataforma ARM Merch
-          </p>
-
-          <p className="text-amber-400 font-semibold">
-            Equipo autorizado
-          </p>
+        <div className="text-left sm:text-right">
+          <p className="text-sm text-zinc-500">Plataforma ARM Merch</p>
+          <p className="font-semibold text-amber-400">Equipo autorizado</p>
         </div>
       </div>
 
-      {/* KPIS */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           {[
             {
               icon: TrendingUp,
@@ -184,7 +240,6 @@ export default function ProfilePage() {
               sub: `${stats.todayCount} órdenes`,
               color: 'text-amber-400',
             },
-
             {
               icon: ShoppingBag,
               label: 'Ventas totales',
@@ -192,7 +247,6 @@ export default function ProfilePage() {
               sub: `${stats.count} ventas`,
               color: 'text-green-400',
             },
-
             {
               icon: Award,
               label: 'Ticket promedio',
@@ -200,7 +254,6 @@ export default function ProfilePage() {
               sub: 'por venta',
               color: 'text-blue-400',
             },
-
             {
               icon: Receipt,
               label: 'Órdenes pagadas',
@@ -211,94 +264,58 @@ export default function ProfilePage() {
           ].map((card) => (
             <div
               key={card.label}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5"
+              className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"
             >
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center">
-                  <card.icon
-                    size={18}
-                    className={card.color}
-                  />
-                </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800">
+                <card.icon size={18} className={card.color} />
               </div>
 
-              <p className="text-zinc-500 text-sm mt-4">
-                {card.label}
-              </p>
+              <p className="mt-4 text-sm text-zinc-500">{card.label}</p>
 
-              <h2 className={`text-2xl font-bold mt-1 ${card.color}`}>
+              <h2 className={`mt-1 text-2xl font-bold ${card.color}`}>
                 {card.value}
               </h2>
 
-              <p className="text-xs text-zinc-600 mt-1">
-                {card.sub}
-              </p>
+              <p className="mt-1 text-xs text-zinc-600">{card.sub}</p>
             </div>
           ))}
         </div>
       )}
 
-      {/* ACCESOS RÁPIDOS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-        {[
-          {
-            icon: ShoppingBag,
-            label: 'Punto de venta',
-            href: '/pos',
-          },
-
-          {
-            icon: ScanLine,
-            label: 'Escanear inventario',
-            href: '/inventory/scan',
-          },
-
-          {
-            icon: Package,
-            label: 'Pedidos',
-            href: '/delivery-orders',
-          },
-
-          {
-            icon: Receipt,
-            label: 'Reportes',
-            href: '/reports',
-          },
-        ].map((item) => (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        {visibleQuickAccess.map((item) => (
           <Link
             key={item.label}
             href={item.href}
-            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-amber-500/30 transition"
+            className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-amber-500/30"
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-              <item.icon
-                size={18}
-                className="text-amber-400"
-              />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
+              <item.icon size={18} className="text-amber-400" />
             </div>
 
-            <p className="text-white font-medium mt-4">
-              {item.label}
-            </p>
+            <p className="mt-4 font-medium text-white">{item.label}</p>
 
-            <div className="flex items-center gap-2 text-zinc-500 text-sm mt-1">
+            <div className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
               Ir al módulo
               <ArrowRight size={14} />
             </div>
           </Link>
         ))}
+
+        {visibleQuickAccess.length === 0 && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-500 md:col-span-4">
+            No tienes accesos rápidos habilitados para tu rol.
+          </div>
+        )}
       </div>
 
-      {/* ÚLTIMAS VENTAS */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-
-        <div className="flex items-center justify-between mb-5">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+        <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">
             Mis últimas ventas
           </h2>
 
-          <span className="text-zinc-500 text-sm">
+          <span className="text-sm text-zinc-500">
             {orders.length} registros
           </span>
         </div>
@@ -309,41 +326,39 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="space-y-3">
-
-            {orders.slice(0, 10).map((o) => (
+            {orders.slice(0, 10).map((order) => (
               <div
-                key={o.id}
-                className="flex items-center gap-4 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3"
+                key={order.id}
+                className="flex flex-wrap items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3"
               >
-
-                <div className="text-zinc-500 font-mono text-sm w-16">
-                  #{o.order_number}
+                <div className="w-16 font-mono text-sm text-zinc-500">
+                  #{order.order_number}
                 </div>
 
-                <div className="flex-1">
-                  <p className="text-white text-sm">
-                    {o.payment_method ?? 'Venta'}
+                <div className="min-w-[160px] flex-1">
+                  <p className="text-sm text-white">
+                    {order.payment_method ?? 'Venta'}
                   </p>
 
-                  <p className="text-zinc-500 text-xs">
-                    {fmtDate(o.created_at)}
+                  <p className="text-xs text-zinc-500">
+                    {fmtDate(order.created_at)}
                   </p>
                 </div>
 
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    o.status === 'paid'
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    order.status === 'paid'
                       ? 'bg-green-500/10 text-green-400'
-                      : o.status === 'pending'
-                      ? 'bg-amber-500/10 text-amber-400'
-                      : 'bg-red-500/10 text-red-400'
+                      : order.status === 'pending'
+                        ? 'bg-amber-500/10 text-amber-400'
+                        : 'bg-red-500/10 text-red-400'
                   }`}
                 >
-                  {o.status}
+                  {order.status}
                 </span>
 
-                <div className="text-amber-400 font-bold">
-                  {fmt(Number(o.total))}
+                <div className="font-bold text-amber-400">
+                  {fmt(Number(order.total))}
                 </div>
               </div>
             ))}
