@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import './login.css'
 
 export default function LoginPage() {
@@ -34,8 +35,9 @@ export default function LoginPage() {
         return
       }
 
-      // Small delay to ensure Supabase cookies are set before navigation
-    setTimeout(() => { window.location.href = '/pos' }, 100)
+      setTimeout(() => {
+        window.location.href = '/pos'
+      }, 100)
     } catch (err: any) {
       setError(err?.message ?? 'Error inesperado al iniciar sesión')
       setLoading(false)
@@ -43,85 +45,91 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="lr">
-      <div className="lr-grid" />
-      <div className="lr-g1" />
-      <div className="lr-g2" />
-      <div className="lr-vl" />
-      <div className="lr-vr" />
-      <div className="lr-ctL" />
-      <div className="lr-ctR" />
-      <div className="lr-cbL" />
-      <div className="lr-cbR" />
+    <main className="login-root">
+      <div className="login-gradient" />
+      <div className="login-grid" />
 
-      <div className="lc">
-        <div className="lb">
-          <div className="lbt">
-            <div className="lbd" />
-            <span className="lbla">ARM Global · Sistema de Merch</span>
-          </div>
-          <h1 className="lh1">
-            ARM <em>Merch</em>
-          </h1>
-          <p className="lhs">Acceso a la plataforma de merchandising</p>
-        </div>
+      <div className="login-glow login-glow-1" />
+      <div className="login-glow login-glow-2" />
 
-        <div className="lform">
-          <div className="lfi">
-            <label className="lfl">Correo electrónico</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@iglesia.cl"
-              required
-              autoComplete="email"
-              className="lfx"
-            />
+      <div className="login-container">
+        <div className="login-card">
+          <div className="login-top">
+            <div className="login-badge">
+              <ShieldCheck size={14} />
+              ARM Global · Sistema de Merch
+            </div>
+
+            <div className="login-logo-wrap">
+              <div className="login-logo-box">A</div>
+
+              <div>
+                <h1 className="login-title">
+                  ARM <span>Merch</span>
+                </h1>
+
+                <p className="login-subtitle">
+                  Plataforma de merchandising y operaciones
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="lfi">
-            <label className="lfl">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-              className="lfx"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleLogin()
-                }
-              }}
-            />
+          <div className="login-form">
+            <div className="login-field">
+              <label>Correo electrónico</label>
+
+              <div className="login-input-wrap">
+                <Mail size={18} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@armglobal.org"
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="login-field">
+              <label>Contraseña</label>
+
+              <div className="login-input-wrap">
+                <LockKeyhole size={18} />
+
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleLogin()
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {error && <div className="login-error">{error}</div>}
+
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={loading}
+              className="login-button"
+            >
+              {loading ? 'Verificando...' : 'Ingresar'}
+            </button>
           </div>
 
-          <div className="ldv" />
-
-          {error && <div className="ler">{error}</div>}
-
-          <button
-            type="button"
-            onClick={handleLogin}
-            disabled={loading}
-            className="lbtn"
-          >
-            {loading && <span className="lsp" />}
-            {loading ? 'Verificando...' : 'Ingresar'}
-          </button>
-        </div>
-
-        <div className="lfooter">
-          <div className="lfline" />
-          <span className="lftxt">Acceso restringido al equipo autorizado</span>
-          <div className="lfline" />
+          <div className="login-footer">
+            Acceso restringido al equipo autorizado
+          </div>
         </div>
       </div>
-
-      <div className="lr-yr">ARM © {new Date().getFullYear()}</div>
-    </div>
+    </main>
   )
 }
