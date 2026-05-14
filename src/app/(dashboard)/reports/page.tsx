@@ -53,7 +53,7 @@ export default function ReportsPage() {
           'completed',
           'delivered',
           'completada',
-          'entregada'
+          'entregada',
         ])
         .order('created_at', { ascending: false })
 
@@ -64,27 +64,28 @@ export default function ReportsPage() {
       const { data: ordersData } = await ordersQuery
 
       // OBTENER VENDEDORES MANUALMENTE
-      const sellerIds = [
-        ...new Set(
+      // Evita usar spread sobre Set para compatibilidad con el target TS del proyecto.
+      const sellerIds = Array.from(
+        new Set(
           (ordersData ?? [])
-            .map((order) => order.seller_id)
+            .map((order: any) => order.seller_id)
             .filter(Boolean)
-        ),
-      ]
-
-      const { data: sellerProfiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, campus_id')
-        .in('id', sellerIds)
-
-      const sellerMap = Object.fromEntries(
-        (sellerProfiles ?? []).map((seller) => [
-          seller.id,
-          seller,
-        ])
+        )
       )
 
-      const enrichedOrders = (ordersData ?? []).map((order) => ({
+      const { data: sellerProfiles } =
+        sellerIds.length > 0
+          ? await supabase
+              .from('profiles')
+              .select('id, full_name, campus_id')
+              .in('id', sellerIds)
+          : { data: [] }
+
+      const sellerMap = Object.fromEntries(
+        (sellerProfiles ?? []).map((seller: any) => [seller.id, seller])
+      )
+
+      const enrichedOrders = (ordersData ?? []).map((order: any) => ({
         ...order,
         seller: sellerMap[order.seller_id] ?? null,
       }))
@@ -94,8 +95,7 @@ export default function ReportsPage() {
 
       if (role === 'admin' && campusId) {
         filteredOrders = enrichedOrders.filter(
-          (order: any) =>
-            order.seller?.campus_id === campusId
+          (order: any) => order.seller?.campus_id === campusId
         )
       }
 
