@@ -5,16 +5,19 @@ import { createClient } from '@/lib/supabase/client'
 import ReportsClient from './reports-client'
 
 export default function ReportsPage() {
-  const [orders, setOrders]         = useState<any[]>([])
-  const [products, setProducts]     = useState<any[]>([])
-  const [sellers, setSellers]       = useState<any[]>([])
+  const [orders, setOrders] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
+  const [sellers, setSellers] = useState<any[]>([])
   const [campusName, setCampusName] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
       if (!session) return
 
       const { data: profile } = await supabase
@@ -23,28 +26,47 @@ export default function ReportsPage() {
         .eq('id', session.user.id)
         .single()
 
-      const role     = profile?.role ?? 'voluntario'
+      const role = profile?.role ?? 'voluntario'
       const campusId = profile?.campus_id ?? null
+
       setCampusName((profile?.campus as any)?.name ?? null)
 
-      // Buscar órdenes con todos los valores de status posibles:
-      // 'paid' = nuevo (orders/route.ts actualizado)
-      // 'completada' = registros anteriores del sistema original
+      // ÓRDENES
       let ordersQuery = supabase
         .from('orders')
         .select(`
-          id, order_number, total, discount, status, payment_method, created_at, seller_id, notes,
+          id,
+          order_number,
+          total,
+          discount,
+          status,
+          payment_method,
+          created_at,
+          seller_id,
+          notes,
           seller:profiles(full_name, campus_id),
           order_contacts(client_name, client_email),
-          order_items(quantity, unit_price, product:products(name))
+          order_items(
+            quantity,
+            unit_price,
+            product:products(name)
+          )
         `)
-        .in('status', ['paid', 'pending'])
+        .in('status', [
+          'paid',
+          'pending',
+          'completed',
+          'delivered',
+          'completada',
+          'entregada',
+        ])
         .order('created_at', { ascending: false })
 
       if (role === 'voluntario') {
         ordersQuery = ordersQuery.eq('seller_id', session.user.id)
       }
 
+      // PRODUCTOS
       let productsQuery = supabase
         .from('products_with_stock')
         .select('*')
@@ -54,6 +76,7 @@ export default function ReportsPage() {
         productsQuery = productsQuery.eq('campus_id', campusId)
       }
 
+      // VENDEDORES
       let sellersQuery = supabase
         .from('profiles')
         .select('id, full_name')
@@ -63,17 +86,20 @@ export default function ReportsPage() {
         sellersQuery = sellersQuery.eq('campus_id', campusId)
       }
 
-      const [{ data: o }, { data: p }, { data: s }] = await Promise.all([
-        ordersQuery,
-        productsQuery,
-        sellersQuery,
-      ])
+      const [{ data: o }, { data: p }, { data: s }] =
+        await Promise.all([
+          ordersQuery,
+          productsQuery,
+          sellersQuery,
+        ])
 
-      // Admin filtra órdenes por campus de sus vendedores
+      // ADMIN campus → filtrar por campus vendedor
       let filteredOrders = o ?? []
+
       if (role === 'admin' && campusId) {
         filteredOrders = filteredOrders.filter(
-          (order: any) => order.seller?.campus_id === campusId
+          (order: any) =>
+            order.seller?.campus_id === campusId
         )
       }
 
