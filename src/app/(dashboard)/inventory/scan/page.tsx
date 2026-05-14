@@ -17,6 +17,31 @@ type ScannedItem = {
   quantity: number
 }
 
+type UserProfile = {
+  id: string
+  role: string | null
+  campus_id: string | null
+  campus?: any
+}
+
+function normalizeText(value: string | null | undefined) {
+  return String(value ?? '').trim()
+}
+
+function normalizeNumeric(value: string | null | undefined) {
+  return String(value ?? '').replace(/\D/g, '').trim()
+}
+
+function sameCode(input: string, sku?: string | null, barcode?: string | null) {
+  const raw = normalizeText(input).toLowerCase()
+  const numeric = normalizeNumeric(input)
+
+  return (
+    (!!sku && normalizeText(sku).toLowerCase() === raw) ||
+    (!!barcode && normalizeNumeric(barcode) === numeric)
+  )
+}
+
 export default function ScanInventoryPage() {
   const supabase = createClient()
   const { notify, success, error, close } = useNotify()
@@ -30,9 +55,9 @@ export default function ScanInventoryPage() {
   const [movType, setMovType] = useState<'entrada' | 'salida'>('entrada')
   const [notes, setNotes] = useState('')
   const [campusName, setCampusName] = useState('')
+  const [profile, setProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
-    // Focus the hidden input to capture scanner input
     inputRef.current?.focus()
     loadCampus()
   }, [])
@@ -40,12 +65,16 @@ export default function ScanInventoryPage() {
   async function loadCampus() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-    const { data: profile } = await supabase
+
+    const { data } = await supabase
       .from('profiles')
-      .select('campus_id, campus:campus_id(name)')
+      .select('id, role, campus_id, campus:campus_id(name)')
       .eq('id', session.user.id)
       .single()
-    const campus = (profile?.campus as any)
+
+    setProfile((data ?? null) as UserProfile | null)
+
+    const campus = (data?.campus as any)
     if (campus?.name) setCampusName(campus.name)
   }
 
@@ -59,77 +88,152 @@ export default function ScanInventoryPage() {
       if (!code) return
       await processBarcode(code)
     }
-  }, [scanBuffer, items])
+  }, [scanBuffer, items, profile, movType])
+
+  async function getCurrentProfile(sessionUserId: string) {
+    if (profile?.campus_id) return profile
+
+    const { data, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role, campus_id, campus:campus_id(name)')
+      .eq('id', sessionUserId)
+      .single()
+
+    if (profileError || !data) return null
+
+    setProfile(data as UserProfile)
+
+    const campus = (data?.campus as any)
+    if (campus?.name) setCampusName(campus.name)
+
+    return data as UserProfile
+  }
 
   async function processBarcode(code: string) {
+    const rawCode = normalizeText(code)
+    const numericCode = normalizeNumeric(code)
+
     setScanning(true)
-    setLastScanned(code)
+    setLastScanned(rawCode)
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { error('Sesión expirada'); setScanning(false); return }
+
+      if (!session) {
+        error('Sesión expirada')
+        setScanning(false)
+        return
+      }
+
+      const currentProfile = await getCurrentProfile(session.user.id)
+      const currentCampusId = currentProfile?.campus_id
+
+      if (!currentCampusId) {
+        error('Campus no encontrado', 'Tu usuario no tiene campus asignado')
+        setScanning(false)
+        return
+      }
 
       // Check if already in list
-      const existing = items.find(i => i.barcode === code || i.sku === code)
+      const existing = items.find(i => sameCode(rawCode, i.sku, i.barcode))
+
       if (existing) {
-        // Increment quantity
         setItems(prev => prev.map(i =>
-          (i.barcode === code || i.sku === code)
+          sameCode(rawCode, i.sku, i.barcode)
             ? { ...i, quantity: i.quantity + 1 }
             : i
         ))
+
+        setScanning(false)
+        inputRef.current?.focus()
+        return
+      }
+
+      // 1) Buscar producto base por barcode o SKU.
+      // No usamos products_with_stock porque esa vista depende del inventario/campus
+      // y puede fallar para entradas nuevas.
+      const orFilters = [
+        numericCode ? `barcode.eq.${numericCode}` : null,
+        rawCode ? `sku.eq.${rawCode}` : null,
+      ].filter(Boolean).join(',')
+
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .select('id, name, sku, barcode')
+        .or(orFilters)
+        .eq('active', true)
+        .maybeSingle()
+
+      if (productError) {
+        error('Error buscando producto', productError.message)
         setScanning(false)
         return
       }
 
-      // Obtener campus del usuario
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('campus_id')
-        .eq('id', session.user.id)
-        .single()
+      if (!product) {
+        error('Producto no encontrado', `No existe producto con código: ${rawCode}`)
+        setScanning(false)
+        return
+      }
 
-      const currentCampusId = profile?.campus_id
-
-      // Buscar producto SOLO del campus actual
-      const { data: products } = await supabase
-        .from('products_with_stock')
-        .select(`
-          id,
-          name,
-          sku,
-          barcode,
-          stock,
-          inventory_id,
-          campus_id
-        `)
+      // 2) Buscar inventario SOLO del campus actual.
+      const { data: inventory, error: inventoryError } = await supabase
+        .from('inventory')
+        .select('id, product_id, campus_id, stock')
+        .eq('product_id', product.id)
         .eq('campus_id', currentCampusId)
-        .or(`barcode.eq.${code},sku.eq.${code}`)
-        .limit(1)
+        .maybeSingle()
 
-      if (!products?.length) {
-        error('Producto no encontrado', `No existe producto con código: ${code}`)
+      if (inventoryError) {
+        error('Error buscando inventario', inventoryError.message)
         setScanning(false)
         return
       }
 
-      const p = products[0]
+      let inventoryRow = inventory
 
-      if (!p.inventory_id) {
-        error('Sin inventario', `El producto "${p.name}" no tiene inventario en este campus`)
+      // Si es entrada y no existe inventario en este campus, lo creamos en 0.
+      if (!inventoryRow && movType === 'entrada') {
+        const { data: createdInventory, error: createInventoryError } = await supabase
+          .from('inventory')
+          .insert({
+            product_id: product.id,
+            campus_id: currentCampusId,
+            stock: 0,
+            low_stock_alert: 5,
+            updated_by: session.user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .select('id, product_id, campus_id, stock')
+          .single()
+
+        if (createInventoryError || !createdInventory) {
+          error(
+            'Sin inventario',
+            createInventoryError?.message ?? `No se pudo crear inventario para "${product.name}" en este campus`
+          )
+          setScanning(false)
+          return
+        }
+
+        inventoryRow = createdInventory
+      }
+
+      if (!inventoryRow) {
+        error('Sin inventario', `El producto "${product.name}" no tiene inventario en este campus`)
         setScanning(false)
         return
       }
 
       setItems(prev => [...prev, {
-        product_id:    p.id,
-        inventory_id:  p.inventory_id,
-        campus_id:     p.campus_id,
-        name:          p.name,
-        sku:           p.sku ?? code,
-        barcode:       p.barcode ?? code,
-        current_stock: p.stock ?? 0,
-        quantity:      1,
+        product_id: product.id,
+        inventory_id: inventoryRow.id,
+        campus_id: currentCampusId,
+        name: product.name,
+        sku: product.sku ?? rawCode,
+        barcode: product.barcode ?? rawCode,
+        current_stock: Number(inventoryRow.stock ?? 0),
+        quantity: 1,
       }])
 
     } catch (e: any) {
@@ -154,11 +258,19 @@ export default function ScanInventoryPage() {
 
   // ── Confirm and save all movements ───────────────────────────────────────
   async function handleConfirm() {
-    if (!items.length) { error('Sin productos', 'Escanea al menos un producto'); return }
+    if (!items.length) {
+      error('Sin productos', 'Escanea al menos un producto')
+      return
+    }
 
     setSaving(true)
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { error('Sesión expirada'); setSaving(false); return }
+
+    if (!session) {
+      error('Sesión expirada')
+      setSaving(false)
+      return
+    }
 
     try {
       let successCount = 0
@@ -171,10 +283,10 @@ export default function ScanInventoryPage() {
         // Insert movement
         await supabase.from('inventory_movements').insert({
           product_id: item.product_id,
-          campus_id:  item.campus_id,
-          type:       movType,
-          quantity:   item.quantity,
-          notes:      notes.trim() || `${movType === 'entrada' ? 'Entrada' : 'Salida'} por escaneo`,
+          campus_id: item.campus_id,
+          type: movType,
+          quantity: item.quantity,
+          notes: notes.trim() || `${movType === 'entrada' ? 'Entrada' : 'Salida'} por escaneo`,
           created_by: session.user.id,
         })
 
@@ -199,6 +311,7 @@ export default function ScanInventoryPage() {
         `${successCount} producto${successCount > 1 ? 's' : ''} actualizados correctamente`,
         movType === 'entrada' ? '📦' : '✅'
       )
+
       setItems([])
       setNotes('')
       setLastScanned(null)
@@ -234,6 +347,7 @@ export default function ScanInventoryPage() {
           <Link href="/inventory" className="rounded-xl border border-zinc-700 p-2 text-zinc-400 hover:text-white transition">
             <ArrowLeft size={16} />
           </Link>
+
           <div>
             <h1 className="text-lg font-semibold text-white flex items-center gap-2">
               <Barcode size={18} className="text-amber-400" />
@@ -284,6 +398,7 @@ export default function ScanInventoryPage() {
         onClick={() => inputRef.current?.focus()}
       >
         <Barcode size={32} className={scanning ? 'text-amber-400' : 'text-zinc-600'} />
+
         <div>
           <p className={`font-semibold ${scanning ? 'text-amber-400' : 'text-zinc-400'}`}>
             {scanning ? 'Procesando...' : 'Zona de escaneo activa'}
@@ -302,7 +417,10 @@ export default function ScanInventoryPage() {
           onKeyDown={e => {
             if (e.key === 'Enter') {
               const val = (e.target as HTMLInputElement).value.trim()
-              if (val) { processBarcode(val); (e.target as HTMLInputElement).value = '' }
+              if (val) {
+                processBarcode(val)
+                ;(e.target as HTMLInputElement).value = ''
+              }
             }
           }}
         />
@@ -315,6 +433,7 @@ export default function ScanInventoryPage() {
             <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
               Productos escaneados ({items.length})
             </p>
+
             <button onClick={() => setItems([])} className="text-xs text-zinc-600 hover:text-red-400 transition">
               Limpiar todo
             </button>
@@ -325,17 +444,25 @@ export default function ScanInventoryPage() {
               <div key={item.product_id} className="flex items-center gap-3 px-4 py-3 bg-zinc-900">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{item.name}</p>
-                  <p className="text-xs text-zinc-500">{item.barcode} · Stock actual: {fmt(item.current_stock)}</p>
+                  <p className="text-xs text-zinc-500">
+                    {item.barcode} · Stock actual: {fmt(item.current_stock)}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => updateQty(item.product_id, -1)}
-                    className="h-7 w-7 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white flex items-center justify-center transition">
+                  <button
+                    onClick={() => updateQty(item.product_id, -1)}
+                    className="h-7 w-7 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white flex items-center justify-center transition"
+                  >
                     <Minus size={12} />
                   </button>
+
                   <span className="w-10 text-center text-sm font-bold text-white">{item.quantity}</span>
-                  <button onClick={() => updateQty(item.product_id, 1)}
-                    className="h-7 w-7 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white flex items-center justify-center transition">
+
+                  <button
+                    onClick={() => updateQty(item.product_id, 1)}
+                    className="h-7 w-7 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white flex items-center justify-center transition"
+                  >
                     <Plus size={12} />
                   </button>
                 </div>
@@ -344,6 +471,7 @@ export default function ScanInventoryPage() {
                   <p className={`text-xs font-bold ${movType === 'entrada' ? 'text-green-400' : 'text-red-400'}`}>
                     {movType === 'entrada' ? '+' : '-'}{item.quantity}
                   </p>
+
                   <p className="text-[10px] text-zinc-600">
                     → {movType === 'entrada' ? item.current_stock + item.quantity : Math.max(0, item.current_stock - item.quantity)}
                   </p>
@@ -368,6 +496,7 @@ export default function ScanInventoryPage() {
       ) : (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 py-12 text-center">
           <Package size={36} className="text-zinc-700" />
+
           <p className="mt-3 text-sm text-zinc-600">Escanea productos para comenzar</p>
           <p className="mt-1 text-xs text-zinc-700">
             Los productos con código EAN o SKU registrado aparecerán aquí
