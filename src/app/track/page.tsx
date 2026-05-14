@@ -24,8 +24,7 @@ export default function TrackLookupPage() {
 
     setError('')
 
-    // Navegación directa para evitar problemas con router.push en esta página pública.
-    window.location.href = `/track/${encodeURIComponent(clean)}`
+    window.location.assign(`/track/${encodeURIComponent(clean)}`)
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -98,12 +97,6 @@ export default function TrackLookupPage() {
                       setCode(e.target.value)
                       setError('')
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        goToTracking()
-                      }
-                    }}
                     placeholder="Ej: 1900d68993d74ba4..."
                     className="w-full rounded-2xl border border-white/10 bg-black/25 py-4 pl-12 pr-4 font-mono text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-500"
                     autoFocus
@@ -120,10 +113,6 @@ export default function TrackLookupPage() {
 
               <button
                 type="submit"
-                onClick={(e) => {
-                  e.preventDefault()
-                  goToTracking()
-                }}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-6 py-4 font-black text-black transition hover:scale-[1.01]"
               >
                 Ver seguimiento
