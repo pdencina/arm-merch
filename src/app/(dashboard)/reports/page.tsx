@@ -20,7 +20,7 @@ export default function ReportsPage() {
 
       if (!session) return
 
-      // PERFIL USUARIO
+      // PERFIL
       const { data: profile } = await supabase
         .from('profiles')
         .select(`
@@ -36,7 +36,7 @@ export default function ReportsPage() {
 
       setCampusName((profile?.campus as any)?.name ?? null)
 
-      // QUERY ÓRDENES
+      // ÓRDENES
       let ordersQuery = supabase
         .from('orders')
         .select(`
@@ -47,24 +47,20 @@ export default function ReportsPage() {
             product:products(*)
           )
         `)
-        .in('status', [
-          'paid',
-          'pending',
-          'completed',
-          'delivered',
-          'completada',
-          'entregada',
-        ])
+        .eq('status', 'paid')
         .order('created_at', { ascending: false })
 
+      // VOLUNTARIO SOLO VE SUS VENTAS
       if (role === 'voluntario') {
         ordersQuery = ordersQuery.eq('seller_id', session.user.id)
       }
 
-      const { data: ordersData } = await ordersQuery
+      const { data: ordersData, error: ordersError } = await ordersQuery
 
-      // OBTENER VENDEDORES MANUALMENTE
-      // Evita usar spread sobre Set para compatibilidad con el target TS del proyecto.
+      console.log('ORDERS ERROR:', ordersError)
+      console.log('ORDERS DATA:', ordersData)
+
+      // SELLERS IDS
       const sellerIds = Array.from(
         new Set(
           (ordersData ?? [])
@@ -73,6 +69,7 @@ export default function ReportsPage() {
         )
       )
 
+      // OBTENER VENDEDORES
       const { data: sellerProfiles } =
         sellerIds.length > 0
           ? await supabase
@@ -81,21 +78,27 @@ export default function ReportsPage() {
               .in('id', sellerIds)
           : { data: [] }
 
+      // MAPA SELLERS
       const sellerMap = Object.fromEntries(
-        (sellerProfiles ?? []).map((seller: any) => [seller.id, seller])
+        (sellerProfiles ?? []).map((seller: any) => [
+          seller.id,
+          seller,
+        ])
       )
 
+      // ENRIQUECER ÓRDENES
       const enrichedOrders = (ordersData ?? []).map((order: any) => ({
         ...order,
         seller: sellerMap[order.seller_id] ?? null,
       }))
 
-      // FILTRO ADMIN CAMPUS
+      // FILTRO CAMPUS ADMIN
       let filteredOrders = enrichedOrders
 
       if (role === 'admin' && campusId) {
         filteredOrders = enrichedOrders.filter(
-          (order: any) => order.seller?.campus_id === campusId
+          (order: any) =>
+            order.seller?.campus_id === campusId
         )
       }
 
