@@ -3,8 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Printer, Minus, Plus, Search,
-  Tag, CheckSquare, Square, Barcode, ArrowLeft,
+  Printer,
+  Minus,
+  Plus,
+  Search,
+  Tag,
+  CheckSquare,
+  Square,
+  Barcode,
+  ArrowLeft,
 } from 'lucide-react'
 import Link from 'next/link'
 import JsBarcode from 'jsbarcode'
@@ -14,6 +21,7 @@ type Product = {
   id: string
   name: string
   sku: string | null
+  barcode: string | null
   price: number
   category_name: string | null
 }
@@ -24,21 +32,76 @@ type LabelItem = {
 }
 
 // ─── Label sizes ─────────────────────────────────────────────────────────────
-// Tamaños en px aproximados para impresión desde navegador.
-// Recomendado para pistola 1D VS5907: large + CODE39.
+// Ahora la etiqueta imprime BARCODE numérico EAN13 si existe.
+// Si no existe, usa SKU como fallback CODE128.
 const LABEL_SIZES = {
-  small:  { label: 'Pequeña (50×25mm)', w: 189, h: 94,  fontSize: 8,  priceSize: 13, barcodeHeightRatio: 0.34, barcodeWidth: 1.7 },
-  medium: { label: 'Mediana (70×40mm)', w: 264, h: 151, fontSize: 10, priceSize: 16, barcodeHeightRatio: 0.36, barcodeWidth: 2.1 },
-  large:  { label: 'Grande (100×60mm)', w: 378, h: 227, fontSize: 12, priceSize: 22, barcodeHeightRatio: 0.38, barcodeWidth: 2.5 },
+  small: {
+    label: 'Pequeña (50×25mm)',
+    w: 189,
+    h: 94,
+    fontSize: 8,
+    priceSize: 13,
+    barcodeHeight: 34,
+    barcodeWidth: 1.35,
+    barcodeMargin: 8,
+  },
+  medium: {
+    label: 'Mediana (70×40mm)',
+    w: 264,
+    h: 151,
+    fontSize: 10,
+    priceSize: 16,
+    barcodeHeight: 56,
+    barcodeWidth: 1.6,
+    barcodeMargin: 12,
+  },
+  large: {
+    label: 'Grande (100×60mm)',
+    w: 378,
+    h: 227,
+    fontSize: 12,
+    priceSize: 22,
+    barcodeHeight: 82,
+    barcodeWidth: 2,
+    barcodeMargin: 20,
+  },
 }
 
 type SizeKey = keyof typeof LABEL_SIZES
 
-function cleanBarcodeValue(value: string) {
+function cleanSku(value: string) {
   return String(value ?? '')
     .replace(/[^A-Z0-9-]/gi, '')
     .toUpperCase()
     .trim()
+}
+
+function cleanBarcode(value: string | null | undefined) {
+  return String(value ?? '').replace(/\D/g, '').trim()
+}
+
+function isEan13(value: string) {
+  return /^\d{13}$/.test(value)
+}
+
+function getPrintCode(product: Product) {
+  const barcode = cleanBarcode(product.barcode)
+
+  if (isEan13(barcode)) {
+    return {
+      value: barcode,
+      format: 'EAN13' as const,
+      label: barcode,
+    }
+  }
+
+  const sku = cleanSku(product.sku ?? product.id.slice(0, 8))
+
+  return {
+    value: sku,
+    format: 'CODE128' as const,
+    label: sku,
+  }
 }
 
 function formatCurrency(n: number) {
@@ -56,101 +119,93 @@ function Label({
   showPrice,
   showSku,
   brandName,
-  containerWidth,
 }: {
   item: LabelItem
   size: SizeKey
   showPrice: boolean
   showSku: boolean
   brandName: string
-  containerWidth?: number
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const cfg = LABEL_SIZES[size]
-
-  // IMPORTANTE:
-  // El valor codificado debe ser SOLO el SKU limpio.
-  // No incluir marca, precio ni nombre dentro del barcode.
-  const sku = cleanBarcodeValue(
-    item.product.sku ?? item.product.id.slice(0, 8)
-  )
+  const code = getPrintCode(item.product)
 
   useEffect(() => {
-    if (!canvasRef.current || !sku) return
+    if (!svgRef.current || !code.value) return
 
     try {
-      JsBarcode(canvasRef.current, sku, {
-        format: 'CODE39',
+      JsBarcode(svgRef.current, code.value, {
+        format: code.format,
         width: cfg.barcodeWidth,
-        height: Math.floor(cfg.h * cfg.barcodeHeightRatio),
-        displayValue: false,
-        margin: 0,
+        height: cfg.barcodeHeight,
+        displayValue: code.format === 'EAN13',
+        fontSize: size === 'large' ? 14 : 10,
+        textMargin: 2,
+        margin: cfg.barcodeMargin,
         background: '#ffffff',
         lineColor: '#000000',
       })
     } catch (err) {
       console.error('Barcode error:', err)
     }
-  }, [sku, cfg])
+  }, [code.value, code.format, cfg, size])
 
   return (
     <div
       className="label-item flex flex-col items-center justify-between overflow-hidden border border-zinc-300 bg-white"
       style={{
-        width: containerWidth ?? cfg.w,
+        width: cfg.w,
         height: cfg.h,
         padding: size === 'large' ? '8px 12px' : '5px 8px',
         boxSizing: 'border-box',
       }}
     >
-      {/* Header */}
       <div
         className="flex w-full items-center justify-between gap-2"
         style={{ fontSize: cfg.fontSize - 1 }}
       >
-        <span className="truncate font-bold text-zinc-800">
-          {brandName}
-        </span>
+        <span className="truncate font-bold text-zinc-800">{brandName}</span>
 
         {showSku && (
           <span className="shrink-0 font-mono text-zinc-500">
-            {sku}
+            {item.product.sku ?? code.label}
           </span>
         )}
       </div>
 
-      {/* Product name */}
       <div
         className="w-full text-center font-semibold leading-tight text-zinc-900"
         style={{
           fontSize: cfg.fontSize,
-          maxHeight: cfg.h * 0.2,
+          maxHeight: cfg.h * 0.19,
           overflow: 'hidden',
         }}
       >
         {item.product.name}
       </div>
 
-      {/* Barcode */}
-      <div className="flex w-full justify-center">
-        <canvas
-          ref={canvasRef}
+      <div className="flex w-full justify-center bg-white">
+        <svg
+          ref={svgRef}
           style={{
-            width: cfg.w - (size === 'large' ? 36 : 22),
-            height: Math.floor(cfg.h * cfg.barcodeHeightRatio),
+            width: cfg.w - 24,
+            height:
+              cfg.barcodeHeight +
+              cfg.barcodeMargin * 2 +
+              (code.format === 'EAN13' ? 20 : 0),
+            display: 'block',
+            overflow: 'visible',
           }}
         />
       </div>
 
-      {/* SKU text */}
       <div
         className="w-full text-center font-mono font-semibold text-zinc-700"
         style={{ fontSize: cfg.fontSize - 1 }}
       >
-        {sku}
+        {code.label}
       </div>
 
-      {/* Price */}
       {showPrice && (
         <div
           className="w-full text-center font-black text-zinc-900"
@@ -172,7 +227,6 @@ export default function LabelsPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<LabelItem[]>([])
 
-  // Config recomendada para VS5907.
   const [size, setSize] = useState<SizeKey>('large')
   const [showPrice, setShowPrice] = useState(true)
   const [showSku, setShowSku] = useState(true)
@@ -190,7 +244,7 @@ export default function LabelsPage() {
 
     const { data } = await supabase
       .from('products')
-      .select('id, name, sku, price, category:categories(name)')
+      .select('id, name, sku, barcode, price, category:categories(name)')
       .eq('active', true)
       .order('name')
 
@@ -199,6 +253,7 @@ export default function LabelsPage() {
         id: p.id,
         name: p.name,
         sku: p.sku,
+        barcode: p.barcode,
         price: p.price,
         category_name: Array.isArray(p.category)
           ? p.category[0]?.name
@@ -233,16 +288,9 @@ export default function LabelsPage() {
   }
 
   function handlePrint() {
-    const printWin = window.open('', '_blank', 'width=900,height=700')
+    const printWin = window.open('', '_blank', 'width=1000,height=800')
 
     if (!printWin || !printRef.current) return
-
-    const canvases = printRef.current.querySelectorAll('canvas')
-    const canvasData: string[] = []
-
-    canvases.forEach((canvas) => {
-      canvasData.push(canvas.toDataURL('image/png'))
-    })
 
     const html = printRef.current.innerHTML
 
@@ -266,11 +314,12 @@ export default function LabelsPage() {
             }
 
             .print-grid {
-              display: flex;
-              flex-wrap: wrap;
+              display: grid;
+              grid-template-columns: repeat(${cols}, max-content);
               gap: 8px;
-              padding: 10px;
-              align-items: flex-start;
+              padding: 8px;
+              align-items: start;
+              justify-content: start;
             }
 
             .label-item {
@@ -285,12 +334,12 @@ export default function LabelsPage() {
               background: #fff;
             }
 
-            img {
-              image-rendering: crisp-edges;
+            svg {
+              overflow: visible !important;
             }
 
             @page {
-              margin: 8mm;
+              margin: 6mm;
             }
 
             @media print {
@@ -309,20 +358,10 @@ export default function LabelsPage() {
           <div class="print-grid">${html}</div>
 
           <script>
-            const imgs = document.querySelectorAll('canvas');
-            const data = ${JSON.stringify(canvasData)};
-
-            imgs.forEach((canvas, i) => {
-              const img = document.createElement('img');
-              img.src = data[i] || '';
-              img.style.cssText = canvas.style.cssText;
-              canvas.parentNode.replaceChild(img, canvas);
-            });
-
             setTimeout(() => {
               window.print();
               window.close();
-            }, 600);
+            }, 700);
           <\/script>
         </body>
       </html>
@@ -333,11 +372,14 @@ export default function LabelsPage() {
 
   const filtered = products.filter((p) => {
     const text = search.toLowerCase().trim()
+    const code = getPrintCode(p).label.toLowerCase()
 
     return (
       !text ||
       p.name.toLowerCase().includes(text) ||
-      (p.sku ?? '').toLowerCase().includes(text)
+      (p.sku ?? '').toLowerCase().includes(text) ||
+      (p.barcode ?? '').toLowerCase().includes(text) ||
+      code.includes(text)
     )
   })
 
@@ -347,7 +389,6 @@ export default function LabelsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
@@ -380,8 +421,7 @@ export default function LabelsPage() {
         )}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-        {/* LEFT: Product selector */}
+      <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
         <div className="space-y-4">
           <div className="relative">
             <Search
@@ -392,7 +432,7 @@ export default function LabelsPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar producto o SKU..."
+              placeholder="Buscar producto, SKU o barcode..."
               className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 pl-9 pr-4 text-sm text-white placeholder-zinc-600 transition focus:border-amber-500 focus:outline-none"
             />
           </div>
@@ -428,9 +468,7 @@ export default function LabelsPage() {
                     (s) => s.product.id === product.id
                   )
 
-                  const cleanSku = cleanBarcodeValue(
-                    product.sku ?? product.id.slice(0, 8)
-                  )
+                  const code = getPrintCode(product)
 
                   return (
                     <div
@@ -446,10 +484,7 @@ export default function LabelsPage() {
                         className="shrink-0"
                       >
                         {isSelected ? (
-                          <CheckSquare
-                            size={18}
-                            className="text-amber-400"
-                          />
+                          <CheckSquare size={18} className="text-amber-400" />
                         ) : (
                           <Square size={18} className="text-zinc-600" />
                         )}
@@ -460,8 +495,9 @@ export default function LabelsPage() {
                           {product.name}
                         </p>
 
-                        <div className="flex gap-2 text-[10px] text-zinc-600">
-                          <span>{cleanSku}</span>
+                        <div className="flex flex-wrap gap-2 text-[10px] text-zinc-600">
+                          {product.sku && <span>SKU: {product.sku}</span>}
+                          <span>Barcode: {code.label}</span>
                           {product.category_name && (
                             <span>· {product.category_name}</span>
                           )}
@@ -501,7 +537,6 @@ export default function LabelsPage() {
           </div>
         </div>
 
-        {/* RIGHT: Config + Preview */}
         <div className="space-y-4">
           <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
             <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
@@ -509,8 +544,9 @@ export default function LabelsPage() {
             </p>
 
             <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-xs leading-5 text-green-300">
-              Recomendado para VS5907: tamaño grande, 2 columnas y CODE39. El
-              código impreso contiene solo el SKU limpio.
+              Recomendado para VS5907: usar códigos numéricos EAN13 en
+              products.barcode. Si el producto no tiene barcode EAN13, imprimirá
+              SKU en CODE128 como respaldo.
             </div>
 
             <div>
@@ -564,7 +600,7 @@ export default function LabelsPage() {
               <input
                 type="range"
                 min={1}
-                max={4}
+                max={3}
                 value={cols}
                 onChange={(e) => setCols(Number(e.target.value))}
                 className="w-full accent-amber-500"
@@ -602,28 +638,26 @@ export default function LabelsPage() {
           {selected.length > 0 && (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
               <p className="mb-3 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                Vista previa
+                Vista previa / impresión
               </p>
 
               <div
                 ref={printRef}
-                className="print-grid flex max-h-[360px] flex-wrap gap-2 overflow-auto rounded-lg bg-white p-2"
+                className="print-grid grid max-h-[420px] gap-2 overflow-auto rounded-lg bg-white p-2"
+                style={{
+                  gridTemplateColumns: `repeat(${cols}, max-content)`,
+                }}
               >
-                {expandedLabels.map((item, i) => {
-                  const previewW = Math.floor((352 - (cols + 1) * 8) / cols)
-
-                  return (
-                    <Label
-                      key={i}
-                      item={item}
-                      size={size}
-                      showPrice={showPrice}
-                      showSku={showSku}
-                      brandName={brandName}
-                      containerWidth={previewW}
-                    />
-                  )
-                })}
+                {expandedLabels.map((item, i) => (
+                  <Label
+                    key={i}
+                    item={item}
+                    size={size}
+                    showPrice={showPrice}
+                    showSku={showSku}
+                    brandName={brandName}
+                  />
+                ))}
               </div>
 
               <p className="mt-2 text-center text-[10px] text-zinc-600">

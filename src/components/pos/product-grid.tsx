@@ -40,6 +40,10 @@ function normalizeCode(value: string) {
   return String(value ?? '').trim().toLowerCase()
 }
 
+function normalizeBarcode(value: string) {
+  return String(value ?? '').replace(/\D/g, '').trim()
+}
+
 export default function ProductGrid({ products, categories }: Props) {
   const { addItem } = useCart()
 
@@ -115,16 +119,21 @@ export default function ProductGrid({ products, categories }: Props) {
   const findProductByCode = useCallback(
     (code: string) => {
       const normalized = normalizeCode(code)
+      const numeric = normalizeBarcode(code)
 
       if (!normalized) return null
 
       return (
         liveProducts.find((p) => {
           const sku = normalizeCode(p.sku ?? '')
-          const barcode = normalizeCode(p.barcode ?? '')
+          const barcode = normalizeBarcode(p.barcode ?? '')
           const id = normalizeCode(p.id ?? '')
 
-          return sku === normalized || barcode === normalized || id === normalized
+          return (
+            sku === normalized ||
+            id === normalized ||
+            (!!numeric && barcode === numeric)
+          )
         }) ?? null
       )
     },
