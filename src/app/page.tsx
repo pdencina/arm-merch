@@ -8,9 +8,6 @@ import {
   Package,
   Truck,
   MapPin,
-  Shirt,
-  Coffee,
-  Tags,
   Sparkles,
   Clock3,
   LockKeyhole,
@@ -20,22 +17,26 @@ const categories = [
   {
     title: 'Ropa ARM',
     description: 'Poleras, polerones y prendas oficiales.',
-    icon: Shirt,
+    image: '👕',
+    gradient: 'from-zinc-900 via-zinc-800 to-zinc-700',
   },
   {
     title: 'Accesorios',
     description: 'Jockeys, lanyards, bolsos y más.',
-    icon: Tags,
+    image: '🧢',
+    gradient: 'from-neutral-900 via-zinc-800 to-slate-700',
   },
   {
     title: 'Hidratación',
     description: 'Botellas, aguas, jugos y bebidas.',
-    icon: Coffee,
+    image: '🥤',
+    gradient: 'from-zinc-900 via-slate-800 to-amber-700',
   },
   {
     title: 'Pedidos especiales',
     description: 'Productos a pedido y producción interna.',
-    icon: Package,
+    image: '📦',
+    gradient: 'from-neutral-900 via-zinc-800 to-stone-700',
   },
 ]
 
@@ -62,13 +63,34 @@ const steps = [
   },
 ]
 
+const showcase = [
+  {
+    name: 'Poleras oficiales',
+    detail: 'Ropa ARM',
+    image: '👕',
+  },
+  {
+    name: 'Polerones',
+    detail: 'Ediciones especiales',
+    image: '🧥',
+  },
+  {
+    name: 'Jockeys y accesorios',
+    detail: 'Identidad ARM',
+    image: '🧢',
+  },
+  {
+    name: 'Botellas y café',
+    detail: 'Uso diario',
+    image: '☕',
+  },
+]
+
 export default function HomePage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#06070A] text-white">
-      {/* Background */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,179,0,0.20),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(255,179,0,0.08),transparent_30%)]" />
 
-      {/* NAVBAR */}
       <header className="relative z-10 border-b border-white/5 bg-black/30 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-6">
           <div className="flex items-center gap-3">
@@ -94,18 +116,15 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 sm:text-sm"
-            >
-              Ingresar
-            </Link>
-          </div>
+          <Link
+            href="/login"
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 sm:text-sm"
+          >
+            Ingresar
+          </Link>
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative z-10">
         <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-24">
           <div>
@@ -162,7 +181,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Public showcase card */}
           <div className="relative">
             <div className="absolute -inset-6 rounded-[40px] bg-[#FFB300]/20 blur-3xl" />
 
@@ -184,28 +202,22 @@ export default function HomePage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    ['Poleras oficiales', 'Ropa ARM'],
-                    ['Polerones', 'Ediciones especiales'],
-                    ['Jockeys y accesorios', 'Identidad ARM'],
-                    ['Botellas y café', 'Uso diario'],
-                  ].map(([name, detail]) => (
+                  {showcase.map((item) => (
                     <div
-                      key={name}
-                      className="rounded-2xl border border-white/5 bg-white/[0.04] p-4"
+                      key={item.name}
+                      className="overflow-hidden rounded-2xl border border-white/5 bg-white/[0.04]"
                     >
-                      <div className="mb-4 flex h-24 items-center justify-center rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-800 text-4xl">
-                        {name.includes('Polera')
-                          ? '👕'
-                          : name.includes('Polerones')
-                            ? '🧥'
-                            : name.includes('Jockeys')
-                              ? '🧢'
-                              : '☕'}
+                      <div className="relative flex h-36 items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-700">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,179,0,0.24),transparent_48%)]" />
+                        <div className="relative flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-white/10 text-5xl shadow-2xl backdrop-blur">
+                          {item.image}
+                        </div>
                       </div>
 
-                      <p className="font-bold">{name}</p>
-                      <p className="mt-1 text-xs text-zinc-500">{detail}</p>
+                      <div className="p-4">
+                        <p className="font-bold">{item.name}</p>
+                        <p className="mt-1 text-xs text-zinc-500">{item.detail}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -225,7 +237,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CATEGORIES */}
       <section id="productos" className="relative z-10 border-t border-white/5 bg-[#F5F5F4] text-zinc-950">
         <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:py-20">
           <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -251,28 +262,32 @@ export default function HomePage() {
             {categories.map((category) => (
               <div
                 key={category.title}
-                className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
-                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFB300]/15 text-[#B77A00]">
-                  <category.icon size={26} />
+                <div className={`relative flex h-44 items-center justify-center bg-gradient-to-br ${category.gradient}`}>
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,179,0,0.28),transparent_50%)]" />
+                  <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white/10 text-6xl shadow-2xl backdrop-blur">
+                    {category.image}
+                  </div>
                 </div>
 
-                <h4 className="text-xl font-black">{category.title}</h4>
-                <p className="mt-2 text-sm leading-6 text-zinc-600">
-                  {category.description}
-                </p>
+                <div className="p-6">
+                  <h4 className="text-xl font-black">{category.title}</h4>
+                  <p className="mt-2 text-sm leading-6 text-zinc-600">
+                    {category.description}
+                  </p>
 
-                <p className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-blue-600">
-                  Ver pronto
-                  <ArrowRight size={14} />
-                </p>
+                  <p className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-blue-600">
+                    Ver pronto
+                    <ArrowRight size={14} />
+                  </p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
       <section id="como-funciona" className="relative z-10 border-t border-white/5 bg-[#0B0D12]">
         <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:py-20">
           <div className="mb-10">
@@ -310,7 +325,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA */}
       <section className="relative z-10 bg-[#FFB300] text-black">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-5 py-12 sm:px-6 md:flex-row md:items-center">
           <div>
@@ -332,7 +346,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer className="relative z-10 border-t border-white/5 bg-[#06070A]">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 px-5 py-8 text-sm text-zinc-500 sm:px-6 md:flex-row">
           <div className="flex items-center gap-2">
