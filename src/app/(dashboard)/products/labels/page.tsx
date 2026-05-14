@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Printer,
@@ -31,9 +31,6 @@ type LabelItem = {
   quantity: number
 }
 
-// ─── Label sizes ─────────────────────────────────────────────────────────────
-// Ahora la etiqueta imprime BARCODE numérico EAN13 si existe.
-// Si no existe, usa SKU como fallback CODE128.
 const LABEL_SIZES = {
   small: {
     label: 'Pequeña (50×25mm)',
@@ -112,6 +109,34 @@ function formatCurrency(n: number) {
   }).format(n)
 }
 
+function generateBarcodePng(
+  value: string,
+  format: 'EAN13' | 'CODE128',
+  cfg: (typeof LABEL_SIZES)[SizeKey],
+  size: SizeKey
+) {
+  if (typeof document === 'undefined') return ''
+
+  const canvas = document.createElement('canvas')
+
+  try {
+    JsBarcode(canvas, value, {
+      format,
+      width: cfg.barcodeWidth,
+      height: cfg.barcodeHeight,
+      displayValue: false,
+      margin: cfg.barcodeMargin,
+      background: '#ffffff',
+      lineColor: '#000000',
+    })
+
+    return canvas.toDataURL('image/png')
+  } catch (err) {
+    console.error('Barcode PNG error:', err)
+    return ''
+  }
+}
+
 // ─── Single Label Component ───────────────────────────────────────────────────
 function Label({
   item,
@@ -126,28 +151,11 @@ function Label({
   showSku: boolean
   brandName: string
 }) {
-  const svgRef = useRef<SVGSVGElement>(null)
   const cfg = LABEL_SIZES[size]
   const code = getPrintCode(item.product)
 
-  useEffect(() => {
-    if (!svgRef.current || !code.value) return
-
-    try {
-      JsBarcode(svgRef.current, code.value, {
-        format: code.format,
-        width: cfg.barcodeWidth,
-        height: cfg.barcodeHeight,
-        displayValue: code.format === 'EAN13',
-        fontSize: size === 'large' ? 14 : 10,
-        textMargin: 2,
-        margin: cfg.barcodeMargin,
-        background: '#ffffff',
-        lineColor: '#000000',
-      })
-    } catch (err) {
-      console.error('Barcode error:', err)
-    }
+  const barcodeSrc = useMemo(() => {
+    return generateBarcodePng(code.value, code.format, cfg, size)
   }, [code.value, code.format, cfg, size])
 
   return (
@@ -177,33 +185,45 @@ function Label({
         className="w-full text-center font-semibold leading-tight text-zinc-900"
         style={{
           fontSize: cfg.fontSize,
-          maxHeight: cfg.h * 0.19,
+          maxHeight: cfg.h * 0.18,
           overflow: 'hidden',
         }}
       >
         {item.product.name}
       </div>
 
-      <div className="flex w-full justify-center bg-white">
-        <svg
-          ref={svgRef}
-          style={{
-            width: cfg.w - 24,
-            height:
-              cfg.barcodeHeight +
-              cfg.barcodeMargin * 2 +
-              (code.format === 'EAN13' ? 20 : 0),
-            display: 'block',
-            overflow: 'visible',
-          }}
-        />
-      </div>
+      <div className="flex w-full flex-col items-center justify-center bg-white">
+        {barcodeSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={barcodeSrc}
+            alt={code.label}
+            className="barcode-img"
+            style={{
+              width: cfg.w - 36,
+              height: cfg.barcodeHeight + cfg.barcodeMargin * 2,
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <div
+            className="flex items-center justify-center text-xs text-red-500"
+            style={{
+              width: cfg.w - 36,
+              height: cfg.barcodeHeight + cfg.barcodeMargin * 2,
+            }}
+          >
+            Error barcode
+          </div>
+        )}
 
-      <div
-        className="w-full text-center font-mono font-semibold text-zinc-700"
-        style={{ fontSize: cfg.fontSize - 1 }}
-      >
-        {code.label}
+        <div
+          className="w-full text-center font-mono font-bold text-black"
+          style={{ fontSize: cfg.fontSize }}
+        >
+          {code.label}
+        </div>
       </div>
 
       {showPrice && (
@@ -334,8 +354,9 @@ export default function LabelsPage() {
               background: #fff;
             }
 
-            svg {
-              overflow: visible !important;
+            .barcode-img {
+              image-rendering: crisp-edges;
+              image-rendering: pixelated;
             }
 
             @page {
@@ -544,9 +565,8 @@ export default function LabelsPage() {
             </p>
 
             <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-xs leading-5 text-green-300">
-              Recomendado para VS5907: usar códigos numéricos EAN13 en
-              products.barcode. Si el producto no tiene barcode EAN13, imprimirá
-              SKU en CODE128 como respaldo.
+              Ahora el barcode se genera como imagen PNG. Debe verse con barras
+              negras y número abajo. Recomendado: productos con barcode EAN13.
             </div>
 
             <div>
