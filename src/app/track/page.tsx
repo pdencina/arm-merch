@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -12,13 +11,10 @@ import {
 } from 'lucide-react'
 
 export default function TrackLookupPage() {
-  const router = useRouter()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
+  function goToTracking() {
     const clean = code.trim()
 
     if (!clean) {
@@ -27,7 +23,14 @@ export default function TrackLookupPage() {
     }
 
     setError('')
-    router.push(`/track/${encodeURIComponent(clean)}`)
+
+    // Navegación directa para evitar problemas con router.push en esta página pública.
+    window.location.href = `/track/${encodeURIComponent(clean)}`
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    goToTracking()
   }
 
   return (
@@ -95,9 +98,16 @@ export default function TrackLookupPage() {
                       setCode(e.target.value)
                       setError('')
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        goToTracking()
+                      }
+                    }}
                     placeholder="Ej: 1900d68993d74ba4..."
                     className="w-full rounded-2xl border border-white/10 bg-black/25 py-4 pl-12 pr-4 font-mono text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-500"
                     autoFocus
+                    autoComplete="off"
                   />
                 </div>
 
@@ -110,6 +120,10 @@ export default function TrackLookupPage() {
 
               <button
                 type="submit"
+                onClick={(e) => {
+                  e.preventDefault()
+                  goToTracking()
+                }}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-6 py-4 font-black text-black transition hover:scale-[1.01]"
               >
                 Ver seguimiento
