@@ -20,9 +20,14 @@ export default function ReportsPage() {
 
       if (!session) return
 
+      // PERFIL USUARIO
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role, campus_id, campus:campus(name)')
+        .select(`
+          role,
+          campus_id,
+          campus:campus(name)
+        `)
         .eq('id', session.user.id)
         .single()
 
@@ -31,25 +36,15 @@ export default function ReportsPage() {
 
       setCampusName((profile?.campus as any)?.name ?? null)
 
-      // ÓRDENES
+      // QUERY ÓRDENES
       let ordersQuery = supabase
         .from('orders')
         .select(`
-          id,
-          order_number,
-          total,
-          discount,
-          status,
-          payment_method,
-          created_at,
-          seller_id,
-          notes,
-          seller:profiles(full_name, campus_id),
-          order_contacts(client_name, client_email),
+          *,
+          order_contacts(*),
           order_items(
-            quantity,
-            unit_price,
-            product:products(name)
+            *,
+            product:products(*)
           )
         `)
         .in('status', [
@@ -58,12 +53,50 @@ export default function ReportsPage() {
           'completed',
           'delivered',
           'completada',
-          'entregada',
+          'entregada'
         ])
         .order('created_at', { ascending: false })
 
       if (role === 'voluntario') {
         ordersQuery = ordersQuery.eq('seller_id', session.user.id)
+      }
+
+      const { data: ordersData } = await ordersQuery
+
+      // OBTENER VENDEDORES MANUALMENTE
+      const sellerIds = [
+        ...new Set(
+          (ordersData ?? [])
+            .map((order) => order.seller_id)
+            .filter(Boolean)
+        ),
+      ]
+
+      const { data: sellerProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, campus_id')
+        .in('id', sellerIds)
+
+      const sellerMap = Object.fromEntries(
+        (sellerProfiles ?? []).map((seller) => [
+          seller.id,
+          seller,
+        ])
+      )
+
+      const enrichedOrders = (ordersData ?? []).map((order) => ({
+        ...order,
+        seller: sellerMap[order.seller_id] ?? null,
+      }))
+
+      // FILTRO ADMIN CAMPUS
+      let filteredOrders = enrichedOrders
+
+      if (role === 'admin' && campusId) {
+        filteredOrders = enrichedOrders.filter(
+          (order: any) =>
+            order.seller?.campus_id === campusId
+        )
       }
 
       // PRODUCTOS
@@ -76,6 +109,8 @@ export default function ReportsPage() {
         productsQuery = productsQuery.eq('campus_id', campusId)
       }
 
+      const { data: productsData } = await productsQuery
+
       // VENDEDORES
       let sellersQuery = supabase
         .from('profiles')
@@ -86,26 +121,11 @@ export default function ReportsPage() {
         sellersQuery = sellersQuery.eq('campus_id', campusId)
       }
 
-      const [{ data: o }, { data: p }, { data: s }] =
-        await Promise.all([
-          ordersQuery,
-          productsQuery,
-          sellersQuery,
-        ])
+      const { data: sellersData } = await sellersQuery
 
-      // ADMIN campus → filtrar por campus vendedor
-      let filteredOrders = o ?? []
-
-      if (role === 'admin' && campusId) {
-        filteredOrders = filteredOrders.filter(
-          (order: any) =>
-            order.seller?.campus_id === campusId
-        )
-      }
-
-      setOrders(filteredOrders)
-      setProducts(p ?? [])
-      setSellers(s ?? [])
+      setOrders(filteredOrders ?? [])
+      setProducts(productsData ?? [])
+      setSellers(sellersData ?? [])
     }
 
     load()
