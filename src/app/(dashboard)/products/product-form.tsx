@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { NotifyModal, useNotify } from '@/components/ui/notify-modal'
+import { Barcode, CheckCircle2, ScanLine, XCircle } from 'lucide-react'
 
 type Category = {
   id: string
@@ -20,9 +21,28 @@ type UserProfile = {
   campus?: { name?: string }[] | { name?: string } | null
 }
 
+function normalizeBarcode(value: string) {
+  return String(value ?? '').replace(/\D/g, '').trim()
+}
+
+function normalizeSku(value: string) {
+  return String(value ?? '').trim().toUpperCase()
+}
+
+function getBarcodeType(value: string) {
+  const clean = normalizeBarcode(value)
+
+  if (/^\d{13}$/.test(clean)) return 'EAN13 / comercial'
+  if (/^\d{8,14}$/.test(clean)) return 'Código numérico'
+  if (value.trim()) return 'Código interno'
+  return ''
+}
+
 export default function ProductForm() {
   const supabase = createClient()
   const { notify, success, error: notifyError, close } = useNotify()
+
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
@@ -35,9 +55,16 @@ export default function ProductForm() {
   const [name, setName] = useState('')
   const [price, setPrice] = useState(0)
   const [sku, setSku] = useState('')
+  const [barcode, setBarcode] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
+
+  const [capturingBarcode, setCapturingBarcode] = useState(false)
+  const [barcodeStatus, setBarcodeStatus] = useState<{
+    type: 'ok' | 'error' | 'info'
+    message: string
+  } | null>(null)
 
   const [campusStocks, setCampusStocks] = useState<
     {
@@ -55,6 +82,8 @@ export default function ProductForm() {
     if (!imageFile) return ''
     return URL.createObjectURL(imageFile)
   }, [imageFile])
+
+  const barcodeType = useMemo(() => getBarcodeType(barcode), [barcode])
 
   useEffect(() => {
     return () => {
@@ -140,6 +169,79 @@ export default function ProductForm() {
     loadFormData()
   }, [supabase])
 
+  function startBarcodeCapture() {
+    setCapturingBarcode(true)
+    setBarcodeStatus({
+      type: 'info',
+      message: 'Esperando scanner USB. Escanea el código del producto.',
+    })
+
+    setTimeout(() => {
+      barcodeInputRef.current?.focus()
+      barcodeInputRef.current?.select()
+    }, 50)
+  }
+
+  function handleBarcodeChange(value: string) {
+    const next = value.trim()
+    setBarcode(next)
+
+    if (!next) {
+      setBarcodeStatus(null)
+      return
+    }
+
+    const clean = normalizeBarcode(next)
+
+    if (/^\d{13}$/.test(clean)) {
+      setBarcodeStatus({
+        type: 'ok',
+        message: 'Código EAN13 detectado. Ideal para productos comerciales.',
+      })
+      return
+    }
+
+    if (/^\d{8,14}$/.test(clean)) {
+      setBarcodeStatus({
+        type: 'ok',
+        message: 'Código numérico detectado.',
+      })
+      return
+    }
+
+    setBarcodeStatus({
+      type: 'info',
+      message: 'Código alfanumérico detectado. Útil como código interno.',
+    })
+  }
+
+  async function validateBarcodeBeforeSubmit() {
+    const normalized = barcode.trim()
+
+    if (!normalized) return true
+
+    const { data: existingBarcode, error: barcodeError } = await supabase
+      .from('products')
+      .select('id, name')
+      .eq('barcode', normalized)
+      .maybeSingle()
+
+    if (barcodeError) {
+      notifyError('Error validando código', barcodeError.message)
+      return false
+    }
+
+    if (existingBarcode) {
+      notifyError(
+        'Código ya registrado',
+        `Este código pertenece a: ${existingBarcode.name}`
+      )
+      return false
+    }
+
+    return true
+  }
+
   async function uploadImage(): Promise<string | null> {
     if (!imageFile) return null
 
@@ -206,6 +308,10 @@ export default function ProductForm() {
       return
     }
 
+    const barcodeIsValid = await validateBarcodeBeforeSubmit()
+
+    if (!barcodeIsValid) return
+
     setLoading(true)
 
     try {
@@ -237,7 +343,8 @@ export default function ProductForm() {
             name: name.trim(),
             description: description.trim() || null,
             price: Number(price),
-            sku: sku.trim() || null,
+            sku: normalizeSku(sku) || null,
+            barcode: barcode.trim() || null,
             category_id: categoryId || null,
             image_url: imageUrl,
             active: true,
@@ -276,11 +383,28 @@ export default function ProductForm() {
 
   return (
     <div className="space-y-6">
+      <NotifyModal notify={notify} onClose={close} />
+
       <div>
         <h2 className="text-xl font-bold text-white">Nuevo Producto</h2>
         <p className="mt-1 text-sm text-zinc-500">
           Crea un producto y define en qué campus estará disponible.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+        <div className="flex items-start gap-3">
+          <Barcode className="mt-0.5 text-amber-400" size={18} />
+          <div>
+            <p className="text-sm font-semibold text-amber-300">
+              Productos comerciales y productos ARM
+            </p>
+            <p className="mt-1 text-xs leading-5 text-amber-100/80">
+              Para productos comerciales como aguas, bebidas, jugos o snacks, escanea el código real del envase.
+              Para productos ARM sin código propio, puedes dejar el barcode vacío y generar etiquetas internas después.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -289,7 +413,7 @@ export default function ProductForm() {
             Nombre del producto
           </label>
           <input
-            placeholder="Ej: Agenda ARM 2025"
+            placeholder="Ej: Agua con gas 500ml"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={fieldClassName}
@@ -310,11 +434,95 @@ export default function ProductForm() {
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-zinc-400">SKU</label>
           <input
-            placeholder="Ej: ARM-AGE-2025-001"
+            placeholder="Ej: BEB-AGUA-CG-500"
             value={sku}
             onChange={(e) => setSku(e.target.value)}
+            onBlur={() => setSku(normalizeSku(sku))}
             className={fieldClassName}
           />
+          <p className="text-[11px] text-zinc-500">
+            Código interno de ARM Merch para ordenar productos y reportes.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-medium text-zinc-400">
+              Código de barras
+            </label>
+
+            {barcodeType && (
+              <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold text-zinc-300">
+                {barcodeType}
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              ref={barcodeInputRef}
+              placeholder="Escanea o escribe el código del envase"
+              value={barcode}
+              onChange={(e) => handleBarcodeChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const clean = (e.target as HTMLInputElement).value.trim()
+                  handleBarcodeChange(clean)
+                  setCapturingBarcode(false)
+                  barcodeInputRef.current?.blur()
+                }
+              }}
+              className={fieldClassName}
+            />
+
+            <button
+              type="button"
+              onClick={startBarcodeCapture}
+              className={`inline-flex min-w-[128px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
+                capturingBarcode
+                  ? 'bg-green-500 text-black'
+                  : 'bg-zinc-800 text-white hover:bg-zinc-700'
+              }`}
+            >
+              {capturingBarcode ? (
+                <>
+                  <ScanLine size={15} />
+                  Escanea
+                </>
+              ) : (
+                <>
+                  <Barcode size={15} />
+                  Capturar
+                </>
+              )}
+            </button>
+          </div>
+
+          {barcodeStatus && (
+            <div
+              className={`mt-1 flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${
+                barcodeStatus.type === 'ok'
+                  ? 'border border-green-500/20 bg-green-500/10 text-green-300'
+                  : barcodeStatus.type === 'error'
+                    ? 'border border-red-500/20 bg-red-500/10 text-red-300'
+                    : 'border border-blue-500/20 bg-blue-500/10 text-blue-300'
+              }`}
+            >
+              {barcodeStatus.type === 'ok' ? (
+                <CheckCircle2 size={14} />
+              ) : barcodeStatus.type === 'error' ? (
+                <XCircle size={14} />
+              ) : (
+                <ScanLine size={14} />
+              )}
+              {barcodeStatus.message}
+            </div>
+          )}
+
+          <p className="text-[11px] text-zinc-500">
+            Para productos comerciales, usa el código real del envase. Ej: 7798346408279.
+          </p>
         </div>
 
         <div className="flex flex-col gap-1">
