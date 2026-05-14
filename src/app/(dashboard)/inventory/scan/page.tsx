@@ -46,6 +46,7 @@ export default function ScanInventoryPage() {
   const supabase = createClient()
   const { notify, success, error, close } = useNotify()
   const inputRef = useRef<HTMLInputElement>(null)
+  const itemsRef = useRef<ScannedItem[]>([])
 
   const [scanBuffer, setScanBuffer] = useState('')
   const [items, setItems] = useState<ScannedItem[]>([])
@@ -61,6 +62,10 @@ export default function ScanInventoryPage() {
     inputRef.current?.focus()
     loadCampus()
   }, [])
+
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
 
   async function loadCampus() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -134,15 +139,22 @@ export default function ScanInventoryPage() {
         return
       }
 
-      // Check if already in list
-      const existing = items.find(i => sameCode(rawCode, i.sku, i.barcode))
+      // Check if already in list.
+      // Usamos itemsRef para evitar duplicados cuando el scanner lee muy rápido
+      // antes de que React alcance a refrescar el estado visual.
+      const existing = itemsRef.current.find(i => sameCode(rawCode, i.sku, i.barcode))
 
       if (existing) {
-        setItems(prev => prev.map(i =>
-          sameCode(rawCode, i.sku, i.barcode)
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
-        ))
+        setItems(prev => {
+          const updated = prev.map(i =>
+            sameCode(rawCode, i.sku, i.barcode)
+              ? { ...i, quantity: i.quantity + 1 }
+              : i
+          )
+
+          itemsRef.current = updated
+          return updated
+        })
 
         setScanning(false)
         inputRef.current?.focus()
@@ -225,7 +237,7 @@ export default function ScanInventoryPage() {
         return
       }
 
-      setItems(prev => [...prev, {
+      const newItem: ScannedItem = {
         product_id: product.id,
         inventory_id: inventoryRow.id,
         campus_id: currentCampusId,
@@ -234,7 +246,23 @@ export default function ScanInventoryPage() {
         barcode: product.barcode ?? rawCode,
         current_stock: Number(inventoryRow.stock ?? 0),
         quantity: 1,
-      }])
+      }
+
+      setItems(prev => {
+        // Doble validación por si entraron dos lecturas casi al mismo tiempo.
+        const alreadyExists = prev.some(i => sameCode(rawCode, i.sku, i.barcode))
+
+        const updated = alreadyExists
+          ? prev.map(i =>
+              sameCode(rawCode, i.sku, i.barcode)
+                ? { ...i, quantity: i.quantity + 1 }
+                : i
+            )
+          : [...prev, newItem]
+
+        itemsRef.current = updated
+        return updated
+      })
 
     } catch (e: any) {
       error('Error', e.message)
@@ -313,6 +341,7 @@ export default function ScanInventoryPage() {
       )
 
       setItems([])
+      itemsRef.current = []
       setNotes('')
       setLastScanned(null)
 
@@ -434,7 +463,7 @@ export default function ScanInventoryPage() {
               Productos escaneados ({items.length})
             </p>
 
-            <button onClick={() => setItems([])} className="text-xs text-zinc-600 hover:text-red-400 transition">
+            <button onClick={() => { setItems([]); itemsRef.current = [] }} className="text-xs text-zinc-600 hover:text-red-400 transition">
               Limpiar todo
             </button>
           </div>
