@@ -1,2 +1,5 @@
-import { redirect } from 'next/navigation'
-export default function SettingsPage() { redirect('/settings/users') }
+import ReadersManager from '@/components/settings/readers-manager'
+
+export default function SumUpReadersPage() {
+  return <ReadersManager />
+}
