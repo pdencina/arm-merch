@@ -307,19 +307,22 @@ export default function CheckoutModal({
         onConfirm={handleConfirmSale}
       />
 
-      <SaleSuccessModal
-        open={successOpen}
-        orderId={createdOrderId}
-        orderNumber={createdOrderNumber}
-        total={createdOrderTotal}
-        clientName={clientName}
-        clientEmail={clientEmail}
-        emailSent={emailSent}
-        onNewSale={() => {
-          setSuccessOpen(false)
-          onNewSale()
-        }}
-      />
+<SaleSuccessModal
+  open={successOpen}
+  orderId={createdOrderId}
+  orderNumber={createdOrderNumber}
+  total={createdOrderTotal}
+  clientName={clientName}
+  clientEmail={clientEmail}
+  emailSent={emailSent}
+  onNewSale={() => {
+    setSuccessOpen(false)
+    onNewSale()
+  }}
+  onClose={() => {
+    setSuccessOpen(false)
+  }}
+/>
 
       <AnimatePresence>
         {sumupPendingOpen && (
