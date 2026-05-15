@@ -1017,17 +1017,19 @@ export default function Cart() {
         </div>
       )}
 
-      {/* MODAL ÉXITO */}
-      {createdOrder && (
-        <SaleSuccessModal
-          open={successOpen}
-          orderId={createdOrder.id}
-          orderNumber={createdOrder.number}
-          total={createdOrder.total}
-          emailSent={createdOrder.emailSent}
-          onNewSale={() => setSuccessOpen(false)}
-        />
-      )}
-    </>
-  )
-}
+{/* MODAL ÉXITO */}
+{createdOrder && (
+  <SaleSuccessModal
+    open={successOpen}
+    orderId={createdOrder.id}
+    orderNumber={createdOrder.number}
+    total={createdOrder.total}
+    emailSent={createdOrder.emailSent}
+    onNewSale={() => {
+      setSuccessOpen(false)
+    }}
+    onClose={() => {
+      setSuccessOpen(false)
+    }}
+  />
+)}
