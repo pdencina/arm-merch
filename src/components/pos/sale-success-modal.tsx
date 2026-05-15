@@ -3,7 +3,14 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckCircle2, Printer, Receipt, Plus, Mail } from 'lucide-react'
+import {
+  CheckCircle2,
+  Printer,
+  Receipt,
+  Plus,
+  Mail,
+  X,
+} from 'lucide-react'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-CL', {
@@ -65,6 +72,7 @@ interface Props {
   clientEmail?: string
   emailSent?: boolean | null
   onNewSale: () => void
+  onClose: () => void
 }
 
 export default function SaleSuccessModal({
@@ -76,6 +84,7 @@ export default function SaleSuccessModal({
   clientEmail,
   emailSent,
   onNewSale,
+  onClose,
 }: Props) {
   useEffect(() => {
     if (open) playSuccessSound()
@@ -99,6 +108,14 @@ export default function SaleSuccessModal({
           >
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-green-400 via-emerald-300 to-green-500" />
 
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-white"
+            >
+              <X size={18} />
+            </button>
+
             <div className="px-6 pb-6 pt-7">
               <div className="text-center">
                 <motion.div
@@ -115,8 +132,8 @@ export default function SaleSuccessModal({
                 </h2>
 
                 <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-400">
-                  La orden fue registrada correctamente. Puedes imprimir el voucher,
-                  revisar la orden o comenzar una nueva venta.
+                  La orden fue registrada correctamente. Puedes imprimir el
+                  voucher, revisar la orden o comenzar una nueva venta.
                 </p>
               </div>
 
@@ -126,6 +143,7 @@ export default function SaleSuccessModal({
                     <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                       Orden
                     </p>
+
                     <p className="mt-2 text-xl font-bold text-white">
                       #{orderNumber}
                     </p>
@@ -135,6 +153,7 @@ export default function SaleSuccessModal({
                     <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                       Total
                     </p>
+
                     <p className="mt-2 text-xl font-bold text-amber-400">
                       {formatCurrency(total)}
                     </p>
@@ -146,6 +165,7 @@ export default function SaleSuccessModal({
                     <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                       Cliente
                     </p>
+
                     <p className="mt-2 text-sm font-semibold text-white">
                       {clientName || 'Cliente'}
                     </p>
@@ -193,14 +213,25 @@ export default function SaleSuccessModal({
                 </Link>
               </div>
 
-              <button
-                type="button"
-                onClick={onNewSale}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-200 transition hover:bg-zinc-800 active:scale-[0.99]"
-              >
-                <Plus size={16} />
-                Nueva venta
-              </button>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={onNewSale}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500 px-4 py-3 text-sm font-bold text-black transition hover:bg-amber-400 active:scale-[0.99]"
+                >
+                  <Plus size={16} />
+                  Nueva venta
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-200 transition hover:bg-zinc-800 active:scale-[0.99]"
+                >
+                  <X size={16} />
+                  Cerrar
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>
