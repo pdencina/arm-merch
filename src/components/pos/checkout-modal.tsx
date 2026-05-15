@@ -319,6 +319,9 @@ export default function CheckoutModal({
           setSuccessOpen(false)
           onNewSale()
         }}
+        onClose={() => {
+          setSuccessOpen(false)
+        }}
       />
 
       <AnimatePresence>
