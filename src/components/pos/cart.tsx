@@ -238,10 +238,8 @@ export default function Cart() {
   const paymentOptions = [
     { key: "efectivo", label: "Efectivo", icon: Banknote },
     { key: "transferencia", label: "Transfer.", icon: Landmark },
-    { key: "debito", label: "Débito", icon: CreditCard },
-    { key: "credito", label: "Crédito", icon: Wallet },
+    { key: "solo", label: "SumUp SOLO", icon: CreditCard },
     { key: "link", label: "Link pago", icon: Link },
-    { key: "sumup", label: "Smart POS", icon: CreditCard },
   ];
 
   // 🔥 Actualiza el stock visual del catálogo sin recargar la página.
@@ -400,6 +398,101 @@ export default function Cart() {
     paymentQrCheckoutRef,
   ]);
 
+  async function startSoloPolling(order: {
+    id: string;
+    number: string | number;
+    total: number;
+  }) {
+    if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+
+    setSumupPolling(true);
+    setSumupStatus("waiting");
+    setVerifyError(null);
+    setVerifySuccess("💳 Cobro enviado a la máquina SumUp SOLO. Esperando pago del cliente...");
+
+    let attempts = 0;
+    const maxAttempts = 90; // 90 * 2s = 3 minutos
+
+    const check = async () => {
+      attempts += 1;
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          setVerifyError("Sesión expirada. Recarga la página.");
+          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+          setSumupPolling(false);
+          return;
+        }
+
+        const res = await fetch("/api/sumup/solo-status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ order_id: order.id }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          setVerifyError(data?.error ?? "No se pudo consultar el estado del pago SOLO.");
+          return;
+        }
+
+        const orderStatus = String(data?.order_status ?? "").toLowerCase();
+        const readerStatus = data?.reader_status?.data;
+
+        if (readerStatus?.status || readerStatus?.state) {
+          setVerifySuccess(
+            `💳 SOLO: ${readerStatus?.status ?? "ONLINE"} · ${readerStatus?.state ?? "Esperando acción"}`,
+          );
+        }
+
+        if (["paid", "pagado", "approved", "completed", "success", "successful"].includes(orderStatus)) {
+          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+          setSumupPolling(false);
+          setSumupStatus("found");
+          setVerifySuccess("✅ Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
+          setCreatedOrder({
+            id: order.id,
+            number: data?.order_number ?? order.number,
+            total: order.total,
+            emailSent: data?.email_sent,
+          });
+          notifyLocalStockDiscount();
+          setClientPhone("");
+          clearCart();
+          return;
+        }
+
+        if (["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(orderStatus)) {
+          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+          setSumupPolling(false);
+          setSumupStatus("timeout");
+          setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+          setSumupPolling(false);
+          setSumupStatus("timeout");
+          setVerifyError("No se recibió confirmación automática en 3 minutos. Revisa SumUp antes de entregar el producto.");
+        }
+      } catch (error: any) {
+        setVerifyError(error?.message ?? "Error consultando el pago SOLO.");
+      }
+    };
+
+    await check();
+    sumupPollRef.current = setInterval(check, 2000);
+  }
+
   // ── confirmar venta ──
   // ── Verificar pago Smart POS en SumUp ─────────────────────────────────────
   async function handleVerifySumup() {
@@ -500,6 +593,82 @@ export default function Cart() {
         .select("campus_id")
         .eq("id", session.user.id)
         .single();
+
+      // ── SumUp SOLO Cloud API: envía el cobro directo a la máquina ──
+      if (paymentMethod === "solo") {
+        const orderRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            campus_id: profile?.campus_id ?? null,
+            payment_method: "sumup",
+            items: items.map((i) => ({
+              product_id: i.product.id,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              discount_pct: i.discount_pct,
+              size: i.size ?? null,
+            })),
+            client_name: clientName.trim() || null,
+            client_email: clientEmail.trim() || null,
+            client_phone: clientPhone.trim() || null,
+            notes: "SumUp SOLO - pago enviado al lector",
+            delivery_status: isPendingDelivery ? "pending" : null,
+          }),
+        });
+
+        const orderData = await orderRes.json().catch(() => null);
+
+        if (!orderRes.ok) {
+          setVerifyError(orderData?.error ?? "Error al registrar la orden SOLO");
+          setSubmitting(false);
+          return;
+        }
+
+        const orderId = orderData.order_id;
+        const orderNumber = orderData.order_number ?? orderId;
+        const orderTotal = total();
+
+        const soloRes = await fetch("/api/sumup/solo-checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            order_id: orderId,
+            amount: orderTotal,
+          }),
+        });
+
+        const soloData = await soloRes.json().catch(() => null);
+
+        if (!soloRes.ok || !soloData?.success) {
+          setVerifyError(soloData?.error ?? "No se pudo enviar el cobro a SumUp SOLO");
+          setSubmitting(false);
+          return;
+        }
+
+        const orderPayload = {
+          id: orderId,
+          number: orderNumber,
+          total: orderTotal,
+        };
+
+        setSumupSmartOrder(orderPayload);
+        setTxCode("");
+        setVerifyError(null);
+        setVerifySuccess(`Cobro enviado a ${soloData?.reader?.name ?? "SumUp SOLO"}`);
+        setSumupStatus("waiting");
+        setSumupSmartOpen(true);
+        setSubmitting(false);
+
+        await startSoloPolling(orderPayload);
+        return;
+      }
 
       // ── Si es Smart POS, crear orden pending y pedir código TX ──
       if (paymentMethod === "sumup") {
@@ -675,8 +844,8 @@ export default function Cart() {
       if (tag === "input" || tag === "textarea") return;
       if (e.key === "1") setPaymentMethod("efectivo");
       if (e.key === "2") setPaymentMethod("transferencia");
-      if (e.key === "3") setPaymentMethod("debito");
-      if (e.key === "4") setPaymentMethod("credito");
+      if (e.key === "3") setPaymentMethod("solo");
+      if (e.key === "4") setPaymentMethod("link");
       if (e.key === "Enter" && canSubmit) {
         e.preventDefault();
         handleConfirmSale();
@@ -954,13 +1123,13 @@ export default function Cart() {
               <>
                 <div className="mb-4 text-6xl">💳</div>
                 <h2 className="mb-2 text-xl font-bold text-white">
-                  Validar Smart POS
+                  Cobro enviado a SumUp SOLO
                 </h2>
                 <p className="mb-1 text-sm text-zinc-400">
-                  Cobra primero en la máquina SumUp.
+                  La máquina debe mostrar el monto para que el cliente pague con tarjeta.
                 </p>
                 <p className="mb-5 text-xs text-zinc-600">
-                  Luego ingresa el código de transacción que aparece en el comprobante.
+                  No cierres esta ventana hasta recibir confirmación automática.
                 </p>
 
                 <div className="rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 mb-5 text-left space-y-2">
@@ -971,7 +1140,7 @@ export default function Cart() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-zinc-500">Total a cobrar</span>
+                    <span className="text-zinc-500">Total enviado</span>
                     <span className="font-bold text-amber-400 text-base">
                       {fmt(sumupSmartOrder.total)}
                     </span>
@@ -979,22 +1148,16 @@ export default function Cart() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-500">Estado</span>
                     <span className="text-amber-400">
-                      ⏳ Pendiente de código TX
+                      {sumupPolling ? "⏳ Esperando pago" : "⏳ Consultando"}
                     </span>
                   </div>
                 </div>
 
-                <div className="mb-3 text-left">
-                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                    Código de transacción SumUp
-                  </label>
-                  <input
-                    value={txCode}
-                    onChange={(e) => setTxCode(e.target.value.toUpperCase())}
-                    placeholder="Ej: TAAA23DNLKC"
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-center text-sm font-bold tracking-widest text-white placeholder-zinc-600 outline-none transition focus:border-amber-500/50"
-                  />
-                </div>
+                {verifySuccess && (
+                  <p className="mb-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300">
+                    {verifySuccess}
+                  </p>
+                )}
 
                 {verifyError && (
                   <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
@@ -1002,22 +1165,10 @@ export default function Cart() {
                   </p>
                 )}
 
-                {verifySuccess && (
-                  <p className="mb-3 rounded-xl border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs text-green-300">
-                    {verifySuccess}
-                  </p>
-                )}
-
-                <button
-                  onClick={handleVerifySumup}
-                  disabled={verifying || !txCode.trim()}
-                  className="mb-3 w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {verifying ? "Validando..." : "Validar transacción"}
-                </button>
-
                 <button
                   onClick={() => {
+                    if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+                    setSumupPolling(false);
                     setSumupSmartOpen(false);
                     setVerifyError(null);
                     setVerifySuccess(null);
@@ -1025,7 +1176,7 @@ export default function Cart() {
                   }}
                   className="w-full rounded-2xl border border-zinc-700 py-2.5 text-sm text-zinc-400 transition hover:border-zinc-500 hover:text-white"
                 >
-                  Cancelar
+                  Cerrar monitoreo
                 </button>
               </>
             )}
@@ -1043,7 +1194,7 @@ export default function Cart() {
                   </strong>
                 </p>
                 <p className="mb-6 text-xs text-zinc-600">
-                  El pago fue detectado en SumUp y la venta fue registrada.
+                  El pago fue confirmado automáticamente por SumUp SOLO y la venta fue registrada.
                 </p>
                 <button
                   onClick={() => {
