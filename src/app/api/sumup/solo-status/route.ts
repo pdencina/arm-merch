@@ -429,9 +429,9 @@ export async function POST(req: NextRequest) {
     if (auth.errorResponse) return auth.errorResponse
 
     const { adminClient, profile } = auth
-    const { sumupApiKey, sumupMerchantCode, sumupApiBase } = getEnv()
+    const { sumupApiKey, sumupApiBase } = getEnv()
 
-    if (!sumupApiKey || !sumupMerchantCode) {
+    if (!sumupApiKey) {
       return NextResponse.json(
         {
           success: false,
@@ -534,9 +534,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const statusUrl = `${sumupApiBase}/v0.1/merchants/${encodeURIComponent(
-      sumupMerchantCode,
-    )}/readers/${encodeURIComponent(readerId)}/status`
+    const checkoutId = order.sumup_checkout_id
+
+    if (!checkoutId) {
+      return NextResponse.json(
+        {
+          success: false,
+          final: false,
+          status: 'pending',
+          order_status: 'pending',
+          message: 'La orden aún no tiene sumup_checkout_id',
+          order_number: order.order_number,
+        },
+        { status: 200 },
+      )
+    }
+
+    const statusUrl = `${sumupApiBase}/v0.1/checkouts/${encodeURIComponent(
+      checkoutId,
+    )}`
 
     const sumupRes = await fetch(statusUrl, {
       method: 'GET',
@@ -557,7 +573,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[SOLO Status] SumUp HTTP:', sumupRes.status)
-    console.log('[SOLO Status] SumUp payload:', JSON.stringify(sumupStatusPayload))
+    console.log('[SOLO Status] SumUp checkout payload:', JSON.stringify(sumupStatusPayload))
 
     if (!sumupRes.ok) {
       return NextResponse.json(
@@ -573,7 +589,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const readerStatus = extractReaderStatus(sumupStatusPayload)
+    const readerStatus = normalize(
+      sumupStatusPayload?.status ??
+        sumupStatusPayload?.transaction?.status ??
+        sumupStatusPayload?.transactions?.[0]?.status ??
+        sumupStatusPayload?.checkout_status
+    )
+
     const transactionCode = extractTransactionCode(sumupStatusPayload)
 
     if (PAID_STATUSES.includes(readerStatus)) {
