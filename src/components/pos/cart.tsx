@@ -444,37 +444,72 @@ export default function Cart() {
           return;
         }
 
-        const orderStatus = String(data?.order_status ?? "").toLowerCase();
-        const readerStatus = data?.reader_status?.data;
+        const orderStatus = String(
+          data?.order_status ?? data?.status ?? data?.sumup_status ?? ""
+        ).toLowerCase();
 
-        if (readerStatus?.status || readerStatus?.state) {
-          setVerifySuccess(
-            `💳 SOLO: ${readerStatus?.status ?? "ONLINE"} · ${readerStatus?.state ?? "Esperando acción"}`,
-          );
-        }
+        const readerStatusRaw =
+          data?.reader_status?.data ??
+          data?.reader_status ??
+          data?.sumup?.data ??
+          data?.sumup ??
+          null;
 
-        if (["paid", "pagado", "approved", "completed", "success", "successful"].includes(orderStatus)) {
+        const readerStatusText = String(
+          readerStatusRaw?.status ??
+            readerStatusRaw?.state ??
+            data?.reader_status ??
+            "Esperando acción"
+        );
+
+        setVerifySuccess(
+          `💳 SOLO: ${readerStatusText} · Esperando respuesta del cliente...`
+        );
+
+        if (
+          data?.final === true &&
+          (data?.paid === true ||
+            ["paid", "pagado", "approved", "completed", "success", "successful"].includes(orderStatus))
+        ) {
           if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+
           setSumupPolling(false);
           setSumupStatus("found");
           setVerifySuccess("✅ Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
+
           setCreatedOrder({
             id: order.id,
             number: data?.order_number ?? order.number,
             total: order.total,
-            emailSent: data?.email_sent,
+            emailSent: Boolean(data?.email_sent),
           });
+
           notifyLocalStockDiscount();
           setClientPhone("");
           clearCart();
+
+          setTimeout(() => {
+            setSumupSmartOpen(false);
+            setSuccessOpen(true);
+            setVerifyError(null);
+            setVerifySuccess(null);
+            setTxCode("");
+          }, 700);
+
           return;
         }
 
-        if (["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(orderStatus)) {
+        if (
+          data?.final === true &&
+          (data?.paid === false ||
+            ["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(orderStatus))
+        ) {
           if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+
           setSumupPolling(false);
           setSumupStatus("timeout");
           setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
+
           return;
         }
 
@@ -1165,44 +1200,19 @@ export default function Cart() {
                   </p>
                 )}
 
-<button
-  onClick={async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.access_token && sumupSmartOrder?.id) {
-        await fetch("/api/sumup/solo-terminate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            order_id: sumupSmartOrder.id,
-          }),
-        });
-      }
-    } catch (e) {
-      console.error("Error cancelando SOLO:", e);
-    }
-
-    if (sumupPollRef.current) {
-      clearInterval(sumupPollRef.current);
-    }
-
-    setSumupPolling(false);
-    setSumupSmartOpen(false);
-    setVerifyError(null);
-    setVerifySuccess(null);
-    setTxCode("");
-    setSumupStatus("waiting");
-  }}
-  className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/20 hover:text-white"
->
-  Cancelar cobro
-</button>
+                <button
+                  onClick={() => {
+                    if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+                    setSumupPolling(false);
+                    setSumupSmartOpen(false);
+                    setVerifyError(null);
+                    setVerifySuccess(null);
+                    setTxCode("");
+                  }}
+                  className="w-full rounded-2xl border border-zinc-700 py-2.5 text-sm text-zinc-400 transition hover:border-zinc-500 hover:text-white"
+                >
+                  Cerrar monitoreo
+                </button>
               </>
             )}
 
@@ -1224,13 +1234,14 @@ export default function Cart() {
                 <button
                   onClick={() => {
                     setSumupSmartOpen(false);
+                    setSuccessOpen(true);
                     setTxCode("");
                     setVerifyError(null);
                     setVerifySuccess(null);
                   }}
                   className="w-full rounded-2xl bg-green-500 py-3 text-sm font-bold text-white transition hover:bg-green-400"
                 >
-                  Nueva venta
+                  Ver confirmación
                 </button>
               </>
             )}
