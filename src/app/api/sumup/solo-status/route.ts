@@ -25,17 +25,6 @@ const FAILED_STATUSES = [
   'ERROR',
 ]
 
-const WAITING_STATUSES = [
-  'ONLINE',
-  'PROCESSING',
-  'WAITING_FOR_CARD',
-  'WAITING_FOR_PIN',
-  'WAITING_FOR_CUSTOMER',
-  'PENDING',
-  'SENT_TO_READER',
-  'CREATED',
-]
-
 function normalize(value: unknown) {
   return String(value ?? '').trim().toUpperCase()
 }
@@ -62,10 +51,12 @@ function getEnv() {
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     sumupApiKey: process.env.SUMUP_API_KEY,
-    sumupMerchantCode: process.env.SUMUP_MERCHANT_CODE,
     sumupApiBase: process.env.SUMUP_API_BASE || 'https://api.sumup.com',
     resendApiKey: process.env.RESEND_API_KEY,
-    fromEmail: process.env.RESEND_FROM_EMAIL || process.env.FROM_EMAIL || 'no-reply@armerch.com',
+    fromEmail:
+      process.env.RESEND_FROM_EMAIL ||
+      process.env.FROM_EMAIL ||
+      'no-reply@armerch.com',
   }
 }
 
@@ -82,7 +73,12 @@ async function getAuth(req: NextRequest) {
   }
 
   const token = authHeader.replace('Bearer ', '').trim()
-  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getEnv()
+
+  const {
+    supabaseUrl,
+    supabaseAnonKey,
+    serviceRoleKey,
+  } = getEnv()
 
   if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
     return {
@@ -94,8 +90,12 @@ async function getAuth(req: NextRequest) {
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey)
+
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
   })
 
   const {
@@ -112,68 +112,127 @@ async function getAuth(req: NextRequest) {
     }
   }
 
-  const { data: profile, error: profileError } = await adminClient
-    .from('profiles')
-    .select('id, role, campus_id')
-    .eq('id', user.id)
-    .single()
+  return {
+    adminClient,
+    user,
+  }
+}
 
-  if (profileError || !profile) {
-    return {
-      errorResponse: NextResponse.json(
-        { success: false, error: 'No se pudo cargar el perfil' },
-        { status: 403 },
-      ),
+function extractReferenceFromNotes(notes?: string | null) {
+  const text = String(notes ?? '')
+
+  const refMatch =
+    text.match(/Ref:\s*([^|]+)/i) ||
+    text.match(/checkout_reference:\s*([^|]+)/i) ||
+    text.match(/arm-merch-order-[^\s|]+/i)
+
+  return String(refMatch?.[1] ?? refMatch?.[0] ?? '').trim()
+}
+
+function getTransactionArray(payload: any): any[] {
+  if (!payload) return []
+
+  if (Array.isArray(payload)) return payload
+
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.transactions)) return payload.transactions
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload?.data?.items)) return payload.data.items
+  if (Array.isArray(payload?.data?.transactions)) return payload.data.transactions
+
+  if (
+    payload?.id ||
+    payload?.transaction_id ||
+    payload?.transaction_code ||
+    payload?.status
+  ) {
+    return [payload]
+  }
+
+  return []
+}
+
+function getTxStatus(tx: any) {
+  return normalize(
+    tx?.status ??
+      tx?.transaction_status ??
+      tx?.state ??
+      tx?.payment_status,
+  )
+}
+
+function getTxReference(tx: any) {
+  return String(
+    tx?.checkout_reference ??
+      tx?.foreign_transaction_id ??
+      tx?.client_transaction_id ??
+      tx?.transaction_id ??
+      tx?.id ??
+      tx?.transaction_code ??
+      tx?.description ??
+      '',
+  )
+}
+
+function getTxAmount(tx: any) {
+  const value =
+    tx?.amount ??
+    tx?.total_amount?.value ??
+    tx?.amount_money?.amount ??
+    tx?.transaction_amount ??
+    tx?.gross_amount
+
+  const parsed = Number(value ?? 0)
+
+  // Algunos endpoints devuelven CLP como 100 y otros como 10000 con minor_unit.
+  if (parsed > 1000 && Number(tx?.total_amount?.minor_unit ?? 0) === 2) {
+    return Math.round(parsed / 100)
+  }
+
+  return Math.round(parsed)
+}
+
+async function fetchRecentSumUpTransactions(apiBase: string, apiKey: string) {
+  const urls = [
+    `${apiBase}/v0.1/me/transactions?limit=20`,
+    `${apiBase}/v0.1/me/transactions/history?limit=20`,
+  ]
+
+  const all: any[] = []
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      })
+
+      const text = await res.text()
+
+      let payload: any = {}
+
+      try {
+        payload = JSON.parse(text)
+      } catch {
+        payload = { raw: text }
+      }
+
+      console.log('[SOLO Status] Transactions URL:', url, 'HTTP:', res.status)
+      console.log('[SOLO Status] Transactions payload:', JSON.stringify(payload))
+
+      if (res.ok) {
+        all.push(...getTransactionArray(payload))
+      }
+    } catch (error) {
+      console.error('[SOLO Status] Transactions query error:', error)
     }
   }
 
-  return { adminClient, user, profile }
-}
-
-function extractReaderStatus(payload: any) {
-  return normalize(
-    payload?.status ??
-      payload?.state ??
-      payload?.data?.status ??
-      payload?.data?.state ??
-      payload?.reader_status ??
-      payload?.reader_status?.status ??
-      payload?.reader_status?.state ??
-      payload?.reader_status?.data?.status ??
-      payload?.reader_status?.data?.state ??
-      payload?.device_status ??
-      payload?.device_status?.status ??
-      payload?.device_status?.state ??
-      payload?.checkout_status ??
-      payload?.checkout?.status ??
-      payload?.data?.checkout?.status ??
-      payload?.transaction_status ??
-      payload?.transaction?.status ??
-      payload?.data?.transaction?.status ??
-      payload?.last_transaction?.status ??
-      payload?.data?.last_transaction?.status ??
-      payload?.transactions?.[0]?.status ??
-      payload?.data?.transactions?.[0]?.status
-  )
-}
-
-function extractTransactionCode(payload: any) {
-  return (
-    payload?.transaction_code ??
-    payload?.transaction?.transaction_code ??
-    payload?.data?.transaction?.transaction_code ??
-    payload?.last_transaction?.transaction_code ??
-    payload?.data?.last_transaction?.transaction_code ??
-    payload?.transactions?.[0]?.transaction_code ??
-    payload?.data?.transactions?.[0]?.transaction_code ??
-    payload?.transaction?.id ??
-    payload?.data?.transaction?.id ??
-    payload?.last_transaction?.id ??
-    payload?.data?.last_transaction?.id ??
-    payload?.transactions?.[0]?.id ??
-    payload?.data?.transactions?.[0]?.id ??
-    null
-  )
+  return all
 }
 
 async function sendVoucherEmail({
@@ -215,7 +274,10 @@ async function sendVoucherEmail({
         const sizeLabel = item.size
           ? `<br/><span style="font-size:11px;color:#71717a;">Talla: ${esc(item.size)}</span>`
           : ''
-        const lineTotal = Number(item.unit_price ?? 0) * Number(item.quantity ?? 0)
+
+        const quantity = Number(item.quantity ?? 0)
+        const unitPrice = Number(item.unit_price ?? 0)
+        const lineTotal = quantity * unitPrice
 
         return `
           <tr>
@@ -223,7 +285,7 @@ async function sendVoucherEmail({
               ${productName}${sizeLabel}
             </td>
             <td style="padding:12px 8px;border-bottom:1px solid #e4e4e7;text-align:center;font-size:14px;color:#52525b;">
-              ${Number(item.quantity ?? 0)}
+              ${quantity}
             </td>
             <td style="padding:12px 8px;border-bottom:1px solid #e4e4e7;text-align:right;font-size:14px;font-weight:700;color:#18181b;">
               ${fmtCLP(lineTotal)}
@@ -243,15 +305,9 @@ async function sendVoucherEmail({
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e4e4e7;">
           <tr>
             <td style="background:#111827;padding:28px 32px;text-align:center;">
-              <div style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#f59e0b;font-weight:700;">
-                ARM Merch
-              </div>
-              <h1 style="margin:12px 0 0;font-size:26px;line-height:1.2;color:#ffffff;">
-                Compra confirmada
-              </h1>
-              <p style="margin:8px 0 0;font-size:14px;color:#d4d4d8;">
-                Orden #${esc(order.order_number)}
-              </p>
+              <div style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#f59e0b;font-weight:700;">ARM Merch</div>
+              <h1 style="margin:12px 0 0;font-size:26px;line-height:1.2;color:#ffffff;">Compra confirmada</h1>
+              <p style="margin:8px 0 0;font-size:14px;color:#d4d4d8;">Orden #${esc(order.order_number)}</p>
             </td>
           </tr>
 
@@ -281,22 +337,18 @@ async function sendVoucherEmail({
                 </tr>
               </table>
 
-              ${transactionCode ? `
-              <p style="margin:10px 0 0;font-size:12px;color:#71717a;">
-                Transacción: ${esc(transactionCode)}
-              </p>
-              ` : ''}
+              ${
+                transactionCode
+                  ? `<p style="margin:10px 0 0;font-size:12px;color:#71717a;">Transacción: ${esc(transactionCode)}</p>`
+                  : ''
+              }
             </td>
           </tr>
 
           <tr>
             <td style="background:#f9fafb;padding:22px 32px;text-align:center;border-top:1px solid #e4e4e7;">
-              <p style="margin:0 0 6px;font-size:13px;color:#71717a;">
-                ¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.
-              </p>
-              <p style="margin:0;font-size:12px;color:#a1a1aa;">
-                ARM Merch · ARM Global · armerch.com
-              </p>
+              <p style="margin:0 0 6px;font-size:13px;color:#71717a;">¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.</p>
+              <p style="margin:0;font-size:12px;color:#a1a1aa;">ARM Merch · ARM Global · armerch.com</p>
             </td>
           </tr>
         </table>
@@ -334,13 +386,11 @@ async function markOrderPaid({
   adminClient,
   order,
   transactionCode,
-  readerId,
   rawStatus,
 }: {
   adminClient: any
   order: any
   transactionCode?: string | null
-  readerId?: string | null
   rawStatus?: string | null
 }) {
   if (order.status === 'paid') {
@@ -351,9 +401,7 @@ async function markOrderPaid({
     .from('orders')
     .update({
       status: 'paid',
-      notes: `SumUp SOLO pagado | Reader: ${readerId ?? 'N/A'} | TX: ${
-        transactionCode ?? 'N/A'
-      } | Estado: ${rawStatus ?? 'PAID'}`,
+      notes: `${order.notes ?? ''} | SumUp SOLO pagado | TX: ${transactionCode ?? 'N/A'} | Estado: ${rawStatus ?? 'PAID'}`,
       updated_at: new Date().toISOString(),
     })
     .eq('id', order.id)
@@ -362,7 +410,7 @@ async function markOrderPaid({
     throw new Error(updateError.message)
   }
 
-  // Stock: solo se descuenta aquí, después del pago aprobado.
+  // Stock: solo se descuenta aquí, después de pago aprobado.
   // Si el pago falla/cancela/expira, este bloque no se ejecuta.
   for (const item of order.order_items ?? []) {
     const { error: movementError } = await adminClient
@@ -372,9 +420,7 @@ async function markOrderPaid({
         campus_id: order.campus_id,
         type: 'salida',
         quantity: item.quantity,
-        notes: `SumUp SOLO - Orden #${order.order_number} - TX ${
-          transactionCode ?? 'N/A'
-        }`,
+        notes: `SumUp SOLO - Orden #${order.order_number} - TX ${transactionCode ?? 'N/A'}`,
       })
 
     if (movementError) {
@@ -394,26 +440,21 @@ async function markOrderPaid({
 async function markOrderFailed({
   adminClient,
   order,
-  readerId,
   rawStatus,
 }: {
   adminClient: any
   order: any
-  readerId?: string | null
   rawStatus?: string | null
 }) {
   if (order.status === 'paid' || order.status === 'cancelled') {
     return
   }
 
-  // Importante: en pagos rechazados/cancelados NO se descuenta inventario.
   const { error } = await adminClient
     .from('orders')
     .update({
       status: 'cancelled',
-      notes: `SumUp SOLO rechazado/cancelado | Reader: ${
-        readerId ?? 'N/A'
-      } | Estado: ${rawStatus ?? 'FAILED'}`,
+      notes: `${order.notes ?? ''} | SumUp SOLO rechazado/cancelado | Estado: ${rawStatus ?? 'FAILED'}`,
       updated_at: new Date().toISOString(),
     })
     .eq('id', order.id)
@@ -428,22 +469,18 @@ export async function POST(req: NextRequest) {
     const auth = await getAuth(req)
     if (auth.errorResponse) return auth.errorResponse
 
-    const { adminClient, profile } = auth
+    const { adminClient } = auth
     const { sumupApiKey, sumupApiBase } = getEnv()
 
     if (!sumupApiKey) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Faltan variables SUMUP_API_KEY o SUMUP_MERCHANT_CODE',
-        },
+        { success: false, error: 'Falta variable SUMUP_API_KEY' },
         { status: 500 },
       )
     }
 
     const body = await req.json().catch(() => ({}))
     const orderId = String(body?.order_id ?? '').trim()
-    const readerIdFromBody = body?.reader_id ? String(body.reader_id) : null
 
     if (!orderId) {
       return NextResponse.json(
@@ -460,8 +497,8 @@ export async function POST(req: NextRequest) {
         campus_id,
         status,
         total,
-        sumup_checkout_id,
         notes,
+        sumup_checkout_id,
         order_items(product_id, quantity, unit_price, size)
       `)
       .eq('id', orderId)
@@ -474,6 +511,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 1) Fuente principal: la orden local.
+    // Si webhook u otro endpoint ya la marcó pagada, el modal se cierra.
     if (order.status === 'paid') {
       return NextResponse.json({
         success: true,
@@ -500,154 +539,87 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const campusId = order.campus_id ?? profile.campus_id
+    const reference = extractReferenceFromNotes(order.notes)
+    const expectedAmount = Math.round(Number(order.total ?? 0))
 
-    let readerId = readerIdFromBody
+    // 2) Fallback SOLO: si SumUp no entrega checkout_id, buscamos en transacciones recientes.
+    const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey)
 
-    if (!readerId) {
-      const { data: reader, error: readerError } = await adminClient
-        .from('sumup_readers')
-        .select('reader_id, name')
-        .eq('campus_id', campusId)
-        .eq('active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    const match = transactions.find((tx) => {
+      const status = getTxStatus(tx)
+      const txReference = getTxReference(tx)
+      const txAmount = getTxAmount(tx)
 
-      if (readerError) {
-        return NextResponse.json(
-          { success: false, error: readerError.message },
-          { status: 400 },
-        )
-      }
+      const referenceMatches =
+        Boolean(reference && txReference.includes(reference)) ||
+        txReference.includes(String(order.order_number)) ||
+        String(tx?.description ?? '').includes(String(order.order_number))
 
-      readerId = reader?.reader_id ?? null
-    }
+      const amountMatches =
+        expectedAmount > 0 &&
+        (txAmount === expectedAmount || Math.abs(txAmount - expectedAmount) <= 1)
 
-    if (!readerId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'No hay lector SumUp SOLO activo para esta orden',
-        },
-        { status: 404 },
-      )
-    }
+      const statusIsFinal =
+        PAID_STATUSES.includes(status) || FAILED_STATUSES.includes(status)
 
-    const checkoutId = order.sumup_checkout_id
-
-    if (!checkoutId) {
-      return NextResponse.json(
-        {
-          success: false,
-          final: false,
-          status: 'pending',
-          order_status: 'pending',
-          message: 'La orden aún no tiene sumup_checkout_id',
-          order_number: order.order_number,
-        },
-        { status: 200 },
-      )
-    }
-
-    const statusUrl = `${sumupApiBase}/v0.1/checkouts/${encodeURIComponent(
-      checkoutId,
-    )}`
-
-    const sumupRes = await fetch(statusUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${sumupApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
+      return statusIsFinal && (referenceMatches || amountMatches)
     })
 
-    const rawText = await sumupRes.text()
-    let sumupStatusPayload: any = {}
+    if (match) {
+      const status = getTxStatus(match)
+      const transactionCode =
+        match?.transaction_code ??
+        match?.transaction_id ??
+        match?.client_transaction_id ??
+        match?.id ??
+        null
 
-    try {
-      sumupStatusPayload = JSON.parse(rawText)
-    } catch {
-      sumupStatusPayload = { raw: rawText }
+      if (PAID_STATUSES.includes(status)) {
+        const { emailSent } = await markOrderPaid({
+          adminClient,
+          order,
+          transactionCode,
+          rawStatus: status,
+        })
+
+        return NextResponse.json({
+          success: true,
+          final: true,
+          paid: true,
+          status: 'paid',
+          order_status: 'paid',
+          message: '✅ Pago aprobado en SumUp SOLO',
+          order_number: order.order_number,
+          transaction_code: transactionCode,
+          sumup_status: status,
+          email_sent: emailSent,
+          matched_by: 'recent_transactions',
+          sumup: match,
+        })
+      }
+
+      if (FAILED_STATUSES.includes(status)) {
+        await markOrderFailed({
+          adminClient,
+          order,
+          rawStatus: status,
+        })
+
+        return NextResponse.json({
+          success: true,
+          final: true,
+          paid: false,
+          status: 'cancelled',
+          order_status: 'cancelled',
+          message: '❌ Pago rechazado/cancelado en SumUp SOLO',
+          order_number: order.order_number,
+          sumup_status: status,
+          email_sent: false,
+          matched_by: 'recent_transactions',
+          sumup: match,
+        })
+      }
     }
-
-    console.log('[SOLO Status] SumUp HTTP:', sumupRes.status)
-    console.log('[SOLO Status] SumUp checkout payload:', JSON.stringify(sumupStatusPayload))
-
-    if (!sumupRes.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          final: false,
-          status: 'error',
-          order_status: 'error',
-          message: 'No se pudo consultar el estado del SOLO',
-          detail: sumupStatusPayload,
-        },
-        { status: 400 },
-      )
-    }
-
-    const readerStatus = normalize(
-      sumupStatusPayload?.status ??
-        sumupStatusPayload?.transaction?.status ??
-        sumupStatusPayload?.transactions?.[0]?.status ??
-        sumupStatusPayload?.checkout_status
-    )
-
-    const transactionCode = extractTransactionCode(sumupStatusPayload)
-
-    if (PAID_STATUSES.includes(readerStatus)) {
-      const { emailSent } = await markOrderPaid({
-        adminClient,
-        order,
-        transactionCode,
-        readerId,
-        rawStatus: readerStatus,
-      })
-
-      return NextResponse.json({
-        success: true,
-        final: true,
-        paid: true,
-        status: 'paid',
-        order_status: 'paid',
-        message: '✅ Pago aprobado en SumUp SOLO',
-        order_number: order.order_number,
-        transaction_code: transactionCode,
-        reader_status: readerStatus,
-        email_sent: emailSent,
-        sumup: sumupStatusPayload,
-      })
-    }
-
-    if (FAILED_STATUSES.includes(readerStatus)) {
-      await markOrderFailed({
-        adminClient,
-        order,
-        readerId,
-        rawStatus: readerStatus,
-      })
-
-      return NextResponse.json({
-        success: true,
-        final: true,
-        paid: false,
-        status: 'cancelled',
-        order_status: 'cancelled',
-        message: '❌ Pago rechazado/cancelado en SumUp SOLO',
-        order_number: order.order_number,
-        reader_status: readerStatus,
-        email_sent: false,
-        sumup: sumupStatusPayload,
-      })
-    }
-
-    const waitingStatus =
-      WAITING_STATUSES.includes(readerStatus) || readerStatus.length > 0
-        ? readerStatus
-        : 'WAITING'
 
     return NextResponse.json({
       success: true,
@@ -655,12 +627,14 @@ export async function POST(req: NextRequest) {
       paid: false,
       status: 'pending',
       order_status: 'pending',
-      message: '⏳ Esperando respuesta del cliente en SumUp SOLO',
+      message: reference
+        ? '⏳ Esperando confirmación del pago SumUp SOLO'
+        : '⏳ Esperando confirmación del pago SumUp SOLO',
       order_number: order.order_number,
-      reader_status: waitingStatus,
-      transaction_code: transactionCode,
+      sumup_status: 'PENDING',
       email_sent: false,
-      sumup: sumupStatusPayload,
+      reference,
+      checked_transactions: transactions.length,
     })
   } catch (error: any) {
     console.error('[SOLO Status] Error:', error)
