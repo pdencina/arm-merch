@@ -1,344 +1,432 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const PAID_STATUSES = [
-  'PAID',
-  'SUCCESSFUL',
-  'SUCCESS',
-  'COMPLETED',
-  'APPROVED',
-  'CHECKOUT_FINISHED',
-  'FINISHED',
-]
-
-const FAILED_STATUSES = [
-  'FAILED',
-  'EXPIRED',
-  'CANCELLED',
-  'CANCELED',
-  'DECLINED',
-  'REJECTED',
-  'TIMEOUT',
-  'TIMED_OUT',
-  'ERROR',
-]
-
-function normalize(value: unknown) {
-  return String(value ?? '').trim().toUpperCase()
-}
-
 function getEnv() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const sumupApiKey = process.env.SUMUP_API_KEY
+  const sumupMerchantCode = process.env.SUMUP_MERCHANT_CODE
+  const sumupAffiliateKey = process.env.SUMUP_AFFILIATE_KEY
+  const sumupApiBase = process.env.SUMUP_API_BASE || 'https://api.sumup.com'
+
   return {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseUrl,
+    supabaseAnonKey,
+    serviceRoleKey,
+    sumupApiKey,
+    sumupMerchantCode,
+    sumupAffiliateKey,
+    sumupApiBase,
   }
 }
 
-function getStatus(body: any) {
-  return normalize(
-    body?.status ||
-      body?.transaction_status ||
-      body?.event_status ||
-      body?.checkout_status ||
-      body?.payment_status ||
-      body?.event_type ||
-      body?.type ||
-      body?.data?.status ||
-      body?.data?.transaction_status ||
-      body?.data?.checkout_status ||
-      body?.data?.payment_status ||
-      body?.data?.event_type ||
-      body?.data?.type,
-  )
-}
+async function getSessionUser(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
 
-function getOrderId(req: NextRequest, body: any) {
-  const fromQuery = req.nextUrl.searchParams.get('order_id')
-  if (fromQuery) return fromQuery
-
-  return (
-    body?.order_id ||
-    body?.affiliate?.tags?.order_id ||
-    body?.affiliate?.foreign_transaction_id?.replace(/^arm-order-/, '') ||
-    body?.data?.order_id ||
-    body?.data?.affiliate?.tags?.order_id ||
-    body?.data?.affiliate?.foreign_transaction_id?.replace(/^arm-order-/, '') ||
-    null
-  )
-}
-
-function getCheckoutReference(req: NextRequest, body: any) {
-  const fromQuery =
-    req.nextUrl.searchParams.get('checkout_reference') ||
-    req.nextUrl.searchParams.get('reference') ||
-    req.nextUrl.searchParams.get('foreign_transaction_id')
-
-  if (fromQuery) return fromQuery
-
-  return String(
-    body?.checkout_reference ||
-      body?.foreign_transaction_id ||
-      body?.client_transaction_id ||
-      body?.transaction_id ||
-      body?.description ||
-      body?.affiliate?.foreign_transaction_id ||
-      body?.affiliate?.checkout_reference ||
-      body?.affiliate?.tags?.checkout_reference ||
-      body?.data?.checkout_reference ||
-      body?.data?.foreign_transaction_id ||
-      body?.data?.client_transaction_id ||
-      body?.data?.transaction_id ||
-      body?.data?.description ||
-      body?.data?.affiliate?.foreign_transaction_id ||
-      body?.data?.affiliate?.checkout_reference ||
-      body?.data?.affiliate?.tags?.checkout_reference ||
-      '',
-  ).trim()
-}
-
-function getTransactionCode(body: any) {
-  return String(
-    body?.transaction_code ||
-      body?.transaction_id ||
-      body?.client_transaction_id ||
-      body?.id ||
-      body?.data?.transaction_code ||
-      body?.data?.transaction_id ||
-      body?.data?.client_transaction_id ||
-      body?.data?.id ||
-      '',
-  ).trim()
-}
-
-async function findOrder({
-  adminClient,
-  orderId,
-  checkoutReference,
-}: {
-  adminClient: any
-  orderId?: string | null
-  checkoutReference?: string | null
-}) {
-  const select = `
-    id,
-    order_number,
-    campus_id,
-    status,
-    total,
-    notes,
-    production_status,
-    order_items(product_id, quantity, size)
-  `
-
-  if (orderId) {
-    const { data, error } = await adminClient
-      .from('orders')
-      .select(select)
-      .eq('id', orderId)
-      .maybeSingle()
-
-    if (error) {
-      console.error('[SOLO Webhook] Order by id error:', error)
+  if (!authHeader?.startsWith('Bearer ')) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      ),
     }
-
-    if (data) return data
   }
 
-  const ref = String(checkoutReference ?? '').trim()
+  const token = authHeader.replace('Bearer ', '').trim()
 
-  if (!ref) return null
+  const {
+    supabaseUrl,
+    supabaseAnonKey,
+    serviceRoleKey,
+  } = getEnv()
 
-  // En solo-checkout guardamos el Ref dentro de notes:
-  // "SumUp SOLO | Reader: xxx | Ref: arm-merch-order-xxxx | ..."
-  const { data, error } = await adminClient
-    .from('orders')
-    .select(select)
-    .ilike('notes', `%${ref}%`)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (error) {
-    console.error('[SOLO Webhook] Order by reference error:', error)
-  }
-
-  return data ?? null
-}
-
-async function handle(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => ({}))
-
-    console.log('[SOLO Webhook] Received:', JSON.stringify(body))
-
-    const orderId = getOrderId(req, body)
-    const checkoutReference = getCheckoutReference(req, body)
-    const status = getStatus(body)
-    const transactionCode = getTransactionCode(body)
-
-    const { supabaseUrl, serviceRoleKey } = getEnv()
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({
-        received: true,
-        action: 'missing_supabase_env',
-      })
+  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Faltan variables de entorno de Supabase' },
+        { status: 500 }
+      ),
     }
+  }
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  const authClient = createClient(
+    supabaseUrl,
+    supabaseAnonKey
+  )
+
+  const adminClient = createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
-    })
-
-    const order = await findOrder({
-      adminClient,
-      orderId,
-      checkoutReference,
-    })
-
-    if (!order) {
-      console.warn('[SOLO Webhook] Order not found', {
-        orderId,
-        checkoutReference,
-        status,
-      })
-
-      return NextResponse.json({
-        received: true,
-        action: 'order_not_found',
-        order_id: orderId,
-        checkout_reference: checkoutReference,
-        status,
-      })
     }
+  )
 
-    if (!status) {
-      return NextResponse.json({
-        received: true,
-        action: 'missing_status',
-        order_id: order.id,
-        order_number: order.order_number,
-        checkout_reference: checkoutReference,
-      })
+  const {
+    data: { user },
+    error: userError,
+  } = await authClient.auth.getUser(token)
+
+  if (userError || !user) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      ),
     }
+  }
 
-    if (order.status === 'paid' || order.status === 'cancelled') {
-      return NextResponse.json({
-        received: true,
-        action: 'already_processed',
-        order_number: order.order_number,
-        status: order.status,
-      })
+  const {
+    data: profile,
+    error: profileError,
+  } = await adminClient
+    .from('profiles')
+    .select('id, role, campus_id')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !profile) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'No se pudo cargar el perfil del usuario' },
+        { status: 403 }
+      ),
     }
+  }
 
-    if (PAID_STATUSES.includes(status)) {
-      const { error: updateError } = await adminClient
-        .from('orders')
-        .update({
-          status: 'paid',
-          notes: `${order.notes ?? ''} | Pagado via SumUp SOLO | Ref: ${
-            checkoutReference || 'sin_ref'
-          } | TXN: ${transactionCode || 'sin_tx'}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', order.id)
-
-      if (updateError) {
-        console.error('[SOLO Webhook] Paid update error:', updateError)
-
-        return NextResponse.json({
-          received: true,
-          action: 'paid_update_error',
-          order_number: order.order_number,
-        })
-      }
-
-      // Stock: solo se descuenta cuando SumUp notifica pago aprobado.
-      for (const item of order.order_items ?? []) {
-        const { error: movementError } = await adminClient
-          .from('inventory_movements')
-          .insert({
-            product_id: item.product_id,
-            campus_id: order.campus_id,
-            type: 'salida',
-            quantity: item.quantity,
-            notes: `Pago SumUp SOLO - Orden #${order.order_number} - TXN ${
-              transactionCode || 'sin_tx'
-            }`,
-          })
-
-        if (movementError) {
-          console.error('[SOLO Webhook] Inventory movement error:', movementError)
-        }
-      }
-
-      console.log('[SOLO Webhook] ✅ Order paid:', order.order_number)
-
-      return NextResponse.json({
-        received: true,
-        action: 'paid',
-        order_number: order.order_number,
-        checkout_reference: checkoutReference,
-        transaction_code: transactionCode,
-      })
-    }
-
-    if (FAILED_STATUSES.includes(status)) {
-      const { error: cancelError } = await adminClient
-        .from('orders')
-        .update({
-          status: 'cancelled',
-          notes: `${order.notes ?? ''} | Pago SumUp SOLO ${status.toLowerCase()} | Ref: ${
-            checkoutReference || 'sin_ref'
-          } | TXN: ${transactionCode || 'sin_tx'}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', order.id)
-
-      if (cancelError) {
-        console.error('[SOLO Webhook] Cancel update error:', cancelError)
-
-        return NextResponse.json({
-          received: true,
-          action: 'cancel_update_error',
-          order_number: order.order_number,
-        })
-      }
-
-      return NextResponse.json({
-        received: true,
-        action: 'cancelled',
-        order_number: order.order_number,
-        checkout_reference: checkoutReference,
-        transaction_code: transactionCode,
-      })
-    }
-
-    return NextResponse.json({
-      received: true,
-      action: 'status_ignored',
-      order_number: order.order_number,
-      status,
-      checkout_reference: checkoutReference,
-      transaction_code: transactionCode,
-    })
-  } catch (error: any) {
-    console.error('[SOLO Webhook] Error:', error)
-
-    return NextResponse.json({
-      received: true,
-      action: 'internal_error',
-      error: error?.message,
-    })
+  return {
+    adminClient,
+    user,
+    profile,
   }
 }
 
 export async function POST(req: NextRequest) {
-  return handle(req)
-}
+  try {
+    const auth = await getSessionUser(req)
 
-export async function GET(req: NextRequest) {
-  return handle(req)
+    if (auth.errorResponse) {
+      return auth.errorResponse
+    }
+
+    const { adminClient, profile } = auth
+
+    const {
+      sumupApiKey,
+      sumupMerchantCode,
+      sumupAffiliateKey,
+      sumupApiBase,
+    } = getEnv()
+
+    if (!sumupApiKey || !sumupMerchantCode) {
+      return NextResponse.json(
+        {
+          error:
+            'Faltan variables SUMUP_API_KEY o SUMUP_MERCHANT_CODE',
+        },
+        { status: 500 }
+      )
+    }
+
+    const body = await req.json().catch(() => ({}))
+
+    const orderId = String(body?.order_id ?? '').trim()
+
+    const amount = Math.round(
+      Number(body?.amount ?? body?.total ?? 0)
+    )
+
+    const currency = String(
+      body?.currency ?? 'CLP'
+    ).toUpperCase()
+
+    if (!orderId) {
+      return NextResponse.json(
+        { error: 'order_id es obligatorio' },
+        { status: 400 }
+      )
+    }
+
+    if (!amount || amount <= 0) {
+      return NextResponse.json(
+        { error: 'amount inválido' },
+        { status: 400 }
+      )
+    }
+
+    const {
+      data: order,
+      error: orderError,
+    } = await adminClient
+      .from('orders')
+      .select('id, order_number, campus_id, status, total')
+      .eq('id', orderId)
+      .maybeSingle()
+
+    if (orderError || !order) {
+      return NextResponse.json(
+        {
+          error:
+            'Orden no encontrada para iniciar cobro SOLO',
+        },
+        { status: 404 }
+      )
+    }
+
+    if (order.status === 'paid') {
+      return NextResponse.json(
+        { error: 'La orden ya está pagada' },
+        { status: 400 }
+      )
+    }
+
+    const campusId =
+      order.campus_id ?? profile.campus_id
+
+    if (!campusId) {
+      return NextResponse.json(
+        {
+          error: 'La orden no tiene campus asociado',
+        },
+        { status: 400 }
+      )
+    }
+
+    const {
+      data: reader,
+      error: readerError,
+    } = await adminClient
+      .from('sumup_readers')
+      .select(
+        'id, reader_id, name, status, active, campus_id'
+      )
+      .eq('campus_id', campusId)
+      .eq('active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (readerError) {
+      return NextResponse.json(
+        { error: readerError.message },
+        { status: 400 }
+      )
+    }
+
+    if (!reader?.reader_id) {
+      return NextResponse.json(
+        {
+          error:
+            'No hay lector SumUp SOLO activo para este campus',
+        },
+        { status: 404 }
+      )
+    }
+
+    /*
+      IMPORTANTE:
+
+      SumUp SOLO espera montos en CENTAVOS cuando
+      minor_unit = 2.
+
+      Ejemplo:
+      $100 CLP  -> value: 10000
+      $1.500    -> value: 150000
+    */
+
+    const checkoutReference = `arm-merch-order-${order.order_number}-${Date.now()}`
+
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://armerch.com').replace(/\/$/, '')
+
+    const payload: any = {
+      total_amount: {
+        currency,
+        minor_unit: 2,
+        value: amount * 100,
+      },
+
+      checkout_reference: finalCheckoutReference,
+
+      description: `ARM Merch Orden #${order.order_number}`,
+
+      webhook_url: `${appUrl}/api/sumup/solo-webhook`,
+
+      metadata: {
+        order_id: order.id,
+        order_number: order.order_number,
+        checkout_reference: finalCheckoutReference,
+      },
+    }
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${sumupApiKey}`,
+      'Content-Type': 'application/json',
+    }
+
+    if (sumupAffiliateKey) {
+      headers['X-Affiliate-Key'] =
+        sumupAffiliateKey
+    }
+
+    const sumupRes = await fetch(
+      `${sumupApiBase}/v0.1/merchants/${encodeURIComponent(
+        sumupMerchantCode
+      )}/readers/${encodeURIComponent(
+        reader.reader_id
+      )}/checkout`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      }
+    )
+
+    const rawText = await sumupRes.text()
+
+    let sumupCheckout: any = {}
+
+    try {
+      sumupCheckout = JSON.parse(rawText)
+    } catch {
+      sumupCheckout = { raw: rawText }
+    }
+
+    console.log(
+      '[SumUp SOLO Checkout] request payload:',
+      payload
+    )
+
+    console.log(
+      '[SumUp SOLO Checkout] response:',
+      sumupRes.status,
+      sumupCheckout
+    )
+
+    console.log(
+      '[SumUp SOLO Checkout] KEYS:',
+      Object.keys(sumupCheckout || {})
+    )
+
+    console.log(
+      '[SumUp SOLO Checkout] DATA KEYS:',
+      Object.keys(sumupCheckout?.data || {})
+    )
+
+    if (!sumupRes.ok) {
+      return NextResponse.json(
+        {
+          error:
+            sumupCheckout?.message ??
+            sumupCheckout?.error ??
+            'SumUp rechazó el checkout SOLO',
+
+          detail: sumupCheckout,
+        },
+        { status: 400 }
+      )
+    }
+
+    const checkoutId =
+      sumupCheckout?.id ??
+      sumupCheckout?.checkout_id ??
+      sumupCheckout?.checkout?.id ??
+      sumupCheckout?.client_transaction_id ??
+      sumupCheckout?.client_transaction?.id ??
+      sumupCheckout?.transaction_id ??
+      sumupCheckout?.transaction?.id ??
+      sumupCheckout?.transaction?.transaction_id ??
+      sumupCheckout?.transaction?.client_transaction_id ??
+      sumupCheckout?.data?.id ??
+      sumupCheckout?.data?.checkout_id ??
+      sumupCheckout?.data?.checkout?.id ??
+      sumupCheckout?.data?.client_transaction_id ??
+      sumupCheckout?.data?.transaction_id ??
+      sumupCheckout?.data?.transaction?.id ??
+      sumupCheckout?.data?.transaction?.transaction_id ??
+      sumupCheckout?.data?.transaction?.client_transaction_id ??
+      null
+
+    const finalCheckoutReference =
+      sumupCheckout?.checkout_reference ??
+      sumupCheckout?.checkout?.checkout_reference ??
+      sumupCheckout?.data?.checkout_reference ??
+      sumupCheckout?.data?.checkout?.checkout_reference ??
+      checkoutReference
+
+    const { error: updateOrderError } =
+      await adminClient
+        .from('orders')
+        .update({
+          status: 'pending',
+          payment_method: 'solo',
+          sumup_checkout_id: checkoutId,
+          notes: checkoutId
+            ? `SumUp SOLO | Reader: ${reader.reader_id} | Ref: ${finalCheckoutReference} | Checkout: ${checkoutId}`
+            : `SumUp SOLO | Reader: ${reader.reader_id} | Ref: ${finalCheckoutReference} | SIN_CHECKOUT_ID | Keys: ${Object.keys(sumupCheckout || {}).join(',')}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id)
+
+    if (updateOrderError) {
+      console.error(
+        '[SumUp SOLO Checkout] order update error:',
+        updateOrderError
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+
+      order_id: order.id,
+
+      order_number: order.order_number,
+
+      amount_sent_to_sumup: amount * 100,
+
+      currency,
+
+      minor_unit: 2,
+
+      reader_id: reader.reader_id,
+
+      reader_name: reader.name,
+
+      checkout_id: checkoutId,
+
+      checkout_reference: finalCheckoutReference,
+
+      has_checkout_id: Boolean(checkoutId),
+
+      response_keys: Object.keys(sumupCheckout || {}),
+
+      data_keys: Object.keys(sumupCheckout?.data || {}),
+
+      status:
+        sumupCheckout?.status ??
+        sumupCheckout?.reader_status ??
+        sumupCheckout?.data?.status ??
+        'sent_to_reader',
+
+      sumup: sumupCheckout,
+    })
+  } catch (error: any) {
+    console.error(
+      '[SumUp SOLO Checkout] Error:',
+      error
+    )
+
+    return NextResponse.json(
+      {
+        error:
+          error?.message ??
+          'Error interno del servidor',
+      },
+      { status: 500 }
+    )
+  }
 }
