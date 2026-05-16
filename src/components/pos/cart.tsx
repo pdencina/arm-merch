@@ -206,6 +206,8 @@ export default function Cart() {
     id: string;
     number: string | number;
     total: number;
+    checkoutId?: string | null;
+    checkoutReference?: string | null;
   } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -402,6 +404,8 @@ export default function Cart() {
     id: string;
     number: string | number;
     total: number;
+    checkoutId?: string | null;
+    checkoutReference?: string | null;
   }) {
     if (sumupPollRef.current) clearInterval(sumupPollRef.current);
 
@@ -412,6 +416,56 @@ export default function Cart() {
 
     let attempts = 0;
     const maxAttempts = 90; // 90 * 2s = 3 minutos
+
+    const finishAsPaid = (data: any) => {
+      if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+
+      setSumupPolling(false);
+      setSumupStatus("found");
+      setVerifySuccess("✅ Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
+
+      setCreatedOrder({
+        id: order.id,
+        number: data?.order_number ?? order.number,
+        total: order.total,
+        emailSent: Boolean(data?.email_sent),
+      });
+
+      notifyLocalStockDiscount();
+      setClientPhone("");
+      clearCart();
+
+      setTimeout(() => {
+        setSumupSmartOpen(false);
+        setSuccessOpen(true);
+        setVerifyError(null);
+        setVerifySuccess(null);
+        setTxCode("");
+      }, 700);
+    };
+
+    const finishAsRejected = () => {
+      if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+
+      setSumupPolling(false);
+      setSumupStatus("timeout");
+      setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
+    };
+
+    const readOrderStatusFromDB = async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("status, order_number")
+        .eq("id", order.id)
+        .maybeSingle();
+
+      if (error || !data?.status) return null;
+
+      return {
+        status: String(data.status).toLowerCase(),
+        order_number: data.order_number,
+      };
+    };
 
     const check = async () => {
       attempts += 1;
@@ -428,6 +482,65 @@ export default function Cart() {
           return;
         }
 
+        // 1) Primero miramos la orden en Supabase.
+        // Esto replica la lógica del flujo Link: si backend/webhook ya marcó paid, cerramos inmediatamente.
+        const dbStatus = await readOrderStatusFromDB();
+
+        if (dbStatus?.status === "paid") {
+          finishAsPaid({
+            order_number: dbStatus.order_number ?? order.number,
+            email_sent: true,
+          });
+          return;
+        }
+
+        if (["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(dbStatus?.status ?? "")) {
+          finishAsRejected();
+          return;
+        }
+
+        // 2) Intentamos el mismo check robusto del flujo Link de Pago.
+        // Si existe checkout_id/reference, este endpoint confirma pago, descuenta stock y envía voucher.
+        if (order.checkoutId || order.checkoutReference) {
+          const checkoutRes = await fetch("/api/sumup/check-checkout", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              order_id: order.id,
+              checkout_id: order.checkoutId,
+              checkout_reference: order.checkoutReference,
+            }),
+          });
+
+          const checkoutData = await checkoutRes.json().catch(() => null);
+          const checkoutStatus = String(
+            checkoutData?.order_status ??
+              checkoutData?.status ??
+              checkoutData?.sumup_status ??
+              ""
+          ).toLowerCase();
+
+          if (
+            checkoutData?.ok === true &&
+            ["paid", "pagado", "approved", "completed", "success", "successful"].includes(checkoutStatus)
+          ) {
+            finishAsPaid(checkoutData);
+            return;
+          }
+
+          if (
+            checkoutData?.ok === true &&
+            ["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(checkoutStatus)
+          ) {
+            finishAsRejected();
+            return;
+          }
+        }
+
+        // 3) Fallback: consultamos SOLO status para mostrar estado visual y permitir que el endpoint cierre si detecta final.
         const res = await fetch("/api/sumup/solo-status", {
           method: "POST",
           headers: {
@@ -471,31 +584,7 @@ export default function Cart() {
           (data?.paid === true ||
             ["paid", "pagado", "approved", "completed", "success", "successful"].includes(orderStatus))
         ) {
-          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
-
-          setSumupPolling(false);
-          setSumupStatus("found");
-          setVerifySuccess("✅ Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
-
-          setCreatedOrder({
-            id: order.id,
-            number: data?.order_number ?? order.number,
-            total: order.total,
-            emailSent: Boolean(data?.email_sent),
-          });
-
-          notifyLocalStockDiscount();
-          setClientPhone("");
-          clearCart();
-
-          setTimeout(() => {
-            setSumupSmartOpen(false);
-            setSuccessOpen(true);
-            setVerifyError(null);
-            setVerifySuccess(null);
-            setTxCode("");
-          }, 700);
-
+          finishAsPaid(data);
           return;
         }
 
@@ -504,12 +593,7 @@ export default function Cart() {
           (data?.paid === false ||
             ["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(orderStatus))
         ) {
-          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
-
-          setSumupPolling(false);
-          setSumupStatus("timeout");
-          setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
-
+          finishAsRejected();
           return;
         }
 
@@ -691,6 +775,8 @@ export default function Cart() {
           id: orderId,
           number: orderNumber,
           total: orderTotal,
+          checkoutId: soloData?.checkout_id ?? null,
+          checkoutReference: soloData?.checkout_reference ?? null,
         };
 
         setSumupSmartOrder(orderPayload);
@@ -1201,17 +1287,40 @@ export default function Cart() {
                 )}
 
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    try {
+                      const {
+                        data: { session },
+                      } = await supabase.auth.getSession();
+
+                      if (session?.access_token && sumupSmartOrder?.id) {
+                        await fetch("/api/sumup/solo-terminate", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${session.access_token}`,
+                          },
+                          body: JSON.stringify({
+                            order_id: sumupSmartOrder.id,
+                          }),
+                        });
+                      }
+                    } catch (e) {
+                      console.error("Error cancelando SOLO:", e);
+                    }
+
                     if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+
                     setSumupPolling(false);
                     setSumupSmartOpen(false);
                     setVerifyError(null);
                     setVerifySuccess(null);
                     setTxCode("");
+                    setSumupStatus("waiting");
                   }}
-                  className="w-full rounded-2xl border border-zinc-700 py-2.5 text-sm text-zinc-400 transition hover:border-zinc-500 hover:text-white"
+                  className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/20 hover:text-white"
                 >
-                  Cerrar monitoreo
+                  Cancelar cobro
                 </button>
               </>
             )}
@@ -1234,14 +1343,13 @@ export default function Cart() {
                 <button
                   onClick={() => {
                     setSumupSmartOpen(false);
-                    setSuccessOpen(true);
                     setTxCode("");
                     setVerifyError(null);
                     setVerifySuccess(null);
                   }}
                   className="w-full rounded-2xl bg-green-500 py-3 text-sm font-bold text-white transition hover:bg-green-400"
                 >
-                  Ver confirmación
+                  Nueva venta
                 </button>
               </>
             )}
@@ -1498,22 +1606,22 @@ export default function Cart() {
       )}
 
       {/* MODAL ÉXITO */}
-{createdOrder && (
-  <SaleSuccessModal
-    open={successOpen}
-    orderId={createdOrder.id}
-    orderNumber={createdOrder.number}
-    total={createdOrder.total}
-    emailSent={createdOrder.emailSent}
-    onNewSale={() => {
-      setSuccessOpen(false)
-      setCreatedOrder(null)
-    }}
-    onClose={() => {
-      setSuccessOpen(false)
-    }}
-  />
-)}
+      {createdOrder && (
+        <SaleSuccessModal
+          open={successOpen}
+          orderId={createdOrder.id}
+          orderNumber={createdOrder.number}
+          total={createdOrder.total}
+          emailSent={createdOrder.emailSent}
+          onNewSale={() => {
+            setSuccessOpen(false);
+            setCreatedOrder(null);
+          }}
+          onClose={() => {
+            setSuccessOpen(false);
+          }}
+        />
+      )}
 
     </>
   );
