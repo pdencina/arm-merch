@@ -452,7 +452,7 @@ export default function Cart() {
       setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
     };
 
-    const readOrderStatusFromDB = async () => {
+    const checkOrderStatusFromDB = async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("status, order_number")
@@ -482,9 +482,9 @@ export default function Cart() {
           return;
         }
 
-        // 1) Primero miramos la orden en Supabase.
-        // Esto replica la lógica del flujo Link: si backend/webhook ya marcó paid, cerramos inmediatamente.
-        const dbStatus = await readOrderStatusFromDB();
+        // 1) Primero revisamos la orden en Supabase.
+        // Si el backend/webhook ya la marcó paid, cerramos el modal al tiro.
+        const dbStatus = await checkOrderStatusFromDB();
 
         if (dbStatus?.status === "paid") {
           finishAsPaid({
@@ -499,55 +499,19 @@ export default function Cart() {
           return;
         }
 
-        // 2) Intentamos el mismo check robusto del flujo Link de Pago.
-        // Si existe checkout_id/reference, este endpoint confirma pago, descuenta stock y envía voucher.
-        if (order.checkoutId || order.checkoutReference) {
-          const checkoutRes = await fetch("/api/sumup/check-checkout", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              order_id: order.id,
-              checkout_id: order.checkoutId,
-              checkout_reference: order.checkoutReference,
-            }),
-          });
-
-          const checkoutData = await checkoutRes.json().catch(() => null);
-          const checkoutStatus = String(
-            checkoutData?.order_status ??
-              checkoutData?.status ??
-              checkoutData?.sumup_status ??
-              ""
-          ).toLowerCase();
-
-          if (
-            checkoutData?.ok === true &&
-            ["paid", "pagado", "approved", "completed", "success", "successful"].includes(checkoutStatus)
-          ) {
-            finishAsPaid(checkoutData);
-            return;
-          }
-
-          if (
-            checkoutData?.ok === true &&
-            ["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(checkoutStatus)
-          ) {
-            finishAsRejected();
-            return;
-          }
-        }
-
-        // 3) Fallback: consultamos SOLO status para mostrar estado visual y permitir que el endpoint cierre si detecta final.
+        // 2) SOLO debe consultar SOLO STATUS, no check-checkout.
+        // check-checkout queda reservado para Link de Pago.
         const res = await fetch("/api/sumup/solo-status", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ order_id: order.id }),
+          body: JSON.stringify({
+            order_id: order.id,
+            checkout_id: order.checkoutId,
+            checkout_reference: order.checkoutReference,
+          }),
         });
 
         const data = await res.json().catch(() => null);
@@ -561,18 +525,11 @@ export default function Cart() {
           data?.order_status ?? data?.status ?? data?.sumup_status ?? ""
         ).toLowerCase();
 
-        const readerStatusRaw =
-          data?.reader_status?.data ??
-          data?.reader_status ??
-          data?.sumup?.data ??
-          data?.sumup ??
-          null;
-
         const readerStatusText = String(
-          readerStatusRaw?.status ??
-            readerStatusRaw?.state ??
-            data?.reader_status ??
-            "Esperando acción"
+          data?.reader_status ??
+            data?.sumup_status ??
+            data?.message ??
+            "Esperando respuesta del cliente..."
         );
 
         setVerifySuccess(
