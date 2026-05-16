@@ -58,17 +58,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const orderId = body?.order_id;
-    const checkoutId = body?.checkout_id;
+	const orderId = body?.order_id;
+	let checkoutId = body?.checkout_id;
     const checkoutReferenceFromBody = body?.checkout_reference;
     const forceCancel = Boolean(body?.force_cancel);
 
-    if (!orderId || !checkoutId) {
-      return NextResponse.json(
-        { error: "order_id y checkout_id son requeridos" },
-        { status: 400 },
-      );
-    }
+	if (!orderId) {
+	return NextResponse.json(
+    { error: "order_id requerido" },
+    { status: 400 },
+	   );
+	}
 
     const checkoutRes = await fetch(
       `https://api.sumup.com/v0.1/checkouts/${checkoutId}`,
@@ -123,11 +123,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const { data: order, error: orderError } = await adminClient
-      .from("orders")
-      .select(
-        "id, order_number, campus_id, pickup_campus_id, status, notes, tracking_token, production_status, order_items(product_id, quantity, size)",
-      )
+	const { data: order, error: orderError } = await adminClient
+	.from("orders")
+	.select(
+    "id, order_number, campus_id, pickup_campus_id, status, notes, tracking_token, production_status, sumup_checkout_id, order_items(product_id, quantity, size)",
+  )
       .eq("id", orderId)
       .maybeSingle();
 
@@ -140,11 +140,20 @@ export async function POST(req: NextRequest) {
     }
 
     if (!order) {
-      return NextResponse.json(
-        { ok: false, error: "order_not_found" },
-        { status: 404 },
-      );
-    }
+   if (!checkoutId) {
+  checkoutId = order?.sumup_checkout_id;
+}
+
+if (!checkoutId) {
+  return NextResponse.json({
+    ok: true,
+    action: "pending",
+    status: "pending",
+    order_status: "pending",
+    sumup_status: "WAITING_CHECKOUT_ID",
+    order_number: order.order_number,
+  });
+}
 
     if (order.status === "paid" || order.status === "cancelled") {
       return NextResponse.json({
