@@ -295,6 +295,16 @@ export async function POST(req: NextRequest) {
       sumupCheckout
     )
 
+    console.log(
+      '[SumUp SOLO Checkout] KEYS:',
+      Object.keys(sumupCheckout || {})
+    )
+
+    console.log(
+      '[SumUp SOLO Checkout] DATA KEYS:',
+      Object.keys(sumupCheckout?.data || {})
+    )
+
     if (!sumupRes.ok) {
       return NextResponse.json(
         {
@@ -312,11 +322,28 @@ export async function POST(req: NextRequest) {
     const checkoutId =
       sumupCheckout?.id ??
       sumupCheckout?.checkout_id ??
+      sumupCheckout?.checkout?.id ??
       sumupCheckout?.client_transaction_id ??
+      sumupCheckout?.client_transaction?.id ??
+      sumupCheckout?.transaction_id ??
+      sumupCheckout?.transaction?.id ??
+      sumupCheckout?.transaction?.transaction_id ??
+      sumupCheckout?.transaction?.client_transaction_id ??
+      sumupCheckout?.data?.id ??
+      sumupCheckout?.data?.checkout_id ??
+      sumupCheckout?.data?.checkout?.id ??
+      sumupCheckout?.data?.client_transaction_id ??
+      sumupCheckout?.data?.transaction_id ??
+      sumupCheckout?.data?.transaction?.id ??
+      sumupCheckout?.data?.transaction?.transaction_id ??
+      sumupCheckout?.data?.transaction?.client_transaction_id ??
       null
 
     const checkoutReference =
       sumupCheckout?.checkout_reference ??
+      sumupCheckout?.checkout?.checkout_reference ??
+      sumupCheckout?.data?.checkout_reference ??
+      sumupCheckout?.data?.checkout?.checkout_reference ??
       payload.checkout_reference
 
     const { error: updateOrderError } =
@@ -326,7 +353,9 @@ export async function POST(req: NextRequest) {
           status: 'pending',
           payment_method: 'solo',
           sumup_checkout_id: checkoutId,
-          notes: `SumUp SOLO | Reader: ${reader.reader_id} | Ref: ${checkoutReference}`,
+          notes: checkoutId
+            ? `SumUp SOLO | Reader: ${reader.reader_id} | Ref: ${checkoutReference} | Checkout: ${checkoutId}`
+            : `SumUp SOLO | Reader: ${reader.reader_id} | Ref: ${checkoutReference} | SIN_CHECKOUT_ID | Keys: ${Object.keys(sumupCheckout || {}).join(',')}`,
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.id)
@@ -359,9 +388,16 @@ export async function POST(req: NextRequest) {
 
       checkout_reference: checkoutReference,
 
+      has_checkout_id: Boolean(checkoutId),
+
+      response_keys: Object.keys(sumupCheckout || {}),
+
+      data_keys: Object.keys(sumupCheckout?.data || {}),
+
       status:
         sumupCheckout?.status ??
         sumupCheckout?.reader_status ??
+        sumupCheckout?.data?.status ??
         'sent_to_reader',
 
       sumup: sumupCheckout,
