@@ -566,25 +566,35 @@ export async function POST(req: NextRequest) {
     // 2) Fallback SOLO: si SumUp no entrega checkout_id, buscamos en transacciones recientes.
     const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey, reference)
 
-    const match = transactions.find((tx) => {
-      const status = getTxStatus(tx)
-      const txReference = getTxReference(tx)
-      const txAmount = getTxAmount(tx)
+const now = Date.now()
 
-      const referenceMatches =
-        Boolean(reference && txReference.includes(reference)) ||
-        txReference.includes(String(order.order_number)) ||
-        String(tx?.description ?? '').includes(String(order.order_number))
+if (!matchedTx) {
+  return NextResponse.json({
+    success: false,
+    paid: false,
+    status: 'PENDING',
+    message: 'Esperando pago en SOLO...',
+  })
+}
 
-      const amountMatches =
-        expectedAmount > 0 &&
-        (txAmount === expectedAmount || Math.abs(txAmount - expectedAmount) <= 1)
+  const txStatus = String(tx.status || '').toUpperCase()
 
-      const statusIsFinal =
-        PAID_STATUSES.includes(status) || FAILED_STATUSES.includes(status)
+  const txTimestamp = tx.timestamp
+    ? new Date(tx.timestamp).getTime()
+    : 0
 
-      return statusIsFinal && (referenceMatches || amountMatches)
-    })
+  const secondsDiff = Math.abs(now - txTimestamp) / 1000
+
+  // SOLO considerar transacciones recientes
+  const recentEnough = secondsDiff <= 120
+
+return NextResponse.json({
+  success: true,
+  paid: true,
+  status: 'SUCCESSFUL',
+  transaction_id: matchedTx.id,
+  transaction_code: matchedTx.transaction_code,
+})
 
     if (match) {
       const status = getTxStatus(match)
