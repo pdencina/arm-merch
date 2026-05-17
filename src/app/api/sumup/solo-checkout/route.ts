@@ -24,7 +24,7 @@ async function getSessionUser(req: NextRequest) {
     return {
       errorResponse: NextResponse.json(
         { error: 'No autenticado' },
-        { status: 401 }
+        { status: 401 },
       ),
     }
   }
@@ -41,14 +41,14 @@ async function getSessionUser(req: NextRequest) {
     return {
       errorResponse: NextResponse.json(
         { error: 'Faltan variables de entorno de Supabase' },
-        { status: 500 }
+        { status: 500 },
       ),
     }
   }
 
   const authClient = createClient(
     supabaseUrl,
-    supabaseAnonKey
+    supabaseAnonKey,
   )
 
   const adminClient = createClient(
@@ -59,7 +59,7 @@ async function getSessionUser(req: NextRequest) {
         autoRefreshToken: false,
         persistSession: false,
       },
-    }
+    },
   )
 
   const {
@@ -71,23 +71,25 @@ async function getSessionUser(req: NextRequest) {
     return {
       errorResponse: NextResponse.json(
         { error: 'No autenticado' },
-        { status: 401 }
+        { status: 401 },
       ),
     }
   }
 
-  const { data: profile, error: profileError } =
-    await adminClient
-      .from('profiles')
-      .select('id, role, campus_id')
-      .eq('id', user.id)
-      .maybeSingle()
+  const {
+    data: profile,
+    error: profileError,
+  } = await adminClient
+    .from('profiles')
+    .select('id, role, campus_id')
+    .eq('id', user.id)
+    .maybeSingle()
 
   if (profileError || !profile) {
     return {
       errorResponse: NextResponse.json(
         { error: 'No se pudo cargar el perfil del usuario' },
-        { status: 403 }
+        { status: 403 },
       ),
     }
   }
@@ -122,7 +124,7 @@ export async function POST(req: NextRequest) {
           error:
             'Faltan variables SUMUP_API_KEY o SUMUP_MERCHANT_CODE',
         },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -131,24 +133,24 @@ export async function POST(req: NextRequest) {
     const orderId = String(body?.order_id ?? '').trim()
 
     const amount = Math.round(
-      Number(body?.amount ?? body?.total ?? 0)
+      Number(body?.amount ?? body?.total ?? 0),
     )
 
     const currency = String(
-      body?.currency ?? 'CLP'
+      body?.currency ?? 'CLP',
     ).toUpperCase()
 
     if (!orderId) {
       return NextResponse.json(
         { error: 'order_id es obligatorio' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
         { error: 'amount inválido' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -167,14 +169,14 @@ export async function POST(req: NextRequest) {
           error:
             'Orden no encontrada para iniciar cobro SOLO',
         },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
     if (order.status === 'paid') {
       return NextResponse.json(
         { error: 'La orden ya está pagada' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -186,7 +188,7 @@ export async function POST(req: NextRequest) {
         {
           error: 'La orden no tiene campus asociado',
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -196,7 +198,7 @@ export async function POST(req: NextRequest) {
     } = await adminClient
       .from('sumup_readers')
       .select(
-        'id, reader_id, name, status, active, campus_id'
+        'id, reader_id, name, status, active, campus_id',
       )
       .eq('campus_id', campusId)
       .eq('active', true)
@@ -207,7 +209,7 @@ export async function POST(req: NextRequest) {
     if (readerError) {
       return NextResponse.json(
         { error: readerError.message },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -217,17 +219,9 @@ export async function POST(req: NextRequest) {
           error:
             'No hay lector SumUp SOLO activo para este campus',
         },
-        { status: 404 }
+        { status: 404 },
       )
     }
-
-    /*
-      SumUp SOLO espera montos en centavos cuando minor_unit = 2.
-
-      Ejemplo:
-      $100 CLP  -> value: 10000
-      $1.500    -> value: 150000
-    */
 
     const checkoutReference = `arm-merch-order-${order.order_number}-${Date.now()}`
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.armerch.com').replace(/\/$/, '')
@@ -267,16 +261,16 @@ export async function POST(req: NextRequest) {
 
     const sumupRes = await fetch(
       `${sumupApiBase}/v0.1/merchants/${encodeURIComponent(
-        sumupMerchantCode
+        sumupMerchantCode,
       )}/readers/${encodeURIComponent(
-        reader.reader_id
+        reader.reader_id,
       )}/checkout`,
       {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
         cache: 'no-store',
-      }
+      },
     )
 
     const rawText = await sumupRes.text()
@@ -291,13 +285,13 @@ export async function POST(req: NextRequest) {
 
     console.log(
       '[SumUp SOLO Checkout] request payload:',
-      payload
+      payload,
     )
 
     console.log(
       '[SumUp SOLO Checkout] response:',
       sumupRes.status,
-      sumupCheckout
+      sumupCheckout,
     )
 
     if (!sumupRes.ok) {
@@ -310,14 +304,15 @@ export async function POST(req: NextRequest) {
 
           detail: sumupCheckout,
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
+    // Mantiene compatibilidad con el frontend:
+    // el modal se abre si recibe checkout_id, por eso también usamos client_transaction_id.
     const checkoutId =
       sumupCheckout?.id ??
       sumupCheckout?.checkout_id ??
-      sumupCheckout?.checkout?.id ??
       sumupCheckout?.client_transaction_id ??
       sumupCheckout?.client_transaction?.id ??
       sumupCheckout?.transaction_id ??
@@ -326,13 +321,12 @@ export async function POST(req: NextRequest) {
       sumupCheckout?.transaction?.client_transaction_id ??
       sumupCheckout?.data?.id ??
       sumupCheckout?.data?.checkout_id ??
-      sumupCheckout?.data?.checkout?.id ??
       sumupCheckout?.data?.client_transaction_id ??
       sumupCheckout?.data?.transaction_id ??
       sumupCheckout?.data?.transaction?.id ??
       sumupCheckout?.data?.transaction?.transaction_id ??
       sumupCheckout?.data?.transaction?.client_transaction_id ??
-      null
+      checkoutReference
 
     const finalCheckoutReference =
       sumupCheckout?.checkout_reference ??
@@ -340,13 +334,6 @@ export async function POST(req: NextRequest) {
       sumupCheckout?.data?.checkout_reference ??
       sumupCheckout?.data?.checkout?.checkout_reference ??
       checkoutReference
-
-    /*
-      IMPORTANTE:
-      No actualizamos columnas inventadas como sumup_checkout_reference.
-      Si esa columna no existe, Supabase rechaza TODO el update y la orden queda sin payment_method='solo'.
-      El webhook necesita payment_method='solo' + status='pending' para encontrar la orden.
-    */
 
     const { error: updateOrderError } =
       await adminClient
@@ -360,7 +347,7 @@ export async function POST(req: NextRequest) {
             `SumUp SOLO`,
             `Reader: ${reader.reader_id}`,
             `Ref: ${finalCheckoutReference}`,
-            `Checkout: ${checkoutId ?? 'SIN_CHECKOUT_ID'}`,
+            `Checkout: ${checkoutId}`,
             `Return URL: ${webhookUrl}`,
             `Monto: ${amount}`,
           ]
@@ -373,7 +360,7 @@ export async function POST(req: NextRequest) {
     if (updateOrderError) {
       console.error(
         '[SumUp SOLO Checkout] order update error:',
-        updateOrderError
+        updateOrderError,
       )
 
       return NextResponse.json(
@@ -382,47 +369,28 @@ export async function POST(req: NextRequest) {
             'No se pudo actualizar la orden como pago SOLO pendiente',
           detail: updateOrderError,
         },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
+    // Respuesta simple para no romper el modal existente.
     return NextResponse.json({
       success: true,
-
-      order_id: order.id,
-
-      order_number: order.order_number,
-
-      amount_sent_to_sumup: amount * 100,
-
-      currency,
-
-      minor_unit: 2,
-
-      reader_id: reader.reader_id,
-
-      reader_name: reader.name,
-
       checkout_id: checkoutId,
-
       checkout_reference: finalCheckoutReference,
-
-      return_url: webhookUrl,
-
-      has_checkout_id: Boolean(checkoutId),
-
+      order_number: order.order_number,
+      reader_id: reader.reader_id,
+      reader_name: reader.name,
       status:
         sumupCheckout?.status ??
         sumupCheckout?.reader_status ??
         sumupCheckout?.data?.status ??
         'sent_to_reader',
-
-      sumup: sumupCheckout,
     })
   } catch (error: any) {
     console.error(
       '[SumUp SOLO Checkout] Error:',
-      error
+      error,
     )
 
     return NextResponse.json(
@@ -431,7 +399,7 @@ export async function POST(req: NextRequest) {
           error?.message ??
           'Error interno del servidor',
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
