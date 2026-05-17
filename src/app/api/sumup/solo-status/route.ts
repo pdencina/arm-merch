@@ -210,7 +210,7 @@ async function fetchRecentSumUpTransactions(
   // SOLO Reader Checkout funciona correctamente usando SOLO history.
   // /checkouts NO sirve para SOLO.
   // /me/transactions devuelve 404 en esta cuenta.
-  const url = `${apiBase}/v0.1/me/transactions/history?limit=50`
+  const url = `${apiBase}/v0.1/me/transactions/history?limit=50&order=descending`
 
   try {
     const res = await fetch(url, {
