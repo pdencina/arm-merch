@@ -43,12 +43,27 @@ function getStatus(body: any) {
       body?.payment_status ||
       body?.event_type ||
       body?.type ||
+      body?.payload?.status ||
+      body?.payload?.transaction_status ||
+      body?.payload?.checkout_status ||
+      body?.payload?.payment_status ||
       body?.data?.status ||
       body?.data?.transaction_status ||
       body?.data?.checkout_status ||
       body?.data?.payment_status ||
       body?.data?.event_type ||
-      body?.data?.type,
+      body?.data?.type ||
+      body?.data?.payload?.status,
+  )
+}
+
+function getEventType(body: any) {
+  return normalize(
+    body?.event_type ||
+      body?.type ||
+      body?.data?.event_type ||
+      body?.data?.type ||
+      '',
   )
 }
 
@@ -59,9 +74,13 @@ function getOrderId(req: NextRequest, body: any) {
   return (
     body?.order_id ||
     body?.metadata?.order_id ||
+    body?.payload?.order_id ||
+    body?.payload?.metadata?.order_id ||
     body?.affiliate?.tags?.order_id ||
     body?.data?.order_id ||
     body?.data?.metadata?.order_id ||
+    body?.data?.payload?.order_id ||
+    body?.data?.payload?.metadata?.order_id ||
     body?.data?.affiliate?.tags?.order_id ||
     null
   )
@@ -81,6 +100,9 @@ function getCheckoutReference(req: NextRequest, body: any) {
       body?.client_transaction_id ||
       body?.transaction_id ||
       body?.metadata?.checkout_reference ||
+      body?.payload?.checkout_reference ||
+      body?.payload?.foreign_transaction_id ||
+      body?.payload?.metadata?.checkout_reference ||
       body?.affiliate?.foreign_transaction_id ||
       body?.affiliate?.checkout_reference ||
       body?.affiliate?.tags?.checkout_reference ||
@@ -89,6 +111,9 @@ function getCheckoutReference(req: NextRequest, body: any) {
       body?.data?.client_transaction_id ||
       body?.data?.transaction_id ||
       body?.data?.metadata?.checkout_reference ||
+      body?.data?.payload?.checkout_reference ||
+      body?.data?.payload?.foreign_transaction_id ||
+      body?.data?.payload?.metadata?.checkout_reference ||
       body?.data?.affiliate?.foreign_transaction_id ||
       body?.data?.affiliate?.checkout_reference ||
       body?.data?.affiliate?.tags?.checkout_reference ||
@@ -102,12 +127,32 @@ function getTransactionCode(body: any) {
       body?.transaction_id ||
       body?.client_transaction_id ||
       body?.id ||
+      body?.payload?.transaction_code ||
+      body?.payload?.transaction_id ||
+      body?.payload?.client_transaction_id ||
+      body?.payload?.id ||
       body?.data?.transaction_code ||
       body?.data?.transaction_id ||
       body?.data?.client_transaction_id ||
       body?.data?.id ||
+      body?.data?.payload?.transaction_code ||
+      body?.data?.payload?.transaction_id ||
+      body?.data?.payload?.client_transaction_id ||
+      body?.data?.payload?.id ||
       '',
   ).trim()
+}
+
+function getWebhookTimestamp(body: any) {
+  const raw =
+    body?.timestamp ||
+    body?.payload?.timestamp ||
+    body?.data?.timestamp ||
+    body?.data?.payload?.timestamp ||
+    null
+
+  const parsed = raw ? new Date(raw).getTime() : 0
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 async function findOrder({
@@ -126,7 +171,10 @@ async function findOrder({
     status,
     total,
     notes,
+    payment_method,
     production_status,
+    updated_at,
+    created_at,
     order_items(product_id, quantity, size)
   `
 
@@ -142,17 +190,65 @@ async function findOrder({
   }
 
   const ref = String(checkoutReference ?? '').trim()
-  if (!ref) return null
+
+  if (ref) {
+    const { data, error } = await adminClient
+      .from('orders')
+      .select(select)
+      .ilike('notes', `%${ref}%`)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) console.error('[SOLO Webhook] Order by reference error:', error)
+    if (data) return data
+  }
+
+  return null
+}
+
+async function findRecentPendingSoloOrder({
+  adminClient,
+  webhookTimestamp,
+}: {
+  adminClient: any
+  webhookTimestamp: number
+}) {
+  const select = `
+    id,
+    order_number,
+    campus_id,
+    status,
+    total,
+    notes,
+    payment_method,
+    production_status,
+    updated_at,
+    created_at,
+    order_items(product_id, quantity, size)
+  `
+
+  const now = Date.now()
+  const eventTime = webhookTimestamp > 0 ? webhookTimestamp : now
+
+  const from = new Date(eventTime - 10 * 60 * 1000).toISOString()
+  const to = new Date(eventTime + 2 * 60 * 1000).toISOString()
 
   const { data, error } = await adminClient
     .from('orders')
     .select(select)
-    .ilike('notes', `%${ref}%`)
+    .eq('status', 'pending')
+    .eq('payment_method', 'solo')
+    .gte('updated_at', from)
+    .lte('updated_at', to)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (error) console.error('[SOLO Webhook] Order by reference error:', error)
+  if (error) {
+    console.error('[SOLO Webhook] Recent pending solo order error:', error)
+    return null
+  }
 
   return data ?? null
 }
@@ -166,7 +262,9 @@ async function handle(req: NextRequest) {
     const orderId = getOrderId(req, body)
     const checkoutReference = getCheckoutReference(req, body)
     const status = getStatus(body)
+    const eventType = getEventType(body)
     const transactionCode = getTransactionCode(body)
+    const webhookTimestamp = getWebhookTimestamp(body)
 
     const { supabaseUrl, serviceRoleKey } = getEnv()
 
@@ -184,17 +282,29 @@ async function handle(req: NextRequest) {
       },
     })
 
-    const order = await findOrder({
+    let order = await findOrder({
       adminClient,
       orderId,
       checkoutReference,
     })
+
+    // SumUp SOLO no siempre devuelve checkout_reference ni order_id.
+    // Si viene vacío, usamos la orden SOLO pendiente más reciente alrededor del timestamp del evento.
+    if (!order && eventType.includes('SOLO.TRANSACTION')) {
+      order = await findRecentPendingSoloOrder({
+        adminClient,
+        webhookTimestamp,
+      })
+    }
 
     if (!order) {
       console.warn('[SOLO Webhook] Order not found', {
         orderId,
         checkoutReference,
         status,
+        eventType,
+        transactionCode,
+        webhookTimestamp,
       })
 
       return NextResponse.json({
@@ -203,6 +313,8 @@ async function handle(req: NextRequest) {
         order_id: orderId,
         checkout_reference: checkoutReference,
         status,
+        event_type: eventType,
+        transaction_code: transactionCode,
       })
     }
 
@@ -213,6 +325,7 @@ async function handle(req: NextRequest) {
         order_id: order.id,
         order_number: order.order_number,
         checkout_reference: checkoutReference,
+        event_type: eventType,
       })
     }
 
@@ -232,7 +345,9 @@ async function handle(req: NextRequest) {
           status: 'paid',
           notes: `${order.notes ?? ''} | Pagado via SumUp SOLO | Ref: ${
             checkoutReference || 'sin_ref'
-          } | TXN: ${transactionCode || 'sin_tx'}`,
+          } | TXN: ${transactionCode || 'sin_tx'} | Event: ${
+            eventType || 'sin_evento'
+          }`,
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.id)
@@ -273,6 +388,7 @@ async function handle(req: NextRequest) {
         order_number: order.order_number,
         checkout_reference: checkoutReference,
         transaction_code: transactionCode,
+        matched_by: orderId || checkoutReference ? 'direct' : 'recent_pending_solo_order',
       })
     }
 
@@ -283,7 +399,9 @@ async function handle(req: NextRequest) {
           status: 'cancelled',
           notes: `${order.notes ?? ''} | Pago SumUp SOLO ${status.toLowerCase()} | Ref: ${
             checkoutReference || 'sin_ref'
-          } | TXN: ${transactionCode || 'sin_tx'}`,
+          } | TXN: ${transactionCode || 'sin_tx'} | Event: ${
+            eventType || 'sin_evento'
+          }`,
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.id)
@@ -304,6 +422,7 @@ async function handle(req: NextRequest) {
         order_number: order.order_number,
         checkout_reference: checkoutReference,
         transaction_code: transactionCode,
+        matched_by: orderId || checkoutReference ? 'direct' : 'recent_pending_solo_order',
       })
     }
 
@@ -312,6 +431,7 @@ async function handle(req: NextRequest) {
       action: 'status_ignored',
       order_number: order.order_number,
       status,
+      event_type: eventType,
       checkout_reference: checkoutReference,
       transaction_code: transactionCode,
     })
