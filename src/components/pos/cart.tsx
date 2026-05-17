@@ -94,6 +94,53 @@ const soloStatusCopy: Record<
   },
 };
 
+type LastSale = {
+  id: string;
+  number: number | string;
+  total: number;
+  method: string;
+  clientName?: string | null;
+  at: string;
+};
+
+function playPaymentSuccessSound() {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    gain.connect(ctx.destination);
+    [880, 1174.66, 1567.98].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.11);
+      osc.connect(gain);
+      osc.start(ctx.currentTime + i * 0.11);
+      osc.stop(ctx.currentTime + i * 0.11 + 0.16);
+    });
+    setTimeout(() => ctx.close().catch(() => null), 900);
+  } catch (error) {
+    console.warn("No se pudo reproducir sonido de aprobación:", error);
+  }
+}
+
+function focusSkuSearchInput() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("arm-merch-focus-search"));
+  setTimeout(() => {
+    const inputs = Array.from(document.querySelectorAll("input")) as HTMLInputElement[];
+    const searchInput =
+      inputs.find((input) => String(input.placeholder ?? "").toLowerCase().includes("sku")) ||
+      inputs.find((input) => String(input.placeholder ?? "").toLowerCase().includes("buscar"));
+    searchInput?.focus();
+    searchInput?.select?.();
+  }, 250);
+}
+
 // ─── CartItemRow ────────────────────────────────────────────────────────────
 function CartItemRow({
   item,
@@ -290,6 +337,49 @@ export default function Cart() {
     total: number;
     emailSent?: boolean;
   } | null>(null);
+  const [lastSale, setLastSale] = useState<LastSale | null>(null);
+  const [campusBrandName, setCampusBrandName] = useState("ARM Merch");
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const registerLastSale = (sale: LastSale) => {
+    setLastSale(sale);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("arm-merch-last-sale", JSON.stringify(sale));
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedSale = window.localStorage.getItem("arm-merch-last-sale");
+    if (savedSale) {
+      try { setLastSale(JSON.parse(savedSale)); }
+      catch { window.localStorage.removeItem("arm-merch-last-sale"); }
+    }
+    const savedSound = window.localStorage.getItem("arm-merch-sound-enabled");
+    if (savedSound !== null) setSoundEnabled(savedSound === "true");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("arm-merch-sound-enabled", String(soundEnabled));
+    }
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadCampusBranding() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) return;
+        const { data: profile } = await supabase.from("profiles").select("campus_id").eq("id", session.user.id).maybeSingle();
+        if (!mounted || !profile?.campus_id) return;
+        const { data: campus } = await supabase.from("campuses").select("name").eq("id", profile.campus_id).maybeSingle();
+        if (mounted && campus?.name) setCampusBrandName(campus.name);
+      } catch { }
+    }
+    loadCampusBranding();
+    return () => { mounted = false; };
+  }, [supabase]);
 
   const canSubmit = useMemo(
     () =>
@@ -350,9 +440,12 @@ export default function Cart() {
           if (stopped) {
             setShowPaymentQR(false);
             setPaymentLinkUrl(null);
+            if (soundEnabled) playPaymentSuccessSound();
             notifyLocalStockDiscount();
+            if (createdOrder) registerLastSale({ id: createdOrder.id, number: createdOrder.number, total: createdOrder.total, method: "Link de pago", clientName: clientName.trim() || null, at: new Date().toISOString() });
             setSuccessOpen(true);
             clearCart();
+            focusSkuSearchInput();
           }
         }, 900);
 
@@ -506,9 +599,15 @@ export default function Cart() {
         emailSent: Boolean(data?.email_sent),
       });
 
+      if (soundEnabled) playPaymentSuccessSound();
       notifyLocalStockDiscount();
+      registerLastSale({ id: order.id, number: data?.order_number ?? order.number, total: order.total, method: "SumUp SOLO", clientName: clientName.trim() || null, at: new Date().toISOString() });
+      if (soundEnabled) playPaymentSuccessSound();
+      registerLastSale({ id: sumupSmartOrder.id, number: data.order_number ?? sumupSmartOrder.number, total: sumupSmartOrder.total, method: "Smart POS", clientName: clientName.trim() || null, at: new Date().toISOString() });
       setClientPhone("");
       clearCart();
+      focusSkuSearchInput();
+      focusSkuSearchInput();
 
       if (soloAutoCloseRef.current) clearTimeout(soloAutoCloseRef.current);
 
@@ -520,6 +619,7 @@ export default function Cart() {
         setTxCode("");
         setSumupStatus("waiting");
         setSoloCountdown(SOLO_TIMEOUT_SECONDS);
+        focusSkuSearchInput();
       }, 2300);
     };
 
@@ -1000,10 +1100,13 @@ export default function Cart() {
         setShowPaymentQR(true);
       } else {
         setPaymentLinkUrl(null);
+        if (soundEnabled) playPaymentSuccessSound();
         notifyLocalStockDiscount();
+        registerLastSale({ id: data.order_id, number: data.order_number ?? data.order_id, total: orderTotal, method: paymentMethod === "efectivo" ? "Efectivo" : paymentMethod === "transferencia" ? "Transferencia" : paymentMethod, clientName: clientName.trim() || null, at: new Date().toISOString() });
         setSuccessOpen(true);
         setClientPhone("");
         clearCart();
+        focusSkuSearchInput();
       }
     } catch (err: any) {
       setVerifyError(err?.message || "Error inesperado");
@@ -1054,17 +1157,34 @@ export default function Cart() {
                 )}
               </AnimatePresence>
             </div>
-            <h2 className="text-[17px] font-bold tracking-tight">Carrito</h2>
+            <div>
+              <h2 className="text-[17px] font-bold tracking-tight">Carrito</h2>
+              <div className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <Building2 size={10} />
+                <span>{campusBrandName}</span>
+              </div>
+            </div>
           </div>
 
-          {items.length > 0 && (
+          <div className="flex items-center gap-1">
             <button
-              onClick={clearCart}
-              className="rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400"
+              onClick={() => setSoundEnabled((v) => !v)}
+              className={`rounded-lg p-2 text-xs transition ${soundEnabled ? "text-amber-400 hover:bg-amber-500/10" : "text-zinc-600 hover:bg-white/5 hover:text-zinc-400"}`}
+              title={soundEnabled ? "Sonido activado" : "Sonido desactivado"}
             >
-              Vaciar
+              <Volume2 size={14} />
             </button>
-          )}
+
+            {items.length > 0 && (
+              <button
+                onClick={clearCart}
+                disabled={sumupSmartOpen || sumupPolling}
+                className="rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Vaciar
+              </button>
+            )}
+          </div>
         </div>
 
         {/* SCROLL AREA */}
@@ -1104,6 +1224,34 @@ export default function Cart() {
 
           {items.length > 0 && (
             <div className="space-y-4 px-4 pb-6">
+              {/* ÚLTIMA VENTA */}
+              {lastSale && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl border border-green-500/15 bg-green-500/[0.06] p-3"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-green-300">
+                      <Sparkles size={13} />
+                      Última venta
+                    </div>
+                    <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-bold text-zinc-400">
+                      {lastSale.method}
+                    </span>
+                  </div>
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-white">#{lastSale.number}</p>
+                      <p className="truncate text-[11px] text-zinc-500">
+                        {lastSale.clientName || "Cliente sin nombre"} · {new Date(lastSale.at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <p className="text-sm font-black text-amber-400">{fmt(lastSale.total)}</p>
+                  </div>
+                </motion.div>
+              )}
+
               {/* DATOS DEL CLIENTE */}
               <div className="space-y-2.5">
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
@@ -1263,7 +1411,12 @@ export default function Cart() {
                     : "#555",
                 }}
               >
-                {submitting ? (
+                {sumupSmartOpen || sumupPolling ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    Cobro SOLO en curso...
+                  </span>
+                ) : submitting ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                     Procesando...
@@ -1646,10 +1799,13 @@ export default function Cart() {
                     total: transferTotal,
                     emailSent: data.email_sent,
                   });
+                  if (soundEnabled) playPaymentSuccessSound();
                   notifyLocalStockDiscount();
+                  registerLastSale({ id: data.order_id, number: data.order_number ?? data.order_id, total: transferTotal, method: "Transferencia", clientName: clientName.trim() || null, at: new Date().toISOString() });
                   setSuccessOpen(true);
                   setClientPhone("");
                   clearCart();
+                  focusSkuSearchInput();
                 }
                 setSubmitting(false);
               }}
@@ -1777,9 +1933,11 @@ export default function Cart() {
           onNewSale={() => {
             setSuccessOpen(false);
             setCreatedOrder(null);
+            focusSkuSearchInput();
           }}
           onClose={() => {
             setSuccessOpen(false);
+            focusSkuSearchInput();
           }}
         />
       )}
