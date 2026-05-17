@@ -18,7 +18,6 @@ import {
   Package,
   Clock,
   Link,
-  AlertTriangle,
 } from "lucide-react";
 import SaleSuccessModal from "@/components/pos/sale-success-modal";
 import { QRCodeCanvas } from "qrcode.react";
@@ -36,63 +35,6 @@ const fmt = (n: number) =>
     currency: "CLP",
     maximumFractionDigits: 0,
   }).format(n);
-
-type SoloStatus = "waiting" | "processing" | "found" | "rejected" | "timeout";
-
-const SOLO_TIMEOUT_SECONDS = 180;
-
-const soloStatusCopy: Record<
-  SoloStatus,
-  {
-    icon: string;
-    title: string;
-    subtitle: string;
-    badge: string;
-    badgeClass: string;
-    ringClass: string;
-  }
-> = {
-  waiting: {
-    icon: "💳",
-    title: "Esperando pago en SumUp SOLO",
-    subtitle: "Pídele al cliente que acerque, inserte o deslice su tarjeta en la máquina.",
-    badge: "Esperando tarjeta",
-    badgeClass: "border-amber-500/20 bg-amber-500/10 text-amber-300",
-    ringClass: "border-amber-500/30 bg-amber-500/10",
-  },
-  processing: {
-    icon: "🔄",
-    title: "Procesando pago",
-    subtitle: "El sistema está consultando la confirmación de SumUp. No cierres esta ventana.",
-    badge: "Procesando",
-    badgeClass: "border-blue-500/20 bg-blue-500/10 text-blue-300",
-    ringClass: "border-blue-500/30 bg-blue-500/10",
-  },
-  found: {
-    icon: "✅",
-    title: "Pago confirmado",
-    subtitle: "Venta registrada correctamente. Cerrando automáticamente...",
-    badge: "Aprobado",
-    badgeClass: "border-green-500/20 bg-green-500/10 text-green-300",
-    ringClass: "border-green-500/30 bg-green-500/10",
-  },
-  rejected: {
-    icon: "❌",
-    title: "Pago rechazado",
-    subtitle: "El pago fue rechazado, cancelado o expiró. El stock no fue descontado.",
-    badge: "Rechazado",
-    badgeClass: "border-red-500/20 bg-red-500/10 text-red-300",
-    ringClass: "border-red-500/30 bg-red-500/10",
-  },
-  timeout: {
-    icon: "⏱️",
-    title: "Seguimos esperando confirmación",
-    subtitle: "No se recibió respuesta automática en el tiempo esperado. Revisa la máquina antes de entregar el producto.",
-    badge: "Tiempo agotado",
-    badgeClass: "border-zinc-500/20 bg-zinc-500/10 text-zinc-300",
-    ringClass: "border-zinc-500/30 bg-zinc-500/10",
-  },
-};
 
 // ─── CartItemRow ────────────────────────────────────────────────────────────
 function CartItemRow({
@@ -239,7 +181,6 @@ export default function Cart() {
   useEffect(
     () => () => {
       if (sumupPollRef.current) clearInterval(sumupPollRef.current);
-      if (soloAutoCloseRef.current) clearTimeout(soloAutoCloseRef.current);
     },
     [],
   );
@@ -276,10 +217,10 @@ export default function Cart() {
   const [showTransferQR, setShowTransferQR] = useState(false);
   const [transferTotal, setTransferTotal] = useState(0);
   const [sumupPolling, setSumupPolling] = useState(false);
-  const [sumupStatus, setSumupStatus] = useState<SoloStatus>("waiting");
-  const [soloCountdown, setSoloCountdown] = useState(SOLO_TIMEOUT_SECONDS);
+  const [sumupStatus, setSumupStatus] = useState<
+    "waiting" | "found" | "timeout"
+  >("waiting");
   const sumupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const soloAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [isPendingDelivery, setIsPendingDelivery] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -292,13 +233,8 @@ export default function Cart() {
   } | null>(null);
 
   const canSubmit = useMemo(
-    () =>
-      items.length > 0 &&
-      clientName.trim().length > 0 &&
-      !submitting &&
-      !sumupPolling &&
-      !sumupSmartOpen,
-    [items.length, clientName, submitting, sumupPolling, sumupSmartOpen],
+    () => items.length > 0 && clientName.trim().length > 0 && !submitting,
+    [items.length, clientName, submitting],
   );
 
   const paymentOptions = [
@@ -472,32 +408,21 @@ export default function Cart() {
     checkoutReference?: string | null;
   }) {
     if (sumupPollRef.current) clearInterval(sumupPollRef.current);
-    if (soloAutoCloseRef.current) clearTimeout(soloAutoCloseRef.current);
 
-    setSoloCountdown(SOLO_TIMEOUT_SECONDS);
     setSumupPolling(true);
     setSumupStatus("waiting");
     setVerifyError(null);
-    setVerifySuccess("Cobro enviado a la máquina SumUp SOLO. Esperando acción del cliente...");
+    setVerifySuccess("💳 Cobro enviado a la máquina SumUp SOLO. Esperando pago del cliente...");
 
     let attempts = 0;
     const maxAttempts = 90; // 90 * 2s = 3 minutos
 
-    const clearSoloPolling = () => {
-      if (sumupPollRef.current) {
-        clearInterval(sumupPollRef.current);
-        sumupPollRef.current = null;
-      }
-    };
-
     const finishAsPaid = (data: any) => {
-      clearSoloPolling();
+      if (sumupPollRef.current) clearInterval(sumupPollRef.current);
 
       setSumupPolling(false);
       setSumupStatus("found");
-      setSoloCountdown(0);
-      setVerifyError(null);
-      setVerifySuccess("Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
+      setVerifySuccess("✅ Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
 
       setCreatedOrder({
         id: order.id,
@@ -510,35 +435,21 @@ export default function Cart() {
       setClientPhone("");
       clearCart();
 
-      if (soloAutoCloseRef.current) clearTimeout(soloAutoCloseRef.current);
-
-      soloAutoCloseRef.current = setTimeout(() => {
+      setTimeout(() => {
         setSumupSmartOpen(false);
         setSuccessOpen(true);
         setVerifyError(null);
         setVerifySuccess(null);
         setTxCode("");
-        setSumupStatus("waiting");
-        setSoloCountdown(SOLO_TIMEOUT_SECONDS);
-      }, 2300);
+      }, 700);
     };
 
     const finishAsRejected = () => {
-      clearSoloPolling();
-
-      setSumupPolling(false);
-      setSumupStatus("rejected");
-      setVerifySuccess(null);
-      setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
-    };
-
-    const finishAsTimeout = () => {
-      clearSoloPolling();
+      if (sumupPollRef.current) clearInterval(sumupPollRef.current);
 
       setSumupPolling(false);
       setSumupStatus("timeout");
-      setVerifySuccess(null);
-      setVerifyError("No se recibió confirmación automática en 3 minutos. Revisa la máquina antes de entregar el producto.");
+      setVerifyError("El pago fue rechazado, cancelado o expiró. La orden quedó sin confirmar.");
     };
 
     const checkOrderStatusFromDB = async () => {
@@ -558,14 +469,6 @@ export default function Cart() {
 
     const check = async () => {
       attempts += 1;
-      const secondsLeft = Math.max(0, SOLO_TIMEOUT_SECONDS - attempts * 2);
-      setSoloCountdown(secondsLeft);
-
-      if (attempts > 1) {
-        setSumupStatus((current) =>
-          current === "waiting" ? "processing" : current
-        );
-      }
 
       try {
         const {
@@ -574,11 +477,13 @@ export default function Cart() {
 
         if (!session?.access_token) {
           setVerifyError("Sesión expirada. Recarga la página.");
-          clearSoloPolling();
+          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
           setSumupPolling(false);
           return;
         }
 
+        // 1) Primero revisamos la orden en Supabase.
+        // Si el backend/webhook ya la marcó paid, cerramos el modal al tiro.
         const dbStatus = await checkOrderStatusFromDB();
 
         if (dbStatus?.status === "paid") {
@@ -594,6 +499,8 @@ export default function Cart() {
           return;
         }
 
+        // 2) SOLO debe consultar SOLO STATUS, no check-checkout.
+        // check-checkout queda reservado para Link de Pago.
         const res = await fetch("/api/sumup/solo-status", {
           method: "POST",
           headers: {
@@ -625,11 +532,9 @@ export default function Cart() {
             "Esperando respuesta del cliente..."
         );
 
-        if (data?.final !== true && attempts > 1) {
-          setSumupStatus("processing");
-        }
-
-        setVerifySuccess(`SOLO: ${readerStatusText}`);
+        setVerifySuccess(
+          `💳 SOLO: ${readerStatusText} · Esperando respuesta del cliente...`
+        );
 
         if (
           data?.final === true &&
@@ -650,7 +555,10 @@ export default function Cart() {
         }
 
         if (attempts >= maxAttempts) {
-          finishAsTimeout();
+          if (sumupPollRef.current) clearInterval(sumupPollRef.current);
+          setSumupPolling(false);
+          setSumupStatus("timeout");
+          setVerifyError("No se recibió confirmación automática en 3 minutos. Revisa SumUp antes de entregar el producto.");
         }
       } catch (error: any) {
         setVerifyError(error?.message ?? "Error consultando el pago SOLO.");
@@ -764,12 +672,6 @@ export default function Cart() {
 
       // ── SumUp SOLO Cloud API: envía el cobro directo a la máquina ──
       if (paymentMethod === "solo") {
-        if (sumupSmartOpen || sumupPolling) {
-          setVerifyError("Ya hay un cobro SOLO en curso. Finaliza o cancela el cobro actual antes de iniciar otro.");
-          setSubmitting(false);
-          return;
-        }
-
         const orderRes = await fetch("/api/orders", {
           method: "POST",
           headers: {
@@ -1291,252 +1193,146 @@ export default function Cart() {
         </div>
       </aside>
 
-      {/* SumUp SOLO — Flujo de pago */}
+      {/* Smart POS — Esperando pago */}
       {sumupSmartOpen && sumupSmartOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-7 text-center shadow-2xl"
-          >
-            {(() => {
-              const copy = soloStatusCopy[sumupStatus];
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-8 text-center shadow-2xl">
+            {sumupStatus === "waiting" && (
+              <>
+                <div className="mb-4 text-6xl">💳</div>
+                <h2 className="mb-2 text-xl font-bold text-white">
+                  Cobro enviado a SumUp SOLO
+                </h2>
+                <p className="mb-1 text-sm text-zinc-400">
+                  La máquina debe mostrar el monto para que el cliente pague con tarjeta.
+                </p>
+                <p className="mb-5 text-xs text-zinc-600">
+                  No cierres esta ventana hasta recibir confirmación automática.
+                </p>
 
-              const progressPct =
-                sumupStatus === "found"
-                  ? 100
-                  : sumupStatus === "timeout" || sumupStatus === "rejected"
-                    ? 100
-                    : Math.min(
-                        100,
-                        Math.max(
-                          4,
-                          ((SOLO_TIMEOUT_SECONDS - soloCountdown) /
-                            SOLO_TIMEOUT_SECONDS) *
-                            100,
-                        ),
-                      );
-
-              return (
-                <>
-                  <motion.div
-                    key={sumupStatus}
-                    initial={{ scale: 0.86, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border text-5xl ${copy.ringClass}`}
-                  >
-                    {sumupStatus === "processing" ? (
-                      <span className="inline-block animate-spin">↻</span>
-                    ) : (
-                      copy.icon
-                    )}
-                  </motion.div>
-
-                  <div
-                    className={`mx-auto mb-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-bold ${copy.badgeClass}`}
-                  >
-                    {copy.badge}
+                <div className="rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 mb-5 text-left space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-500">Orden</span>
+                    <span className="font-bold text-white">
+                      #{sumupSmartOrder.number}
+                    </span>
                   </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-500">Total enviado</span>
+                    <span className="font-bold text-amber-400 text-base">
+                      {fmt(sumupSmartOrder.total)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-500">Estado</span>
+                    <span className="text-amber-400">
+                      {sumupPolling ? "⏳ Esperando pago" : "⏳ Consultando"}
+                    </span>
+                  </div>
+                </div>
 
-                  <h2 className="mb-2 text-xl font-black text-white">
-                    {copy.title}
-                  </h2>
-
-                  <p className="mb-5 text-sm leading-relaxed text-zinc-400">
-                    {copy.subtitle}
+                {verifySuccess && (
+                  <p className="mb-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300">
+                    {verifySuccess}
                   </p>
+                )}
 
-                  <div className="mb-5 space-y-3 rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 text-left">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500">Orden</span>
-                      <span className="font-bold text-white">
-                        #{sumupSmartOrder.number}
-                      </span>
-                    </div>
+                {verifyError && (
+                  <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                    {verifyError}
+                  </p>
+                )}
 
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500">Total enviado</span>
-                      <span className="text-base font-black text-amber-400">
-                        {fmt(sumupSmartOrder.total)}
-                      </span>
-                    </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const {
+                        data: { session },
+                      } = await supabase.auth.getSession();
 
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500">Estado</span>
-                      <span
-                        className={`font-bold ${
-                          sumupStatus === "found"
-                            ? "text-green-400"
-                            : sumupStatus === "rejected"
-                              ? "text-red-400"
-                              : sumupStatus === "timeout"
-                                ? "text-zinc-300"
-                                : "text-amber-400"
-                        }`}
-                      >
-                        {copy.badge}
-                      </span>
-                    </div>
+                      if (session?.access_token && sumupSmartOrder?.id) {
+                        await fetch("/api/sumup/solo-terminate", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${session.access_token}`,
+                          },
+                          body: JSON.stringify({
+                            order_id: sumupSmartOrder.id,
+                          }),
+                        });
+                      }
+                    } catch (e) {
+                      console.error("Error cancelando SOLO:", e);
+                    }
 
-                    {(sumupStatus === "waiting" ||
-                      sumupStatus === "processing") && (
-                      <>
-                        <div className="h-2 overflow-hidden rounded-full bg-black/35">
-                          <motion.div
-                            className="h-full rounded-full bg-amber-500"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progressPct}%` }}
-                            transition={{ duration: 0.25 }}
-                          />
-                        </div>
+                    if (sumupPollRef.current) clearInterval(sumupPollRef.current);
 
-                        <div className="flex items-center justify-between text-[11px] text-zinc-500">
-                          <span>Tiempo restante</span>
-                          <span>{Math.max(0, soloCountdown)}s</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                    setSumupPolling(false);
+                    setSumupSmartOpen(false);
+                    setVerifyError(null);
+                    setVerifySuccess(null);
+                    setTxCode("");
+                    setSumupStatus("waiting");
+                  }}
+                  className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/20 hover:text-white"
+                >
+                  Cancelar cobro
+                </button>
+              </>
+            )}
 
-                  {verifySuccess && sumupStatus !== "found" && (
-                    <p className="mb-3 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs text-blue-300">
-                      {verifySuccess}
-                    </p>
-                  )}
+            {sumupStatus === "found" && (
+              <>
+                <div className="mb-4 text-6xl">✅</div>
+                <h2 className="mb-2 text-xl font-bold text-white">
+                  ¡Pago confirmado!
+                </h2>
+                <p className="mb-1 text-sm text-zinc-400">
+                  Orden{" "}
+                  <strong className="text-white">
+                    #{sumupSmartOrder.number}
+                  </strong>
+                </p>
+                <p className="mb-6 text-xs text-zinc-600">
+                  El pago fue confirmado automáticamente por SumUp SOLO y la venta fue registrada.
+                </p>
+                <button
+                  onClick={() => {
+                    setSumupSmartOpen(false);
+                    setTxCode("");
+                    setVerifyError(null);
+                    setVerifySuccess(null);
+                  }}
+                  className="w-full rounded-2xl bg-green-500 py-3 text-sm font-bold text-white transition hover:bg-green-400"
+                >
+                  Nueva venta
+                </button>
+              </>
+            )}
 
-                  {verifyError && (
-                    <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-                      {verifyError}
-                    </p>
-                  )}
-
-                  {sumupStatus === "found" && (
-                    <p className="mb-4 rounded-xl border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs font-semibold text-green-300">
-                      Venta lista. Abriendo comprobante...
-                    </p>
-                  )}
-
-                  {(sumupStatus === "waiting" ||
-                    sumupStatus === "processing") && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const {
-                            data: { session },
-                          } = await supabase.auth.getSession();
-
-                          if (session?.access_token && sumupSmartOrder?.id) {
-                            await fetch("/api/sumup/solo-terminate", {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${session.access_token}`,
-                              },
-                              body: JSON.stringify({
-                                order_id: sumupSmartOrder.id,
-                              }),
-                            });
-                          }
-                        } catch (e) {
-                          console.error("Error cancelando SOLO:", e);
-                        }
-
-                        if (sumupPollRef.current)
-                          clearInterval(sumupPollRef.current);
-                        if (soloAutoCloseRef.current)
-                          clearTimeout(soloAutoCloseRef.current);
-
-                        setSumupPolling(false);
-                        setSumupSmartOpen(false);
-                        setVerifyError(null);
-                        setVerifySuccess(null);
-                        setTxCode("");
-                        setSumupStatus("waiting");
-                        setSoloCountdown(SOLO_TIMEOUT_SECONDS);
-                        setSubmitting(false);
-                      }}
-                      className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-semibold text-red-300 transition hover:border-red-400 hover:bg-red-500/20 hover:text-white"
-                    >
-                      Cancelar cobro
-                    </button>
-                  )}
-
-                  {sumupStatus === "timeout" && (
-                    <div className="grid grid-cols-1 gap-2">
-                      <button
-                        onClick={() => startSoloPolling(sumupSmartOrder)}
-                        className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400"
-                      >
-                        Reintentar monitoreo
-                      </button>
-
-                      <button
-                        onClick={async () => {
-                          try {
-                            const {
-                              data: { session },
-                            } = await supabase.auth.getSession();
-
-                            if (session?.access_token && sumupSmartOrder?.id) {
-                              await fetch("/api/sumup/solo-terminate", {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  Authorization: `Bearer ${session.access_token}`,
-                                },
-                                body: JSON.stringify({
-                                  order_id: sumupSmartOrder.id,
-                                }),
-                              });
-                            }
-                          } catch (e) {
-                            console.error("Error cancelando SOLO:", e);
-                          }
-
-                          if (sumupPollRef.current)
-                            clearInterval(sumupPollRef.current);
-
-                          setSumupPolling(false);
-                          setSumupSmartOpen(false);
-                          setVerifyError(null);
-                          setVerifySuccess(null);
-                          setTxCode("");
-                          setSumupStatus("waiting");
-                          setSoloCountdown(SOLO_TIMEOUT_SECONDS);
-                          setSubmitting(false);
-                        }}
-                        className="w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
-                      >
-                        Cancelar y volver al POS
-                      </button>
-                    </div>
-                  )}
-
-                  {sumupStatus === "rejected" && (
-                    <button
-                      onClick={() => {
-                        if (sumupPollRef.current)
-                          clearInterval(sumupPollRef.current);
-
-                        setSumupPolling(false);
-                        setSumupSmartOpen(false);
-                        setVerifyError(null);
-                        setVerifySuccess(null);
-                        setTxCode("");
-                        setSumupStatus("waiting");
-                        setSoloCountdown(SOLO_TIMEOUT_SECONDS);
-                        setSubmitting(false);
-                      }}
-                      className="w-full rounded-2xl bg-zinc-700 py-3 text-sm font-bold text-white transition hover:bg-zinc-600"
-                    >
-                      Volver al POS
-                    </button>
-                  )}
-                </>
-              );
-            })()}
-          </motion.div>
+            {sumupStatus === "timeout" && (
+              <>
+                <div className="mb-4 text-6xl">⏱️</div>
+                <h2 className="mb-2 text-xl font-bold text-white">
+                  Tiempo de espera agotado
+                </h2>
+                <p className="mb-1 text-sm text-zinc-400">
+                  No se detectó el pago en 3 minutos.
+                </p>
+                <p className="mb-6 text-xs text-zinc-600">
+                  La orden #{sumupSmartOrder.number} quedó pendiente. Puedes
+                  confirmarla manualmente en Órdenes si el cliente pagó.
+                </p>
+                <button
+                  onClick={() => setSumupSmartOpen(false)}
+                  className="w-full rounded-2xl bg-zinc-700 py-3 text-sm font-bold text-white transition hover:bg-zinc-600"
+                >
+                  Cerrar
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
