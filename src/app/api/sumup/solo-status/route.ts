@@ -135,9 +135,11 @@ function getTransactionArray(payload: any): any[] {
   if (Array.isArray(payload)) return payload
 
   if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.checkouts)) return payload.checkouts
   if (Array.isArray(payload?.transactions)) return payload.transactions
   if (Array.isArray(payload?.data)) return payload.data
   if (Array.isArray(payload?.data?.items)) return payload.data.items
+  if (Array.isArray(payload?.data?.checkouts)) return payload.data.checkouts
   if (Array.isArray(payload?.data?.transactions)) return payload.data.transactions
 
   if (
@@ -157,18 +159,26 @@ function getTxStatus(tx: any) {
     tx?.status ??
       tx?.transaction_status ??
       tx?.state ??
-      tx?.payment_status,
+      tx?.payment_status ??
+      tx?.checkout_status ??
+      tx?.transactions?.[0]?.status ??
+      tx?.transaction?.status,
   )
 }
 
 function getTxReference(tx: any) {
   return String(
     tx?.checkout_reference ??
+      tx?.reference ??
       tx?.foreign_transaction_id ??
       tx?.client_transaction_id ??
       tx?.transaction_id ??
       tx?.id ??
       tx?.transaction_code ??
+      tx?.transactions?.[0]?.transaction_code ??
+      tx?.transactions?.[0]?.id ??
+      tx?.transaction?.transaction_code ??
+      tx?.transaction?.id ??
       tx?.description ??
       '',
   )
@@ -180,7 +190,8 @@ function getTxAmount(tx: any) {
     tx?.total_amount?.value ??
     tx?.amount_money?.amount ??
     tx?.transaction_amount ??
-    tx?.gross_amount
+    tx?.gross_amount ??
+    tx?.transactions?.[0]?.amount
 
   const parsed = Number(value ?? 0)
 
@@ -192,11 +203,21 @@ function getTxAmount(tx: any) {
   return Math.round(parsed)
 }
 
-async function fetchRecentSumUpTransactions(apiBase: string, apiKey: string) {
+async function fetchRecentSumUpTransactions(
+  apiBase: string,
+  apiKey: string,
+  reference?: string | null,
+) {
+  const safeReference = String(reference ?? '').trim()
+
   const urls = [
     `${apiBase}/v0.1/me/transactions?limit=20`,
     `${apiBase}/v0.1/me/transactions/history?limit=20`,
-  ]
+    `${apiBase}/v0.1/checkouts?limit=20`,
+    safeReference
+      ? `${apiBase}/v0.1/checkouts?checkout_reference=${encodeURIComponent(safeReference)}`
+      : '',
+  ].filter(Boolean)
 
   const all: any[] = []
 
@@ -221,14 +242,14 @@ async function fetchRecentSumUpTransactions(apiBase: string, apiKey: string) {
         payload = { raw: text }
       }
 
-      console.log('[SOLO Status] Transactions URL:', url, 'HTTP:', res.status)
-      console.log('[SOLO Status] Transactions payload:', JSON.stringify(payload))
+      console.log('[SOLO Status] SumUp query URL:', url, 'HTTP:', res.status)
+      console.log('[SOLO Status] SumUp query payload:', JSON.stringify(payload))
 
       if (res.ok) {
         all.push(...getTransactionArray(payload))
       }
     } catch (error) {
-      console.error('[SOLO Status] Transactions query error:', error)
+      console.error('[SOLO Status] SumUp query error:', error)
     }
   }
 
@@ -543,7 +564,7 @@ export async function POST(req: NextRequest) {
     const expectedAmount = Math.round(Number(order.total ?? 0))
 
     // 2) Fallback SOLO: si SumUp no entrega checkout_id, buscamos en transacciones recientes.
-    const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey)
+    const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey, reference)
 
     const match = transactions.find((tx) => {
       const status = getTxStatus(tx)
