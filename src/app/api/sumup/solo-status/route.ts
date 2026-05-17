@@ -206,54 +206,53 @@ function getTxAmount(tx: any) {
 async function fetchRecentSumUpTransactions(
   apiBase: string,
   apiKey: string,
-  reference?: string | null,
 ) {
-  const safeReference = String(reference ?? '').trim()
+  // SOLO Reader Checkout funciona correctamente usando SOLO history.
+  // /checkouts NO sirve para SOLO.
+  // /me/transactions devuelve 404 en esta cuenta.
+  const url = `${apiBase}/v0.1/me/transactions/history?limit=50`
 
-  const urls = [
-    `${apiBase}/v0.1/me/transactions?limit=50`,
-    `${apiBase}/v0.1/me/transactions/history?limit=50`,
-    `${apiBase}/v0.1/checkouts?limit=50`,
-    safeReference
-      ? `${apiBase}/v0.1/checkouts?checkout_reference=${encodeURIComponent(safeReference)}`
-      : '',
-  ].filter(Boolean)
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
 
-  const all: any[] = []
+    const text = await res.text()
 
-  for (const url of urls) {
+    let payload: any = {}
+
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      })
-
-      const text = await res.text()
-
-      let payload: any = {}
-
-      try {
-        payload = JSON.parse(text)
-      } catch {
-        payload = { raw: text }
-      }
-
-      console.log('[SOLO Status] SumUp query URL:', url, 'HTTP:', res.status)
-      console.log('[SOLO Status] SumUp query payload:', JSON.stringify(payload))
-
-      if (res.ok) {
-        all.push(...getTransactionArray(payload))
-      }
-    } catch (error) {
-      console.error('[SOLO Status] SumUp query error:', error)
+      payload = JSON.parse(text)
+    } catch {
+      payload = { raw: text }
     }
-  }
 
-  return all
+    console.log(
+      '[SOLO Status] SumUp history URL:',
+      url,
+      'HTTP:',
+      res.status,
+    )
+
+    console.log(
+      '[SOLO Status] SumUp history payload:',
+      JSON.stringify(payload),
+    )
+
+    if (!res.ok) {
+      return []
+    }
+
+    return getTransactionArray(payload)
+  } catch (error) {
+    console.error('[SOLO Status] History fetch error:', error)
+    return []
+  }
 }
 
 async function sendVoucherEmail({
@@ -564,7 +563,7 @@ export async function POST(req: NextRequest) {
     const expectedAmount = Math.round(Number(order.total ?? 0))
 
     // 2) Fallback SOLO: si SumUp no entrega checkout_id, buscamos en transacciones recientes.
-    const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey, reference)
+    const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey)
 
     const now = Date.now()
 
