@@ -74,7 +74,11 @@ async function getAuth(req: NextRequest) {
 
   const token = authHeader.replace('Bearer ', '').trim()
 
-  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getEnv()
+  const {
+    supabaseUrl,
+    supabaseAnonKey,
+    serviceRoleKey,
+  } = getEnv()
 
   if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
     return {
@@ -108,7 +112,10 @@ async function getAuth(req: NextRequest) {
     }
   }
 
-  return { adminClient, user }
+  return {
+    adminClient,
+    user,
+  }
 }
 
 function extractReferenceFromNotes(notes?: string | null) {
@@ -124,7 +131,9 @@ function extractReferenceFromNotes(notes?: string | null) {
 
 function getTransactionArray(payload: any): any[] {
   if (!payload) return []
+
   if (Array.isArray(payload)) return payload
+
   if (Array.isArray(payload?.items)) return payload.items
   if (Array.isArray(payload?.checkouts)) return payload.checkouts
   if (Array.isArray(payload?.transactions)) return payload.transactions
@@ -132,6 +141,7 @@ function getTransactionArray(payload: any): any[] {
   if (Array.isArray(payload?.data?.items)) return payload.data.items
   if (Array.isArray(payload?.data?.checkouts)) return payload.data.checkouts
   if (Array.isArray(payload?.data?.transactions)) return payload.data.transactions
+
   if (
     payload?.id ||
     payload?.transaction_id ||
@@ -140,6 +150,7 @@ function getTransactionArray(payload: any): any[] {
   ) {
     return [payload]
   }
+
   return []
 }
 
@@ -184,6 +195,7 @@ function getTxAmount(tx: any) {
 
   const parsed = Number(value ?? 0)
 
+  // Algunos endpoints devuelven CLP como 100 y otros como 10000 con minor_unit.
   if (parsed > 1000 && Number(tx?.total_amount?.minor_unit ?? 0) === 2) {
     return Math.round(parsed / 100)
   }
@@ -199,9 +211,9 @@ async function fetchRecentSumUpTransactions(
   const safeReference = String(reference ?? '').trim()
 
   const urls = [
-    `${apiBase}/v0.1/me/transactions?limit=20`,
-    `${apiBase}/v0.1/me/transactions/history?limit=20`,
-    `${apiBase}/v0.1/checkouts?limit=20`,
+    `${apiBase}/v0.1/me/transactions?limit=50`,
+    `${apiBase}/v0.1/me/transactions/history?limit=50`,
+    `${apiBase}/v0.1/checkouts?limit=50`,
     safeReference
       ? `${apiBase}/v0.1/checkouts?checkout_reference=${encodeURIComponent(safeReference)}`
       : '',
@@ -221,6 +233,7 @@ async function fetchRecentSumUpTransactions(
       })
 
       const text = await res.text()
+
       let payload: any = {}
 
       try {
@@ -282,6 +295,7 @@ async function sendVoucherEmail({
         const sizeLabel = item.size
           ? `<br/><span style="font-size:11px;color:#71717a;">Talla: ${esc(item.size)}</span>`
           : ''
+
         const quantity = Number(item.quantity ?? 0)
         const unitPrice = Number(item.unit_price ?? 0)
         const lineTotal = quantity * unitPrice
@@ -317,11 +331,13 @@ async function sendVoucherEmail({
               <p style="margin:8px 0 0;font-size:14px;color:#d4d4d8;">Orden #${esc(order.order_number)}</p>
             </td>
           </tr>
+
           <tr>
             <td style="padding:28px 32px;">
               <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;">
                 Hola <strong>${esc(contact.client_name || 'Cliente')}</strong>, gracias por tu compra. Tu pago fue confirmado correctamente mediante SumUp SOLO.
               </p>
+
               <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:16px;">
                 <thead>
                   <tr>
@@ -334,18 +350,22 @@ async function sendVoucherEmail({
                   ${rows || '<tr><td colspan="3" style="padding:12px;color:#71717a;">Sin detalle de productos</td></tr>'}
                 </tbody>
               </table>
+
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
                 <tr>
                   <td style="padding:12px 0;font-size:17px;font-weight:700;color:#18181b;">Total pagado</td>
                   <td style="padding:12px 0;font-size:22px;font-weight:800;color:#18181b;text-align:right;">${fmtCLP(Number(order.total ?? 0))}</td>
                 </tr>
               </table>
-              ${transactionCode
-                ? `<p style="margin:10px 0 0;font-size:12px;color:#71717a;">Transacción: ${esc(transactionCode)}</p>`
-                : ''
+
+              ${
+                transactionCode
+                  ? `<p style="margin:10px 0 0;font-size:12px;color:#71717a;">Transacción: ${esc(transactionCode)}</p>`
+                  : ''
               }
             </td>
           </tr>
+
           <tr>
             <td style="background:#f9fafb;padding:22px 32px;text-align:center;border-top:1px solid #e4e4e7;">
               <p style="margin:0 0 6px;font-size:13px;color:#71717a;">¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.</p>
@@ -411,6 +431,8 @@ async function markOrderPaid({
     throw new Error(updateError.message)
   }
 
+  // Stock: solo se descuenta aquí, después de pago aprobado.
+  // Si el pago falla/cancela/expira, este bloque no se ejecuta.
   for (const item of order.order_items ?? []) {
     const { error: movementError } = await adminClient
       .from('inventory_movements')
@@ -427,7 +449,11 @@ async function markOrderPaid({
     }
   }
 
-  const emailSent = await sendVoucherEmail({ adminClient, order, transactionCode })
+  const emailSent = await sendVoucherEmail({
+    adminClient,
+    order,
+    transactionCode,
+  })
 
   return { emailSent, alreadyPaid: false }
 }
@@ -506,7 +532,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 1) Si ya está resuelta localmente, responder de inmediato.
+    // 1) Fuente principal: la orden local.
+    // Si webhook u otro endpoint ya la marcó pagada, el modal se cierra.
     if (order.status === 'paid') {
       return NextResponse.json({
         success: true,
@@ -536,108 +563,111 @@ export async function POST(req: NextRequest) {
     const reference = extractReferenceFromNotes(order.notes)
     const expectedAmount = Math.round(Number(order.total ?? 0))
 
-    // 2) Consultar transacciones recientes en SumUp SOLO.
-    const transactions = await fetchRecentSumUpTransactions(
-      sumupApiBase,
-      sumupApiKey,
-      reference,
-    )
+    // 2) Fallback SOLO: si SumUp no entrega checkout_id, buscamos en transacciones recientes.
+    const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey, reference)
 
     const now = Date.now()
 
-    // 3) Buscar la transacción que mejor coincida con esta orden.
-    //    Prioridad: referencia exacta → monto exacto + reciente (≤120s).
-    const matchedTx =
-      transactions.find((tx) => {
-        const txRef = getTxReference(tx)
-        return reference && txRef && txRef.includes(reference)
-      }) ??
-      transactions.find((tx) => {
-        const txAmount = getTxAmount(tx)
-        const txTimestamp = tx.timestamp ? new Date(tx.timestamp).getTime() : 0
-        const secondsDiff = Math.abs(now - txTimestamp) / 1000
-        return txAmount === expectedAmount && secondsDiff <= 120
-      }) ??
-      null
+    const match = transactions.find((tx) => {
+      const status = getTxStatus(tx)
+      const txReference = getTxReference(tx)
+      const txAmount = getTxAmount(tx)
 
-    // 4) Sin match → seguir esperando.
-    if (!matchedTx) {
-      return NextResponse.json({
-        success: true,
-        final: false,
-        paid: false,
-        status: 'pending',
-        order_status: 'pending',
-        message: '⏳ Esperando confirmación del pago SumUp SOLO',
-        order_number: order.order_number,
-        sumup_status: 'PENDING',
-        email_sent: false,
-        reference,
-        checked_transactions: transactions.length,
-      })
+      const txTimestamp = tx?.timestamp
+        ? new Date(tx.timestamp).getTime()
+        : tx?.date
+          ? new Date(tx.date).getTime()
+          : 0
+
+      const secondsDiff = txTimestamp > 0 ? Math.abs(now - txTimestamp) / 1000 : Number.POSITIVE_INFINITY
+
+      // Para evitar tomar transacciones históricas antiguas, solo aceptamos ventas recientes.
+      // Subimos a 5 minutos por latencia de SumUp/Vercel.
+      const recentEnough = secondsDiff <= 300
+
+      const referenceMatches =
+        Boolean(reference && txReference.includes(reference)) ||
+        txReference.includes(String(order.order_number)) ||
+        String(tx?.product_summary ?? '').includes(`Orden #${order.order_number}`) ||
+        String(tx?.description ?? '').includes(String(order.order_number))
+
+      const amountMatches =
+        expectedAmount > 0 &&
+        (txAmount === expectedAmount || Math.abs(txAmount - expectedAmount) <= 1)
+
+      const statusIsFinal =
+        PAID_STATUSES.includes(status) || FAILED_STATUSES.includes(status)
+
+      return statusIsFinal && recentEnough && (referenceMatches || amountMatches)
+    })
+
+    if (match) {
+      const status = getTxStatus(match)
+      const transactionCode =
+        match?.transaction_code ??
+        match?.transaction_id ??
+        match?.client_transaction_id ??
+        match?.id ??
+        null
+
+      if (PAID_STATUSES.includes(status)) {
+        const { emailSent } = await markOrderPaid({
+          adminClient,
+          order,
+          transactionCode,
+          rawStatus: status,
+        })
+
+        return NextResponse.json({
+          success: true,
+          final: true,
+          paid: true,
+          status: 'paid',
+          order_status: 'paid',
+          message: '✅ Pago aprobado en SumUp SOLO',
+          order_number: order.order_number,
+          transaction_code: transactionCode,
+          sumup_status: status,
+          email_sent: emailSent,
+          matched_by: 'recent_transactions',
+          sumup: match,
+        })
+      }
+
+      if (FAILED_STATUSES.includes(status)) {
+        await markOrderFailed({
+          adminClient,
+          order,
+          rawStatus: status,
+        })
+
+        return NextResponse.json({
+          success: true,
+          final: true,
+          paid: false,
+          status: 'cancelled',
+          order_status: 'cancelled',
+          message: '❌ Pago rechazado/cancelado en SumUp SOLO',
+          order_number: order.order_number,
+          sumup_status: status,
+          email_sent: false,
+          matched_by: 'recent_transactions',
+          sumup: match,
+        })
+      }
     }
 
-    // 5) Match encontrado → evaluar estado.
-    const txStatus = getTxStatus(matchedTx)
-    const transactionCode =
-      matchedTx?.transaction_code ??
-      matchedTx?.transaction_id ??
-      matchedTx?.client_transaction_id ??
-      matchedTx?.id ??
-      null
-
-    if (PAID_STATUSES.includes(txStatus)) {
-      const { emailSent } = await markOrderPaid({
-        adminClient,
-        order,
-        transactionCode,
-        rawStatus: txStatus,
-      })
-
-      return NextResponse.json({
-        success: true,
-        final: true,
-        paid: true,
-        status: 'paid',
-        order_status: 'paid',
-        message: '✅ Pago aprobado en SumUp SOLO',
-        order_number: order.order_number,
-        transaction_code: transactionCode,
-        sumup_status: txStatus,
-        email_sent: emailSent,
-        matched_by: 'recent_transactions',
-        sumup: matchedTx,
-      })
-    }
-
-    if (FAILED_STATUSES.includes(txStatus)) {
-      await markOrderFailed({ adminClient, order, rawStatus: txStatus })
-
-      return NextResponse.json({
-        success: true,
-        final: true,
-        paid: false,
-        status: 'cancelled',
-        order_status: 'cancelled',
-        message: '❌ Pago rechazado/cancelado en SumUp SOLO',
-        order_number: order.order_number,
-        sumup_status: txStatus,
-        email_sent: false,
-        matched_by: 'recent_transactions',
-        sumup: matchedTx,
-      })
-    }
-
-    // 6) Estado intermedio (ej: PROCESSING) → seguir esperando.
     return NextResponse.json({
       success: true,
       final: false,
       paid: false,
       status: 'pending',
       order_status: 'pending',
-      message: '⏳ Esperando confirmación del pago SumUp SOLO',
+      message: reference
+        ? '⏳ Esperando confirmación del pago SumUp SOLO'
+        : '⏳ Esperando confirmación del pago SumUp SOLO',
       order_number: order.order_number,
-      sumup_status: txStatus,
+      sumup_status: 'PENDING',
       email_sent: false,
       reference,
       checked_transactions: transactions.length,
