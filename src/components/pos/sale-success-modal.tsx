@@ -71,6 +71,7 @@ interface Props {
   clientName?: string
   clientEmail?: string
   emailSent?: boolean | null
+  paymentDetail?: string
   onNewSale: () => void
   onClose: () => void
 }
@@ -83,6 +84,7 @@ export default function SaleSuccessModal({
   clientName,
   clientEmail,
   emailSent,
+  paymentDetail,
   onNewSale,
   onClose,
 }: Props) {
@@ -159,6 +161,18 @@ export default function SaleSuccessModal({
                     </p>
                   </div>
                 </div>
+
+                {paymentDetail && (
+                  <div className="mt-4 rounded-2xl bg-zinc-950/70 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                      Pago
+                    </p>
+
+                    <p className="mt-2 text-sm font-bold text-white">
+                      {paymentDetail}
+                    </p>
+                  </div>
+                )}
 
                 {(clientName || clientEmail) && (
                   <div className="mt-4 rounded-2xl bg-zinc-950/70 p-4">
