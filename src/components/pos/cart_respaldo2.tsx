@@ -105,6 +105,8 @@ type LastSale = {
   at: string;
 };
 
+type SoloCardType = "debito" | "credito";
+
 function playPaymentSuccessSound() {
   if (typeof window === "undefined") return;
 
@@ -324,12 +326,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [paymentQrMessage, setPaymentQrMessage] = useState(
     "Esperando confirmación automática del pago...",
   );
-  const [whatsappLinkStatus, setWhatsappLinkStatus] = useState<
-    "idle" | "sending" | "sent" | "error"
-  >("idle");
-  const [whatsappLinkMessage, setWhatsappLinkMessage] = useState<string | null>(
-    null,
-  );
   const [paymentQrCheckoutId, setPaymentQrCheckoutId] = useState<string | null>(
     null,
   );
@@ -369,6 +365,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [lastSale, setLastSale] = useState<LastSale | null>(null);
   const [campusBrandName, setCampusBrandName] = useState("ARM Merch");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soloCardType, setSoloCardType] = useState<SoloCardType>("debito");
+  const [soloInstallments, setSoloInstallments] = useState(1);
+  const [showSoloCardSelector, setShowSoloCardSelector] = useState(false);
 
   const registerLastSale = (sale: LastSale) => {
     setLastSale(sale);
@@ -451,6 +450,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       !sumupSmartOpen,
     [items.length, clientName, submitting, sumupPolling, sumupSmartOpen],
   );
+
+  const soloPaymentLabel =
+    soloCardType === "debito"
+      ? "Débito"
+      : `Crédito · ${soloInstallments} cuota${soloInstallments > 1 ? "s" : ""}`;
 
   const paymentOptions = [
     { key: "efectivo", label: "Efectivo", icon: Banknote },
@@ -678,7 +682,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         id: order.id,
         number: data?.order_number ?? order.number,
         total: order.total,
-        method: "SumUp SOLO",
+        method: `SumUp SOLO · ${soloPaymentLabel}`,
         clientName: clientName.trim() || null,
         at: new Date().toISOString(),
       });
@@ -933,75 +937,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     setVerifying(false);
   }
 
-  async function sendPaymentLinkByWhatsApp({
-    orderId,
-    orderNumber,
-    paymentUrl,
-    amount,
-  }: {
-    orderId: string;
-    orderNumber: string | number;
-    paymentUrl: string;
-    amount: number;
-  }) {
-    const phone = clientPhone.trim();
-
-    if (!phone) {
-      setWhatsappLinkStatus("idle");
-      setWhatsappLinkMessage("Ingresa un WhatsApp si quieres enviar el link al cliente.");
-      return;
-    }
-
-    setWhatsappLinkStatus("sending");
-    setWhatsappLinkMessage("Enviando link de pago por WhatsApp...");
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setWhatsappLinkStatus("error");
-        setWhatsappLinkMessage("Sesión expirada. No se pudo enviar WhatsApp.");
-        return;
-      }
-
-      const res = await fetch("/api/whatsapp/send-payment-link", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          phone,
-          client_name: clientName.trim() || "Cliente",
-          order_id: orderId,
-          order_number: orderNumber,
-          total: amount,
-          payment_url: paymentUrl,
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.success) {
-        setWhatsappLinkStatus("error");
-        setWhatsappLinkMessage(
-          data?.error || "No se pudo enviar el link por WhatsApp.",
-        );
-        return;
-      }
-
-      setWhatsappLinkStatus("sent");
-      setWhatsappLinkMessage("✅ Link enviado por WhatsApp correctamente.");
-    } catch (error: any) {
-      setWhatsappLinkStatus("error");
-      setWhatsappLinkMessage(
-        error?.message || "Error enviando link por WhatsApp.",
-      );
-    }
-  }
-
   async function handleConfirmSale() {
     if (!canSubmit) return;
     setSubmitting(true);
@@ -1023,6 +958,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       // ── SumUp SOLO Cloud API: envía el cobro directo a la máquina ──
       if (paymentMethod === "solo") {
+        if (!showSoloCardSelector) {
+          setShowSoloCardSelector(true);
+          setSubmitting(false);
+          return;
+        }
+
         if (sumupSmartOpen || sumupPolling) {
           setVerifyError("Ya hay un cobro SOLO en curso. Finaliza o cancela el cobro actual antes de iniciar otro.");
           setSubmitting(false);
@@ -1048,7 +989,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             client_name: clientName.trim() || null,
             client_email: clientEmail.trim() || null,
             client_phone: clientPhone.trim() || null,
-            notes: "SumUp SOLO - pago enviado al lector",
+            notes: `SumUp SOLO | Tipo: ${soloCardType} | Cuotas: ${soloInstallments}`,
             delivery_status: isPendingDelivery ? "pending" : null,
           }),
         });
@@ -1093,6 +1034,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           checkoutReference: soloData?.checkout_reference ?? null,
         };
 
+        setShowSoloCardSelector(false);
         setSumupSmartOrder(orderPayload);
         setTxCode("");
         setVerifyError(null);
@@ -1211,8 +1153,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         setPaymentQrTotal(total());
         setPaymentQrStatus("pending");
         setPaymentQrMessage("Esperando confirmación automática del pago...");
-        setWhatsappLinkStatus("idle");
-        setWhatsappLinkMessage(null);
       }
 
       const res = await fetch("/api/orders", {
@@ -1258,15 +1198,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       });
 
       if (paymentMethod === "link") {
-        if (paymentLinkUrl) {
-          await sendPaymentLinkByWhatsApp({
-            orderId: data.order_id,
-            orderNumber: data.order_number ?? data.order_id,
-            paymentUrl: paymentLinkUrl,
-            amount: orderTotal,
-          });
-        }
-
         setShowPaymentQR(true);
       } else {
         setPaymentLinkUrl(null);
@@ -1650,6 +1581,125 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         </div>
       </aside>
 
+      {/* SOLO Card Selector */}
+      {showSoloCardSelector && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="w-full max-w-md rounded-3xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
+          >
+            <div className="mb-5 text-center">
+              <div className="mb-3 text-5xl">💳</div>
+
+              <h2 className="text-2xl font-black text-white">
+                Tipo de tarjeta
+              </h2>
+
+              <p className="mt-2 text-sm text-zinc-400">
+                Selecciona cómo pagará el cliente antes de enviar el cobro a SOLO.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setSoloCardType("debito");
+                  setSoloInstallments(1);
+                }}
+                className={`w-full rounded-2xl border p-4 text-left transition ${
+                  soloCardType === "debito"
+                    ? "border-emerald-500 bg-emerald-500/10"
+                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                }`}
+              >
+                <div className="font-bold text-white">Débito</div>
+                <div className="mt-1 text-xs text-zinc-400">
+                  Pago inmediato con tarjeta débito.
+                </div>
+              </button>
+
+              <button
+                onClick={() => setSoloCardType("credito")}
+                className={`w-full rounded-2xl border p-4 text-left transition ${
+                  soloCardType === "credito"
+                    ? "border-amber-500 bg-amber-500/10"
+                    : "border-zinc-700 bg-zinc-800 hover:border-zinc-500"
+                }`}
+              >
+                <div className="font-bold text-white">Crédito</div>
+                <div className="mt-1 text-xs text-zinc-400">
+                  Tarjeta crédito con posibilidad de cuotas.
+                </div>
+              </button>
+            </div>
+
+            {soloCardType === "credito" && (
+              <div className="mt-5">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-zinc-500">
+                  Cuotas
+                </p>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 3, 6, 12].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setSoloInstallments(n)}
+                      className={`rounded-2xl border py-3 text-sm font-black transition ${
+                        soloInstallments === n
+                          ? "border-amber-500 bg-amber-500 text-black"
+                          : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Total</span>
+                <span className="text-base font-black text-amber-400">
+                  {fmt(total())}
+                </span>
+              </div>
+
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Selección</span>
+                <span className="font-bold text-white">{soloPaymentLabel}</span>
+              </div>
+
+              <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+                ARM Merch registra esta selección para operación y reportes. SumUp procesará el pago en la máquina.
+              </p>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  setShowSoloCardSelector(false);
+                  setSubmitting(false);
+                }}
+                className="rounded-2xl border border-zinc-700 bg-zinc-800 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={async () => {
+                  await handleConfirmSale();
+                }}
+                className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400"
+              >
+                Enviar a SOLO
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* SumUp SOLO — Flujo de pago */}
       {sumupSmartOpen && sumupSmartOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
@@ -1718,6 +1768,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       <span className="text-zinc-500">Total enviado</span>
                       <span className="text-base font-black text-amber-400">
                         {fmt(sumupSmartOrder.total)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-500">Tipo pago</span>
+                      <span className="font-bold text-white">
+                        {soloPaymentLabel}
                       </span>
                     </div>
 
@@ -2100,53 +2157,18 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             </div>
 
             <p
-              className={`mb-3 text-xs ${paymentQrStatus === "rejected" ? "text-red-400" : "text-zinc-600"}`}
+              className={`mb-5 text-xs ${paymentQrStatus === "rejected" ? "text-red-400" : "text-zinc-600"}`}
             >
               {paymentQrMessage}
             </p>
 
-            {whatsappLinkMessage && (
-              <p
-                className={`mb-5 rounded-xl border px-3 py-2 text-xs ${
-                  whatsappLinkStatus === "sent"
-                    ? "border-green-500/20 bg-green-500/10 text-green-300"
-                    : whatsappLinkStatus === "error"
-                      ? "border-red-500/20 bg-red-500/10 text-red-300"
-                      : "border-blue-500/20 bg-blue-500/10 text-blue-300"
-                }`}
-              >
-                {whatsappLinkMessage}
-              </p>
-            )}
-
             {paymentQrStatus === "pending" && (
-              <>
-                <button
-                  onClick={() => window.open(paymentLinkUrl, "_blank")}
-                  className="mb-3 w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
-                >
-                  Abrir link de pago
-                </button>
-
-                {createdOrder && clientPhone.trim() && (
-                  <button
-                    onClick={() =>
-                      sendPaymentLinkByWhatsApp({
-                        orderId: createdOrder.id,
-                        orderNumber: createdOrder.number,
-                        paymentUrl: paymentLinkUrl,
-                        amount: paymentQrTotal || createdOrder.total,
-                      })
-                    }
-                    disabled={whatsappLinkStatus === "sending"}
-                    className="mb-3 w-full rounded-2xl border border-green-500/30 bg-green-500/10 py-3 text-sm font-bold text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {whatsappLinkStatus === "sending"
-                      ? "Enviando WhatsApp..."
-                      : "Reenviar link por WhatsApp"}
-                  </button>
-                )}
-              </>
+              <button
+                onClick={() => window.open(paymentLinkUrl, "_blank")}
+                className="mb-3 w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
+              >
+                Abrir link de pago
+              </button>
             )}
 
             <button
@@ -2159,8 +2181,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 setPaymentQrMessage(
                   "Esperando confirmación automática del pago...",
                 );
-                setWhatsappLinkStatus("idle");
-                setWhatsappLinkMessage(null);
                 setClientPhone("");
                 clearCart();
               }}
@@ -2180,9 +2200,17 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           orderNumber={createdOrder.number}
           total={createdOrder.total}
           emailSent={createdOrder.emailSent}
+          paymentDetail={
+            lastSale?.id === createdOrder.id
+              ? lastSale.method
+              : paymentMethod === "solo"
+                ? soloPaymentLabel
+                : undefined
+          }
           onNewSale={() => {
             setSuccessOpen(false);
             setCreatedOrder(null);
+            setShowSoloCardSelector(false);
             focusSkuSearchInput();
           }}
           onClose={() => {
