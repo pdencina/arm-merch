@@ -205,9 +205,24 @@ export default function ProductGrid({ products, categories }: Props) {
     inputRef.current?.focus()
   }, [])
 
+  useEffect(() => {
+    const focusHandler = () => {
+      setTimeout(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select?.()
+      }, 80)
+    }
+
+    window.addEventListener('arm-merch-focus-search', focusHandler)
+
+    return () => {
+      window.removeEventListener('arm-merch-focus-search', focusHandler)
+    }
+  }, [])
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-zinc-800 px-4 py-3">
+      <div className="border-b border-zinc-800 px-5 py-4">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search
@@ -221,14 +236,14 @@ export default function ProductGrid({ products, categories }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Buscar o escanear SKU / código de barra..."
-              className="h-11 w-full rounded-xl border border-zinc-700 bg-zinc-900 pl-10 pr-3 text-sm text-white outline-none focus:border-slate-400"
+              className="h-12 w-full rounded-2xl border border-zinc-700 bg-zinc-900 pl-10 pr-4 text-sm text-white outline-none transition focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/5"
             />
           </div>
 
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="hidden h-11 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-xs text-white outline-none focus:border-slate-400 md:block"
+            className="hidden h-12 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 text-xs font-semibold text-white outline-none transition focus:border-amber-500/50 md:block"
           >
             <option value="">Categorías</option>
             {categories.map((cat) => (
@@ -253,14 +268,14 @@ export default function ProductGrid({ products, categories }: Props) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="flex-1 overflow-y-auto p-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filtered.map((product) => (
             <button
               key={product.id}
               onClick={() => addProduct(product)}
               disabled={(product.stock ?? 0) <= 0}
-              className="relative rounded-xl bg-zinc-900 p-2 text-left transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="group relative rounded-3xl border border-white/5 bg-zinc-900/80 p-3 text-left shadow-lg transition hover:-translate-y-0.5 hover:border-amber-500/20 hover:bg-zinc-900 hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {product.stock !== null && (
                 <span
@@ -276,7 +291,7 @@ export default function ProductGrid({ products, categories }: Props) {
                 </span>
               )}
 
-              <div className="mb-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-zinc-800">
+              <div className="mb-3 flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-zinc-800 transition group-hover:bg-zinc-800/80">
                 {product.image_url ? (
                   <Image
                     src={product.image_url}
@@ -290,7 +305,7 @@ export default function ProductGrid({ products, categories }: Props) {
                 )}
               </div>
 
-              <p className="mb-0.5 line-clamp-2 text-xs font-medium leading-tight text-white">
+              <p className="mb-1 line-clamp-2 text-sm font-bold leading-tight text-white">
                 {product.name}
               </p>
 
@@ -304,12 +319,28 @@ export default function ProductGrid({ products, categories }: Props) {
                 </p>
               )}
 
-              <p className="text-sm font-bold text-amber-400">
+              <p className="text-base font-black text-amber-400">
                 {fmt(product.price)}
               </p>
             </button>
           ))}
         </div>
+
+        {filtered.length === 0 && (
+          <div className="flex h-64 flex-col items-center justify-center text-center">
+            <Search size={34} className="mb-3 text-zinc-700" />
+            <p className="text-sm font-semibold text-zinc-400">
+              No encontramos productos
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Prueba con otro nombre, SKU o código de barra.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="hidden border-t border-zinc-800 px-5 py-3 text-center text-[11px] text-zinc-600 md:block">
+        Escanea un código de barras para agregar rápido al carrito
       </div>
     </div>
   )

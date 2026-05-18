@@ -284,7 +284,7 @@ function PaymentPill({
 
 // ─── componente principal ───────────────────────────────────────────────────
 
-export default function Cart() {
+export default function Cart({ onClose }: { onClose?: () => void }) {
   const supabase = createClient();
   const {
     items,
@@ -1282,6 +1282,16 @@ export default function Cart() {
                 className="rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Vaciar
+              </button>
+            )}
+
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="ml-1 rounded-xl border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:border-white/15 hover:bg-white/[0.06] hover:text-white"
+                aria-label="Cerrar carrito"
+              >
+                <X size={16} />
               </button>
             )}
           </div>
