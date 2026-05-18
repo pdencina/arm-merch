@@ -1,173 +1,205 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-// ─── POST /api/whatsapp ───────────────────────────────────────────────────────
-// Envía notificación WhatsApp al cliente cuando su pedido está listo.
-// Llamado desde deliveries/page.tsx al marcar un pedido como 'ready'.
-// ─────────────────────────────────────────────────────────────────────────────
-
-function formatPhone(phone: string): string {
-  // Normalizar a formato internacional chileno
-  const clean = phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '')
-  if (clean.startsWith('+')) return clean
-  if (clean.startsWith('56')) return `+${clean}`
-  if (clean.startsWith('9') && clean.length === 9) return `+56${clean}`
-  return `+56${clean}`
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 }
 
-function buildMessage(
-  clientName: string,
-  items: { name: string; size?: string | null; quantity: number }[],
-  campusName: string,
-  paymentUrl?: string | null,
-  totalAmount?: number | null,
-): string {
-  const firstName = clientName.split(' ')[0]
+async function getSessionUser(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
 
-  const productLines = items
-    .map(i => {
-      const size = i.size ? ` (Talla ${i.size})` : ''
-      return `• ${i.name}${size} × ${i.quantity}`
-    })
-    .join('\n')
-
-  const fmtCLP = (n: number) =>
-    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
-
-  // Payment link message
-  if (paymentUrl) {
-    return `¡Hola ${firstName}! 👋
-
-Tu pedido de ARM Merch está listo para pagar:
-
-${productLines}
-
-💳 Total: ${totalAmount ? fmtCLP(totalAmount) : ''}
-
-Paga con tarjeta, Apple Pay o Google Pay aquí:
-${paymentUrl}
-
-¡Te esperamos! — Equipo ARM Merch`
+  if (!authHeader?.startsWith("Bearer ")) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 },
+      ),
+    };
   }
 
-  // Ready for pickup message
-  return `¡Hola ${firstName}! 🎉
+  const token = authHeader.replace("Bearer ", "").trim();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-Tu pedido de ARM Merch está listo para retirar:
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Faltan variables de Supabase" },
+        { status: 500 },
+      ),
+    };
+  }
 
-${productLines}
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-📍 Puedes retirarlo en: ${campusName}
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
 
-¡Te esperamos pronto! — Equipo ARM Merch`
+  if (error || !user) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 },
+      ),
+    };
+  }
+
+  return { user };
 }
 
-const log = (...args: any[]) => process.env.NODE_ENV !== 'production' && console.log(...args)
+function fallbackMessage({
+  clientName,
+  total,
+  paymentUrl,
+}: {
+  clientName: string;
+  total: number;
+  paymentUrl: string;
+}) {
+  return `Hola ${clientName || "Cliente"} 👋
 
+Tu pedido ARM Merch ya está listo para pago.
+
+💰 Total: ${formatCurrency(total)}
+
+Puedes completar tu compra aquí:
+${paymentUrl}
+
+Gracias por apoyar ARM ❤️`;
+}
+
+function cleanWhatsAppMessage(value: string) {
+  return String(value || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 900);
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Auth check
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    }
-    const token = authHeader.replace('Bearer ', '').trim()
+    const auth = await getSessionUser(req);
 
-    const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnon   = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-    const authClient = createClient(supabaseUrl, supabaseAnon)
-    const { data: { user }, error: authError } = await authClient.auth.getUser(token)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (auth.errorResponse) {
+      return auth.errorResponse;
     }
 
-    // Twilio credentials
-    const accountSid = process.env.TWILIO_ACCOUNT_SID
-    const authToken  = process.env.TWILIO_AUTH_TOKEN
-    const fromNumber = process.env.TWILIO_WHATSAPP_FROM // e.g. whatsapp:+14155238886
+    const body = await req.json().catch(() => ({}));
 
-    if (!accountSid || !authToken || !fromNumber) {
+    const type = String(body?.type || "payment_link");
+    const clientName = String(body?.client_name || "Cliente").trim();
+    const total = Number(body?.total || 0);
+    const paymentUrl = String(body?.payment_url || "").trim();
+    const campus = String(body?.campus || "ARM Merch").trim();
+    const tone = String(body?.tone || "cercano, claro y profesional").trim();
+
+    if (!paymentUrl && type === "payment_link") {
       return NextResponse.json(
-        { error: 'Twilio no configurado. Agrega TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN y TWILIO_WHATSAPP_FROM en Vercel.' },
-        { status: 500 }
-      )
+        { error: "payment_url es obligatorio" },
+        { status: 400 },
+      );
     }
 
-    // Parse body
-    const body = await req.json()
-    const { phone, client_name, items, campus_name, order_id, payment_url, total_amount } = body
+    const fallback = fallbackMessage({
+      clientName,
+      total,
+      paymentUrl,
+    });
 
-    if (!phone || !client_name || !items?.length || !campus_name) {
-      return NextResponse.json({ error: 'Faltan datos: phone, client_name, items, campus_name' }, { status: 400 })
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json({
+        success: true,
+        provider: "fallback",
+        message: fallback,
+      });
     }
 
-    const toNumber  = `whatsapp:${formatPhone(phone)}`
-    const message   = buildMessage(client_name, items, campus_name, payment_url, total_amount)
+    const model = process.env.OPENAI_MODEL || "gpt-5-mini";
 
-    // Send via Twilio REST API (no need to install twilio package)
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`
+    const instructions = [
+      "Eres un asistente de comunicación para ARM Merch.",
+      "Genera mensajes de WhatsApp breves, humanos y transaccionales.",
+      "No inventes información.",
+      "No agregues descuentos, promociones ni urgencia falsa.",
+      "Mantén tono cristiano/cercano sutil, sin sonar invasivo.",
+      "El mensaje debe ser apto para una plantilla Utility de WhatsApp.",
+      "Devuelve solo el mensaje final, sin comillas ni explicación.",
+    ].join(" ");
 
-    const params = new URLSearchParams({
-      From: fromNumber,
-      To:   toNumber,
-      Body: message,
-    })
+    const input = `
+Tipo de mensaje: ${type}
+Cliente: ${clientName}
+Campus: ${campus}
+Total: ${formatCurrency(total)}
+Link de pago: ${paymentUrl}
+Tono: ${tone}
 
-    const twilioRes = await fetch(twilioUrl, {
-      method: 'POST',
+Genera un mensaje WhatsApp listo para enviar.
+Debe incluir:
+- saludo con el nombre
+- total
+- link de pago
+- cierre breve agradeciendo apoyo a ARM
+Máximo 650 caracteres.
+`;
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-      body: params.toString(),
-    })
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        temperature: 0.4,
+        max_output_tokens: 220,
+      }),
+      cache: "no-store",
+    });
 
-    const twilioData = await twilioRes.json().catch(() => null)
+    const data = await response.json().catch(() => null);
 
-    if (!twilioRes.ok) {
-      console.error('[WhatsApp] Twilio error:', JSON.stringify(twilioData))
-      // Return the full Twilio error for debugging
-      return NextResponse.json(
-        {
-          error: twilioData?.message ?? 'Error al enviar WhatsApp',
-          code: twilioData?.code,
-          status: twilioData?.status,
-          more_info: twilioData?.more_info,
-          to: toNumber,
-          from: fromNumber,
-        },
-        { status: 400 }
-      )
+    if (!response.ok) {
+      console.error("[AI WhatsApp Message] OpenAI error:", data);
+
+      return NextResponse.json({
+        success: true,
+        provider: "fallback",
+        message: fallback,
+        warning: data?.error?.message || "OpenAI no respondió correctamente",
+      });
     }
 
-    // Log in Supabase (opcional — para auditoría)
-    if (order_id) {
-      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })
-      await adminClient.from('delivery_updates').insert({
-        order_id,
-        from_status: 'ready',
-        to_status:   'ready',
-        notes:       `WhatsApp enviado a ${formatPhone(phone)}`,
-      }).then(() => {})  // fire and forget
-    }
-
-    log('[WhatsApp] Sent to', toNumber, '| SID:', twilioData?.sid)
+    const generated = cleanWhatsAppMessage(
+      data?.output_text ||
+        data?.output?.[0]?.content?.[0]?.text ||
+        "",
+    );
 
     return NextResponse.json({
       success: true,
-      sid: twilioData?.sid,
-      to: toNumber,
-    })
+      provider: generated ? "openai" : "fallback",
+      message: generated || fallback,
+    });
   } catch (error: any) {
-    console.error('[WhatsApp] Error:', error)
+    console.error("[AI WhatsApp Message] Error:", error);
+
     return NextResponse.json(
-      { error: error?.message ?? 'Error interno' },
-      { status: 500 }
-    )
+      {
+        error: error?.message || "Error generando mensaje IA",
+      },
+      { status: 500 },
+    );
   }
 }

@@ -35,7 +35,6 @@ async function getSessionUser(req: NextRequest) {
   }
 
   const token = authHeader.replace("Bearer ", "").trim();
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -64,7 +63,70 @@ async function getSessionUser(req: NextRequest) {
     };
   }
 
-  return { user };
+  return { user, token };
+}
+
+function fallbackAiMessage({
+  clientName,
+  total,
+  paymentUrl,
+}: {
+  clientName: string;
+  total: number;
+  paymentUrl: string;
+}) {
+  return `Hola ${clientName || "Cliente"} 👋
+
+Tu pedido ARM Merch ya está listo para pago.
+
+💰 Total: ${formatCurrency(total)}
+
+Puedes completar tu compra aquí:
+${paymentUrl}
+
+Gracias por apoyar ARM ❤️`;
+}
+
+async function generateAiMessage({
+  origin,
+  token,
+  clientName,
+  total,
+  paymentUrl,
+}: {
+  origin: string;
+  token: string;
+  clientName: string;
+  total: number;
+  paymentUrl: string;
+}) {
+  try {
+    const res = await fetch(`${origin}/api/ai/whatsapp-message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        type: "payment_link",
+        client_name: clientName,
+        total,
+        payment_url: paymentUrl,
+        campus: "ARM Merch",
+      }),
+      cache: "no-store",
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.message) {
+      return fallbackAiMessage({ clientName, total, paymentUrl });
+    }
+
+    return String(data.message).trim();
+  } catch {
+    return fallbackAiMessage({ clientName, total, paymentUrl });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -102,6 +164,17 @@ export async function POST(req: NextRequest) {
     const templateName = process.env.WHATSAPP_TEMPLATE_LINK_PAGO || "link_pago";
     const templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es_CL";
 
+    /*
+      Modos:
+      - default_3_vars:
+        {{1}} = nombre cliente, {{2}} = total, {{3}} = link de pago
+
+      - ai_message_3_vars:
+        {{1}} = mensaje IA completo, {{2}} = total, {{3}} = link de pago
+    */
+    const templateMode =
+      process.env.WHATSAPP_TEMPLATE_LINK_PAGO_MODE || "default_3_vars";
+
     if (!whatsappToken || !phoneNumberId) {
       return NextResponse.json(
         {
@@ -113,6 +186,41 @@ export async function POST(req: NextRequest) {
     }
 
     const totalText = formatCurrency(total);
+
+    const origin =
+      req.headers.get("origin") ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://www.armerch.com";
+
+    const aiMessage =
+      templateMode === "ai_message_3_vars"
+        ? await generateAiMessage({
+            origin,
+            token: auth.token!,
+            clientName,
+            total,
+            paymentUrl,
+          })
+        : null;
+
+    const bodyParameters =
+      templateMode === "ai_message_3_vars"
+        ? [
+            {
+              type: "text",
+              text:
+                aiMessage ||
+                fallbackAiMessage({ clientName, total, paymentUrl }),
+            },
+            { type: "text", text: totalText },
+            { type: "text", text: paymentUrl },
+          ]
+        : [
+            { type: "text", text: clientName },
+            { type: "text", text: totalText },
+            { type: "text", text: paymentUrl },
+          ];
 
     const payload = {
       messaging_product: "whatsapp",
@@ -126,11 +234,7 @@ export async function POST(req: NextRequest) {
         components: [
           {
             type: "body",
-            parameters: [
-              { type: "text", text: clientName },
-              { type: "text", text: totalText },
-              { type: "text", text: paymentUrl },
-            ],
+            parameters: bodyParameters,
           },
         ],
       },
@@ -157,7 +261,9 @@ export async function POST(req: NextRequest) {
       to: phone,
       templateName,
       templateLanguage,
+      templateMode,
       orderNumber,
+      aiMessage,
       response: data,
     });
 
@@ -177,7 +283,9 @@ export async function POST(req: NextRequest) {
       success: true,
       to: phone,
       template: templateName,
+      template_mode: templateMode,
       order_number: orderNumber,
+      ai_message: aiMessage,
       meta: data,
     });
   } catch (error: any) {
