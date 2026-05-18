@@ -18,7 +18,9 @@ import {
   Package,
   Clock,
   Link,
-  AlertTriangle,
+  Volume2,
+  Sparkles,
+  Building2,
 } from "lucide-react";
 import SaleSuccessModal from "@/components/pos/sale-success-modal";
 import { QRCodeCanvas } from "qrcode.react";
