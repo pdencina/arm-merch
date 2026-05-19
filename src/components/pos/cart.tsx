@@ -356,7 +356,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [showTransferQR, setShowTransferQR] = useState(false);
   const [transferTotal, setTransferTotal] = useState(0);
   const [showCashModal, setShowCashModal] = useState(false);
-  const [cashReceived, setCashReceived] = useState("");
+  const [cashReceived, setCashReceived] = useState("0");
   const [cashError, setCashError] = useState<string | null>(null);
   const [sumupPolling, setSumupPolling] = useState(false);
   const [sumupStatus, setSumupStatus] = useState<SoloStatus>("waiting");
@@ -455,6 +455,16 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   }, [cashReceived]);
 
   const cashChange = Math.max(0, cashReceivedAmount - total());
+  const cashMissing = Math.max(0, total() - cashReceivedAmount);
+  const cashInputDisplay = cashReceivedAmount === 0
+    ? "0"
+    : cashReceivedAmount.toLocaleString("es-CL");
+
+  const setCashAmount = (value: number) => {
+    const safeValue = Math.max(0, Math.round(Number(value) || 0));
+    setCashReceived(String(safeValue));
+    setCashError(null);
+  };
 
   const canSubmit = useMemo(
     () =>
@@ -1110,7 +1120,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       });
 
       setShowCashModal(false);
-      setCashReceived("");
+      setCashReceived("0");
       setCashError(null);
       setSuccessOpen(true);
       setClientPhone("");
@@ -1143,7 +1153,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         .single();
 
       if (paymentMethod === "efectivo") {
-        setCashReceived(String(total()));
+        setCashReceived("0");
         setCashError(null);
         setShowCashModal(true);
         setSubmitting(false);
@@ -1903,9 +1913,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <input
                   autoFocus
                   inputMode="numeric"
-                  value={cashReceived}
+                  value={cashInputDisplay}
+                  onFocus={(e) => e.currentTarget.select()}
                   onChange={(e) => {
-                    setCashReceived(e.target.value.replace(/\D/g, ""));
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setCashReceived(digits === "" ? "0" : String(Number(digits)));
                     setCashError(null);
                   }}
                   onKeyDown={(e) => {
@@ -1914,9 +1926,27 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       handleConfirmCashSale();
                     }
                   }}
-                  placeholder="Ej: 20000"
+                  placeholder="0"
                   className="w-full rounded-2xl border border-white/8 bg-black/25 px-4 py-3 text-center text-2xl font-black text-white placeholder-zinc-700 outline-none transition focus:border-green-500/40"
                 />
+
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Exacto", value: total() },
+                    { label: "+1K", value: total() + 1000 },
+                    { label: "+5K", value: total() + 5000 },
+                    { label: "+10K", value: total() + 10000 },
+                  ].map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => setCashAmount(option.value)}
+                      className="rounded-xl border border-white/8 bg-white/[0.04] px-2 py-2 text-xs font-bold text-zinc-300 transition hover:border-green-500/30 hover:bg-green-500/10 hover:text-green-300"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
@@ -1929,7 +1959,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                 <div className="mt-2 flex items-center justify-between border-t border-white/6 pt-3">
                   <span className="text-sm font-bold text-zinc-300">
-                    Vuelto a entregar
+                    {cashReceivedAmount >= total()
+                      ? "Vuelto a entregar"
+                      : "Falta por recibir"}
                   </span>
                   <span
                     className={`text-2xl font-black ${
@@ -1940,7 +1972,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   >
                     {cashReceivedAmount >= total()
                       ? fmt(cashChange)
-                      : fmt(0)}
+                      : fmt(cashMissing)}
                   </span>
                 </div>
               </div>
