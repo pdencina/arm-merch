@@ -249,7 +249,12 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     `)
     .eq('order_id', input.orderId)
 
-  const destinationCampus = pickupCampus || campus
+  const destinationCampus =
+    pickupCampus?.name
+      ? pickupCampus
+      : campus?.name
+        ? campus
+        : null
 
   return {
     to: email,
@@ -258,7 +263,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     trackingToken:
       order.tracking_token || buildTrackingTokenFallback(order.order_number),
     status: input.status,
-    campusName: destinationCampus?.name,
+    campusName: destinationCampus?.name || 'Campus ARM',
     pickupAddress: destinationCampus?.address,
     total: order.total,
     items: (orderItems || []).map((item: any) => ({
