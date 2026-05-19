@@ -535,14 +535,6 @@ export default function ProductionPage() {
             const pickupCampus =
               order.pickup_campus_id || order.campus_id
 
-            const next = NEXT_STATUS[status]
-
-            const canMove =
-              role === 'super_admin' ||
-              (next === 'delivered' && campusId === pickupCampus)
-
-            const sla = getSlaInfo(order)
-
             const productionItems = (order.order_items ?? []).filter(
               (item: any) => item.fulfillment_type === 'production'
             )
@@ -550,6 +542,42 @@ export default function ProductionPage() {
             const immediateItems = (order.order_items ?? []).filter(
               (item: any) => item.fulfillment_type !== 'production'
             )
+
+            const hasStartedProduction = productionItems.some(
+              (item: any) => item.production_started_at
+            )
+
+            const hasReadyPickup = productionItems.some(
+              (item: any) => item.ready_pickup_at
+            )
+
+            const hasDelivered =
+              productionItems.length > 0 &&
+              productionItems.every(
+                (item: any) => item.delivered_at
+              )
+
+            let workflowStatus =
+              order.production_status ?? 'pending_production'
+
+            if (hasDelivered) {
+              workflowStatus = 'delivered'
+            } else if (hasReadyPickup) {
+              workflowStatus = 'ready_pickup'
+            } else if (hasStartedProduction) {
+              workflowStatus = 'in_production'
+            }
+
+            const next = NEXT_STATUS[workflowStatus]
+
+            const canMove =
+              role === 'super_admin' ||
+              (next === 'delivered' && campusId === pickupCampus)
+
+            const sla = getSlaInfo({
+              ...order,
+              production_status: workflowStatus,
+            })
 
             return (
               <div
@@ -565,7 +593,7 @@ export default function ProductionPage() {
 
                       <span className="inline-flex items-center gap-2 rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-300">
                         {statusIcon(status)}{' '}
-                        {STATUS_LABEL[status] ?? status}
+                        {STATUS_LABEL[workflowStatus] ?? workflowStatus}
                       </span>
 
                       <span
@@ -730,11 +758,11 @@ export default function ProductionPage() {
                       >
                         {updatingId === order.id
                           ? 'Actualizando...'
-                          : NEXT_LABEL[status]}
+                          : NEXT_LABEL[workflowStatus]}
                       </button>
                     )}
 
-                    {status === 'delivered' && (
+                    {workflowStatus === 'delivered' && (
                       <div className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-400">
                         <CheckCircle2 size={16} />
                         Entregado
