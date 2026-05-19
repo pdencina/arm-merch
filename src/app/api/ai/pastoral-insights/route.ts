@@ -54,11 +54,11 @@ function itemQty(item: any) {
 }
 
 function productName(item: any) {
-  return item?.products?.name || item?.product_name || item?.name || "Producto sin nombre";
+  return item?.inventory?.name || item?.product_name || item?.name || "Producto sin nombre";
 }
 
 function campusName(order: any) {
-  return order?.campuses?.name || order?.campus_name || order?.campus || "Sin campus";
+  return order?.campus?.name || order?.campus_name || order?.campus || "Sin campus";
 }
 
 function paymentMethod(order: any) {
@@ -107,17 +107,17 @@ export async function GET(req: NextRequest) {
     const last30ISO = daysAgoISO(30);
 
     const [monthOrdersRes, last30OrdersRes, itemsRes, productsRes, pendingRes] = await Promise.all([
-      supabase.from("orders").select("*, campuses(name)").gte("created_at", monthISO).order("created_at", { ascending: false }).limit(2000),
-      supabase.from("orders").select("*, campuses(name)").gte("created_at", last30ISO).order("created_at", { ascending: false }).limit(3000),
-      supabase.from("order_items").select("*, products(name, sku)").gte("created_at", last30ISO).limit(3000),
-      supabase.from("products").select("*").limit(1500),
+      supabase.from("orders").select("*, campus(name)").gte("created_at", monthISO).order("created_at", { ascending: false }).limit(2000),
+      supabase.from("orders").select("*, campus(name)").gte("created_at", last30ISO).order("created_at", { ascending: false }).limit(3000),
+      supabase.from("order_items").select("*, inventory(name, sku)").gte("created_at", last30ISO).limit(3000),
+      supabase.from("inventory").select("*").limit(1500),
       supabase.from("orders").select("*").in("delivery_status", ["pending", "in_production", "ready"]).limit(1000),
     ]);
 
     const monthOrders = monthOrdersRes.data || [];
     const last30Orders = last30OrdersRes.data || [];
     const items = itemsRes.data || [];
-    const products = productsRes.data || [];
+    const inventory = productsRes.data || [];
     const pendingOrders = pendingRes.data || [];
 
     const monthSales = monthOrders.reduce((sum, o) => sum + orderTotal(o), 0);
@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
     const campus_breakdown = Array.from(campusMap.entries()).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.total - a.total).slice(0, 8);
     const payment_breakdown = Array.from(paymentMap.entries()).map(([method, v]) => ({ method, ...v })).sort((a, b) => b.total - a.total).slice(0, 8);
     const top_products = Array.from(productMap.entries()).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.quantity - a.quantity).slice(0, 8);
-    const critical_stock = products.map((p: any) => ({
+    const critical_stock = inventory.map((p: any) => ({
       id: p.id,
       name: p.name || p.title || "Producto",
       sku: p.sku || p.code || null,
