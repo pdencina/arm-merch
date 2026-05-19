@@ -298,29 +298,42 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
   const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(data.trackingToken)}`
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@armerch.com'
 
-  const itemsHtml = (data.items || [])
-    .map((item) => {
-      const isProduction = item.fulfillment_type === 'production'
-      const lineTotal = Number(item.unit_price || 0) * Number(item.quantity || 0)
+  const productionItems = (data.items || []).filter(
+    (item) => item.fulfillment_type === 'production',
+  )
 
-      return `
-        <tr>
-          <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;">
-            <p style="margin:0;color:#18181b;font-size:14px;font-weight:800;">${esc(item.product_name || 'Producto')}</p>
-            ${item.size ? `<p style="margin:4px 0 0;color:#71717a;font-size:12px;">Talla: ${esc(item.size)}</p>` : ''}
-            <p style="margin:6px 0 0;color:${isProduction ? '#f59e0b' : '#16a34a'};font-size:12px;font-weight:800;">
-              ${isProduction ? 'Pendiente producción' : 'Entrega inmediata'}
-            </p>
-          </td>
-          <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;text-align:center;color:#18181b;font-size:13px;font-weight:800;">
-            x${Number(item.quantity || 0)}
-          </td>
-          <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;text-align:right;color:#18181b;font-size:13px;font-weight:900;">
-            ${fmtCLP(lineTotal)}
-          </td>
-        </tr>`
-    })
-    .join('')
+  const immediateItems = (data.items || []).filter(
+    (item) => item.fulfillment_type !== 'production',
+  )
+
+  const renderItemsRows = (items: NonNullable<typeof data.items>) =>
+    items
+      .map((item) => {
+        const isProduction = item.fulfillment_type === 'production'
+        const lineTotal = Number(item.unit_price || 0) * Number(item.quantity || 0)
+
+        return `
+          <tr>
+            <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;">
+              <p style="margin:0;color:#18181b;font-size:14px;font-weight:800;">${esc(item.product_name || 'Producto')}</p>
+              ${item.size ? `<p style="margin:4px 0 0;color:#71717a;font-size:12px;">Talla: ${esc(item.size)}</p>` : ''}
+              <p style="margin:6px 0 0;color:${isProduction ? '#7c3aed' : '#16a34a'};font-size:12px;font-weight:800;">
+                ${isProduction ? 'Pendiente producción' : 'Entrega inmediata'}
+              </p>
+            </td>
+            <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;text-align:center;color:#18181b;font-size:13px;font-weight:800;">
+              x${Number(item.quantity || 0)}
+            </td>
+            <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;text-align:right;color:#18181b;font-size:13px;font-weight:900;">
+              ${fmtCLP(lineTotal)}
+            </td>
+          </tr>`
+      })
+      .join('')
+
+  const productionItemsHtml = renderItemsRows(productionItems)
+  const immediateItemsHtml = renderItemsRows(immediateItems)
+  const hasItemsHtml = Boolean(productionItemsHtml || immediateItemsHtml)
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -378,21 +391,39 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
                 </tr>
               </table>
 
-              ${itemsHtml ? `
+              ${hasItemsHtml ? `
               <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background:#ffffff;border:1px solid #e4e4e7;border-radius:18px;overflow:hidden;">
                 <tr>
                   <td style="padding:18px 20px;">
                     <p style="margin:0 0 14px;color:#18181b;font-size:16px;font-weight:900;">Detalle de compra</p>
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <thead>
-                        <tr>
-                          <th style="padding:0 0 10px;text-align:left;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Producto</th>
-                          <th style="padding:0 0 10px;text-align:center;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Cant.</th>
-                          <th style="padding:0 0 10px;text-align:right;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>${itemsHtml}</tbody>
-                    </table>
+
+                    ${productionItemsHtml ? `
+                      <p style="margin:12px 0 8px;color:#7c3aed;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;">Productos en producción</p>
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <thead>
+                          <tr>
+                            <th style="padding:0 0 10px;text-align:left;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Producto</th>
+                            <th style="padding:0 0 10px;text-align:center;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Cant.</th>
+                            <th style="padding:0 0 10px;text-align:right;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>${productionItemsHtml}</tbody>
+                      </table>
+                    ` : ''}
+
+                    ${immediateItemsHtml ? `
+                      <p style="margin:18px 0 8px;color:#16a34a;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;">Productos entregados</p>
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <thead>
+                          <tr>
+                            <th style="padding:0 0 10px;text-align:left;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Producto</th>
+                            <th style="padding:0 0 10px;text-align:center;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Cant.</th>
+                            <th style="padding:0 0 10px;text-align:right;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>${immediateItemsHtml}</tbody>
+                      </table>
+                    ` : ''}
                   </td>
                 </tr>
               </table>

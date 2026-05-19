@@ -1129,6 +1129,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             unit_price: i.unit_price,
             discount_pct: i.discount_pct,
             size: i.size ?? null,
+            fulfillment_type: getFulfillmentType(i.product.id),
           })),
           client_name: clientName.trim(),
           client_email: clientEmail.trim() || null,
@@ -1428,6 +1429,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             unit_price: i.unit_price,
             discount_pct: i.discount_pct,
             size: i.size ?? null,
+            fulfillment_type: getFulfillmentType(i.product.id),
           })),
           client_name: clientName.trim(),
           client_email: clientEmail.trim() || null,
@@ -2407,12 +2409,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       quantity: i.quantity,
                       unit_price: i.product.price,
                       size: i.size ?? null,
+                      fulfillment_type: getFulfillmentType(i.product.id),
                     })),
                     client_name: clientName.trim(),
                     client_email: clientEmail?.trim() || "",
                     client_phone: clientPhone?.trim() || null,
                     notes: notes?.trim() || null,
                     discount: 0,
+                    delivery_status: hasProductionItems ? "pending" : null,
                   }),
                 });
                 const data = await res.json();
@@ -2435,6 +2439,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   });
                   setSuccessOpen(true);
                   setClientPhone("");
+                  setProductionItems({});
                   clearCart();
                   focusSkuSearchInput();
                 }
