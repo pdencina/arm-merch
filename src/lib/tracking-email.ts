@@ -263,7 +263,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     trackingToken:
       order.tracking_token || buildTrackingTokenFallback(order.order_number),
     status: input.status,
-    campusName: destinationCampus?.name || 'Campus ARM',
+    campusName: destinationCampus?.name,
     pickupAddress: destinationCampus?.address,
     total: order.total,
     items: (orderItems || []).map((item: any) => ({
