@@ -498,7 +498,6 @@ export default async function TrackingPage({ params }: PageProps) {
                   </p>
                 ) : (
                   <div className="space-y-5">
-
                     <div>
                       <div className="mb-3 flex items-center gap-2">
                         <Shirt size={16} className="text-violet-300" />
@@ -524,11 +523,9 @@ export default async function TrackingPage({ params }: PageProps) {
                                   <p className="font-bold text-white">
                                     {product?.name || 'Producto'}
                                   </p>
-
                                   <p className="mt-1 text-xs text-violet-200">
                                     Pendiente producción
                                   </p>
-
                                   <p className="mt-1 text-xs text-zinc-500">
                                     {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
                                     {item.size ? ` · Talla ${item.size}` : ''}
@@ -571,11 +568,9 @@ export default async function TrackingPage({ params }: PageProps) {
                                     <p className="font-bold text-white">
                                       {product?.name || 'Producto'}
                                     </p>
-
                                     <p className="mt-1 text-xs text-emerald-200">
                                       Entrega inmediata
                                     </p>
-
                                     <p className="mt-1 text-xs text-zinc-500">
                                       {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
                                       {item.size ? ` · Talla ${item.size}` : ''}
@@ -594,6 +589,7 @@ export default async function TrackingPage({ params }: PageProps) {
                     )}
                   </div>
                 )}
+              </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
                 <span className="font-bold text-zinc-300">Total pagado</span>
