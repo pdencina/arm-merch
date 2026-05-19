@@ -52,6 +52,7 @@ type ItemData = {
   id: string
   quantity: number
   unit_price: number
+  fulfillment_type?: string | null
   size?: string | null
   products:
     | {
@@ -274,6 +275,7 @@ export default async function TrackingPage({ params }: PageProps) {
         id,
         quantity,
         unit_price,
+        fulfillment_type,
         size,
         products (
           name,
@@ -299,6 +301,15 @@ export default async function TrackingPage({ params }: PageProps) {
 
   const contact = contactResult.data
   const safeItems = (itemsResult.data ?? []) as ItemData[]
+
+  const productionItems = safeItems.filter(
+    (item) => item.fulfillment_type === 'production'
+  )
+
+  const immediateItems = safeItems.filter(
+    (item) => item.fulfillment_type !== 'production'
+  )
+
   const campus = campusResult.data
   const pickupCampus = pickupCampusResult.data
   const history = (historyResult.data ?? []) as HistoryData[]
@@ -481,36 +492,108 @@ export default async function TrackingPage({ params }: PageProps) {
               <h3 className="mb-4 text-lg font-black">Productos</h3>
 
               <div className="space-y-3">
-                {safeItems.length === 0 ? (
+                {productionItems.length === 0 ? (
                   <p className="text-sm text-zinc-500">
-                    No hay productos asociados.
+                    Este pedido no tiene productos en producción.
                   </p>
                 ) : (
-                  safeItems.map((item) => {
-                    const product = getProduct(item)
-                    const lineTotal = Number(item.quantity ?? 0) * Number(item.unit_price ?? 0)
+                  <div className="space-y-5">
 
-                    return (
-                      <div key={item.id} className="rounded-2xl bg-black/20 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-bold text-white">
-                              {product?.name || 'Producto'}
-                            </p>
-                            <p className="mt-1 text-xs text-zinc-500">
-                              {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
-                              {item.size ? ` · Talla ${item.size}` : ''}
-                            </p>
-                          </div>
-                          <p className="shrink-0 font-black text-amber-300">
-                            {formatCurrency(lineTotal)}
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <Shirt size={16} className="text-violet-300" />
+                        <p className="text-sm font-black text-violet-300">
+                          Productos en producción
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        {productionItems.map((item) => {
+                          const product = getProduct(item)
+                          const lineTotal =
+                            Number(item.quantity ?? 0) *
+                            Number(item.unit_price ?? 0)
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-bold text-white">
+                                    {product?.name || 'Producto'}
+                                  </p>
+
+                                  <p className="mt-1 text-xs text-violet-200">
+                                    Pendiente producción
+                                  </p>
+
+                                  <p className="mt-1 text-xs text-zinc-500">
+                                    {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
+                                    {item.size ? ` · Talla ${item.size}` : ''}
+                                  </p>
+                                </div>
+
+                                <p className="shrink-0 font-black text-violet-300">
+                                  {formatCurrency(lineTotal)}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {immediateItems.length > 0 && (
+                      <div>
+                        <div className="mb-3 flex items-center gap-2">
+                          <CheckCircle2 size={16} className="text-emerald-300" />
+                          <p className="text-sm font-black text-emerald-300">
+                            Productos entregados
                           </p>
                         </div>
+
+                        <div className="space-y-3">
+                          {immediateItems.map((item) => {
+                            const product = getProduct(item)
+                            const lineTotal =
+                              Number(item.quantity ?? 0) *
+                              Number(item.unit_price ?? 0)
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-bold text-white">
+                                      {product?.name || 'Producto'}
+                                    </p>
+
+                                    <p className="mt-1 text-xs text-emerald-200">
+                                      Entrega inmediata
+                                    </p>
+
+                                    <p className="mt-1 text-xs text-zinc-500">
+                                      {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
+                                      {item.size ? ` · Talla ${item.size}` : ''}
+                                    </p>
+                                  </div>
+
+                                  <p className="shrink-0 font-black text-emerald-300">
+                                    {formatCurrency(lineTotal)}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    )
-                  })
+                    )}
+                  </div>
                 )}
-              </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
                 <span className="font-bold text-zinc-300">Total pagado</span>
