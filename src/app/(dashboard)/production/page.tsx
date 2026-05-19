@@ -281,6 +281,8 @@ export default function ProductionPage() {
     )
   }, [orders, statusFilter])
 
+  const canSeeProductionMetrics = role === 'admin' || role === 'super_admin'
+
   const metrics = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -434,82 +436,107 @@ export default function ProductionPage() {
         </select>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
-        <MetricCard
-          title="Productos por producir hoy"
-          value={metrics.productionToday}
-          color="text-violet-300"
-          icon={<Shirt size={18} />}
-        />
+      {canSeeProductionMetrics ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-5">
+            <MetricCard
+              title="Productos por producir hoy"
+              value={metrics.productionToday}
+              color="text-violet-300"
+              icon={<Shirt size={18} />}
+            />
 
-        <MetricCard
-          title="Tiempo prom. producción"
-          value={formatHours(metrics.averageProductionHours)}
-          color="text-blue-300"
-          icon={<Timer size={18} />}
-        />
+            <MetricCard
+              title="Tiempo prom. producción"
+              value={formatHours(metrics.averageProductionHours)}
+              color="text-blue-300"
+              icon={<Timer size={18} />}
+            />
 
-        <MetricCard
-          title="Campus con más producción"
-          value={
-            metrics.topCampusId
-              ? campusMap.get(metrics.topCampusId) ?? 'Sin campus'
-              : 'Sin datos'
-          }
-          detail={
-            metrics.topCampusQuantity
-              ? `${metrics.topCampusQuantity} productos`
-              : undefined
-          }
-          color="text-amber-300"
-          icon={<Building2 size={18} />}
-        />
+            <MetricCard
+              title="Campus con más producción"
+              value={
+                metrics.topCampusId
+                  ? campusMap.get(metrics.topCampusId) ?? 'Sin campus'
+                  : 'Sin datos'
+              }
+              detail={
+                metrics.topCampusQuantity
+                  ? `${metrics.topCampusQuantity} productos`
+                  : undefined
+              }
+              color="text-amber-300"
+              icon={<Building2 size={18} />}
+            />
 
-        <MetricCard
-          title="Producto más producido"
-          value={metrics.topProductName}
-          detail={
-            metrics.topProductQuantity
-              ? `${metrics.topProductQuantity} unidades`
-              : undefined
-          }
-          color="text-green-300"
-          icon={<Trophy size={18} />}
-        />
+            <MetricCard
+              title="Producto más producido"
+              value={metrics.topProductName}
+              detail={
+                metrics.topProductQuantity
+                  ? `${metrics.topProductQuantity} unidades`
+                  : undefined
+              }
+              color="text-green-300"
+              icon={<Trophy size={18} />}
+            />
 
-        <MetricCard
-          title="Listos para retiro"
-          value={metrics.readyPickupOrders}
-          color="text-emerald-300"
-          icon={<PackageCheck size={18} />}
-        />
-      </div>
+            <MetricCard
+              title="Listos para retiro"
+              value={metrics.readyPickupOrders}
+              color="text-emerald-300"
+              icon={<PackageCheck size={18} />}
+            />
+          </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard
-          title="En plazo"
-          value={metrics.ok}
-          color="text-green-400"
-        />
+          <div className="grid gap-4 md:grid-cols-4">
+            <MetricCard
+              title="En plazo"
+              value={metrics.ok}
+              color="text-green-400"
+            />
 
-        <MetricCard
-          title="Atención"
-          value={metrics.warning}
-          color="text-yellow-400"
-        />
+            <MetricCard
+              title="Atención"
+              value={metrics.warning}
+              color="text-yellow-400"
+            />
 
-        <MetricCard
-          title="Retrasados"
-          value={metrics.late}
-          color="text-orange-400"
-        />
+            <MetricCard
+              title="Retrasados"
+              value={metrics.late}
+              color="text-orange-400"
+            />
 
-        <MetricCard
-          title="Críticos"
-          value={metrics.critical}
-          color="text-red-400"
-        />
-      </div>
+            <MetricCard
+              title="Críticos"
+              value={metrics.critical}
+              color="text-red-400"
+            />
+          </div>
+        </>
+      ) : (
+        <div className="rounded-3xl border border-blue-500/20 bg-blue-500/10 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-blue-300">
+                Vista operacional limitada
+              </p>
+              <h2 className="mt-2 text-xl font-black text-white">
+                Perfil voluntario
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-400">
+                Puedes revisar pedidos, abrir el tracking del cliente y apoyar el flujo de entrega.
+                Las métricas globales están disponibles para administradores de campus y super administradores.
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-black/20 px-4 py-3 text-sm font-bold text-blue-200">
+              {filtered.length} pedido{filtered.length === 1 ? '' : 's'} visibles
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-900/40 bg-red-950/30 p-4 text-sm text-red-200">
