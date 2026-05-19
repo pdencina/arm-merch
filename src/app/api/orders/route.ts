@@ -288,166 +288,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Email con Resend solo para pagos inmediatos ──
+    // ── Email moderno unificado con tracking ───────────────────────────────
     // Link/QR y Smart POS NO deben enviar voucher hasta que el pago esté confirmado.
     let emailSent = false
     const shouldSendEmailImmediately = !isDeferredPayment
 
-    if (shouldSendEmailImmediately && clientEmail && process.env.RESEND_API_KEY) {
+    if (shouldSendEmailImmediately && clientEmail) {
       try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(process.env.RESEND_API_KEY)
-
-        const fmtCLP = (n: number) =>
-          new Intl.NumberFormat('es-CL', {
-            style: 'currency',
-            currency: 'CLP',
-            maximumFractionDigits: 0,
-          }).format(n)
-
-        const escHtml = (v: string) =>
-          String(v ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-
-        const { data: productData } = await adminClient
-          .from('products')
-          .select('id, name')
-          .in('id', normalizedItems.map((i) => i.product_id))
-
-        const productMap: Record<string, string> = {}
-        ;(productData ?? []).forEach((p: any) => {
-          productMap[p.id] = p.name
-        })
-
-        const itemsHtml = normalizedItems.map((item) => {
-          const lineTotal = item.unit_price * item.quantity * (1 - item.discount_pct / 100)
-          const productName = escHtml(productMap[item.product_id] ?? item.product_id)
-          const sizeLabel = item.size
-            ? `<br/><span style="color:#888;font-size:11px;">Talla: ${item.size}</span>`
-            : ''
-
-          return `<tr>
-            <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;font-size:14px;">
-              ${productName}${sizeLabel}
-            </td>
-            <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:14px;color:#666;">${item.quantity}</td>
-            <td style="padding:12px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:14px;font-weight:600;">${fmtCLP(lineTotal)}</td>
-          </tr>`
-        }).join('')
-
-        const orderDate = new Date().toLocaleDateString('es-CL', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        })
-
-        const paymentLabel: Record<string, string> = {
-          efectivo: 'Efectivo',
-          transferencia: 'Transferencia',
-          debito: 'Débito',
-          credito: 'Crédito',
-          link: 'Link de pago',
-          sumup: 'Smart POS',
-        }
-
-        const html = `<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0;">
-  <tr><td align="center">
-    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
-      <tr><td style="background:#18181b;border-radius:12px 12px 0 0;padding:32px 40px;text-align:center;">
-        <p style="margin:0 0 4px;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">ARM Merch</p>
-        <p style="margin:0;font-size:13px;color:#a1a1aa;">Sistema de Merch · ARM Global</p>
-      </td></tr>
-      <tr><td style="background:#16a34a;padding:16px 40px;text-align:center;">
-        <p style="margin:0;font-size:15px;font-weight:600;color:#ffffff;">✓ &nbsp;Compra confirmada</p>
-      </td></tr>
-      <tr><td style="background:#ffffff;padding:36px 40px;">
-        <p style="margin:0 0 24px;font-size:16px;color:#18181b;">
-          Hola <strong>${escHtml(clientName ?? 'Cliente')}</strong>, gracias por tu compra.
-          Aquí está el resumen de tu pedido.
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin-bottom:28px;">
-          <tr>
-            <td style="padding:16px 20px;border-bottom:1px solid #f0f0f0;">
-              <span style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Número de orden</span><br/>
-              <span style="font-size:18px;font-weight:700;color:#18181b;">#${createdOrder.order_number}</span>
-            </td>
-            <td style="padding:16px 20px;border-bottom:1px solid #f0f0f0;text-align:right;">
-              <span style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Fecha</span><br/>
-              <span style="font-size:14px;font-weight:500;color:#18181b;">${orderDate}</span>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="2" style="padding:16px 20px;">
-              <span style="font-size:12px;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Método de pago</span><br/>
-              <span style="font-size:14px;font-weight:500;color:#18181b;">${paymentLabel[paymentMethod] ?? paymentMethod}</span>
-            </td>
-          </tr>
-        </table>
-        <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;">Detalle de compra</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
-          <thead>
-            <tr style="background:#f9fafb;">
-              <th style="padding:10px 8px;text-align:left;font-size:12px;color:#71717a;font-weight:600;border-bottom:2px solid #e4e4e7;">PRODUCTO</th>
-              <th style="padding:10px 8px;text-align:center;font-size:12px;color:#71717a;font-weight:600;border-bottom:2px solid #e4e4e7;">CANT.</th>
-              <th style="padding:10px 8px;text-align:right;font-size:12px;color:#71717a;font-weight:600;border-bottom:2px solid #e4e4e7;">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        ${discount > 0 ? `
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="padding:6px 0;font-size:14px;color:#666;">Subtotal</td>
-            <td style="padding:6px 0;font-size:14px;color:#666;text-align:right;">${fmtCLP(Math.round(totalCalculado + discount))}</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 0;font-size:14px;color:#16a34a;">Descuento</td>
-            <td style="padding:6px 0;font-size:14px;color:#16a34a;text-align:right;">-${fmtCLP(discount)}</td>
-          </tr>
-        </table>
-        <hr style="border:none;border-top:1px solid #e4e4e7;margin:12px 0;"/>
-        ` : ''}
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="padding:12px 0;font-size:18px;font-weight:700;color:#18181b;">Total pagado</td>
-            <td style="padding:12px 0;font-size:22px;font-weight:800;color:#18181b;text-align:right;">${fmtCLP(Math.round(totalCalculado))}</td>
-          </tr>
-        </table>
-
-        ${createdOrder.tracking_token ? `
-        <div style="margin:28px 0 6px;text-align:center;">
-          <a href="${getAppUrl(req)}/track/${createdOrder.tracking_token}" style="display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-weight:800;border-radius:12px;padding:14px 20px;">Ver seguimiento del pedido</a>
-        </div>
-        <p style="margin:10px 0 0;text-align:center;font-size:12px;color:#71717a;">Número de seguimiento: <strong>ARM-${String(createdOrder.tracking_token).slice(0,8).toUpperCase()}</strong></p>
-        ` : ''}
-      </td></tr>
-      <tr><td style="background:#f9fafb;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;border-top:1px solid #e4e4e7;">
-        <p style="margin:0 0 8px;font-size:13px;color:#71717a;">¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.</p>
-        <p style="margin:0;font-size:12px;color:#a1a1aa;">ARM Merch · ARM Global · armerch.com</p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body>
-</html>`
-
-        const { error: mailError } = await resend.emails.send({
-          from: 'ARM Merch <no-reply@armerch.com>',
+        const emailResult = await sendTrackingEmail({
           to: clientEmail,
-          subject: `Comprobante Orden #${createdOrder.order_number}`,
-          html,
+          clientName,
+          orderNumber: createdOrder.order_number,
+          trackingToken: createdOrder.tracking_token,
+          status: 'purchase_confirmed',
+          total: createdOrder.total,
+          appUrl: getAppUrl(req),
         })
 
-        if (!mailError) emailSent = true
-        else console.error('Email error:', mailError)
+        emailSent = Boolean(emailResult.sent)
+
+        if (!emailResult.sent) {
+          console.error('Tracking email error:', emailResult.error)
+        }
       } catch (e) {
-        console.error('Email exception:', e)
+        console.error('Tracking email exception:', e)
       }
     }
 
