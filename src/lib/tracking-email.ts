@@ -249,12 +249,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     `)
     .eq('order_id', input.orderId)
 
-  const destinationCampus =
-    pickupCampus?.name
-      ? pickupCampus
-      : campus?.name
-        ? campus
-        : null
+  const destinationCampus = pickupCampus || campus
 
   return {
     to: email,
@@ -384,7 +379,10 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
                 <tr>
                   <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
                     <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Campus retiro</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:700;">${esc(data.campusName || 'Por confirmar')}</p>
+                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:700;">${esc(
+  data.campusName ||
+  'Campus ARM'
+)}</p>
                     ${data.pickupAddress ? `<p style="margin:4px 0 0;color:#71717a;font-size:13px;">${esc(data.pickupAddress)}</p>` : ''}
                   </td>
                 </tr>
