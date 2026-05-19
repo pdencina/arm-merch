@@ -306,6 +306,12 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
     (item) => item.fulfillment_type !== 'production',
   )
 
+  const hasProductionItems = productionItems.length > 0
+  const deliveryLabel = hasProductionItems ? 'Campus retiro' : 'Entrega'
+  const deliveryValue = hasProductionItems
+    ? data.campusName || 'Campus ARM'
+    : 'Entrega inmediata'
+
   const renderItemsRows = (items: NonNullable<typeof data.items>) =>
     items
       .map((item) => {
@@ -378,12 +384,9 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
                 </tr>
                 <tr>
                   <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
-                    <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Campus retiro</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:700;">${esc(
-  data.campusName ||
-  'Campus ARM'
-)}</p>
-                    ${data.pickupAddress ? `<p style="margin:4px 0 0;color:#71717a;font-size:13px;">${esc(data.pickupAddress)}</p>` : ''}
+                    <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">${esc(deliveryLabel)}</p>
+                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:700;">${esc(deliveryValue)}</p>
+                    ${hasProductionItems && data.pickupAddress ? `<p style="margin:4px 0 0;color:#71717a;font-size:13px;">${esc(data.pickupAddress)}</p>` : ''}
                   </td>
                 </tr>
                 <tr>
@@ -432,6 +435,7 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
               </table>
               ` : ''}
 
+              ${hasProductionItems ? `
               <a href="${trackingUrl}" style="display:block;background:#f59e0b;color:#000000;text-decoration:none;text-align:center;border-radius:18px;padding:16px 18px;font-size:15px;font-weight:900;">
                 Ver seguimiento
               </a>
@@ -439,6 +443,15 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
               <p style="margin:20px 0 0;color:#71717a;font-size:13px;line-height:1.6;text-align:center;">
                 Guarda este correo para revisar el avance de tu pedido cuando quieras.
               </p>
+              ` : `
+              <div style="margin-top:24px;background:#16a34a;color:#ffffff;text-align:center;border-radius:18px;padding:16px 18px;font-size:15px;font-weight:900;">
+                Compra entregada al momento
+              </div>
+
+              <p style="margin:20px 0 0;color:#71717a;font-size:13px;line-height:1.6;text-align:center;">
+                Guarda este correo como comprobante de tu compra.
+              </p>
+              `}
             </td>
           </tr>
 
