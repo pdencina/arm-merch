@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 type Severity = "success" | "warning" | "danger" | "info";
+type PeriodKey = "today" | "7d" | "month" | "30d";
+
+const PERIOD_LABELS: Record<PeriodKey, string> = {
+  today: "Hoy",
+  "7d": "Últimos 7 días",
+  month: "Mes actual",
+  "30d": "Últimos 30 días",
+};
 
 function money(value: number) {
   return new Intl.NumberFormat("es-CL", {
@@ -66,9 +74,31 @@ function daysAgoISO(days: number) {
   return now.toISOString();
 }
 
+function startOfTodayISO() {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  return start.toISOString();
+}
+
 function startOfMonthISO() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+}
+
+function startForPeriod(period: PeriodKey) {
+  if (period === "today") return startOfTodayISO();
+  if (period === "7d") return daysAgoISO(7);
+  if (period === "month") return startOfMonthISO();
+  return daysAgoISO(30);
+}
+
+function normalizePeriod(value: string | null): PeriodKey {
+  if (value === "today" || value === "7d" || value === "month" || value === "30d") {
+    return value;
+  }
+
+  return "month";
 }
 
 function orderTotal(order: any) {
@@ -95,7 +125,18 @@ function campusNameFromMap(campusId: string | null | undefined, campusById: Map<
 }
 
 function paymentMethod(order: any) {
-  return String(order?.payment_method || "sin método");
+  const method = String(order?.payment_method || "sin método");
+
+  const labels: Record<string, string> = {
+    efectivo: "Efectivo",
+    transferencia: "Transferencia",
+    sumup: "SumUp",
+    solo: "SumUp SOLO",
+    link: "Link de pago",
+    card: "Tarjeta",
+  };
+
+  return labels[method] || method;
 }
 
 function stockValue(row: any) {
@@ -111,6 +152,16 @@ function stockValue(row: any) {
 
 function inventoryProductId(row: any) {
   return String(row?.product_id || row?.productId || "");
+}
+
+function isPaidOrder(order: any) {
+  const status = String(order?.status || "").toLowerCase();
+  return ["paid", "pagado", "approved", "completed", "success", "delivered"].includes(status);
+}
+
+function isPendingPayment(order: any) {
+  const status = String(order?.status || "").toLowerCase();
+  return ["pending", "created", "unpaid", "waiting"].includes(status);
 }
 
 async function aiExecutiveSummary(summary: any) {
@@ -129,10 +180,10 @@ async function aiExecutiveSummary(summary: any) {
       body: JSON.stringify({
         model,
         instructions:
-          "Eres asesor ejecutivo para un pastor principal. Resume ARM Merch en tono pastoral-ejecutivo, claro, breve, estratégico y en español chileno. No inventes datos.",
-        input: `Datos ARM Merch:\n${JSON.stringify(summary, null, 2)}\n\nDevuelve un resumen ejecutivo de máximo 700 caracteres con una recomendación concreta.`,
+          "Eres asesor ejecutivo para un pastor principal. Resume ARM Merch en tono pastoral-ejecutivo, claro, breve, estratégico y en español chileno. No inventes datos. Usa lenguaje práctico para toma de decisiones.",
+        input: `Datos ARM Merch:\n${JSON.stringify(summary, null, 2)}\n\nDevuelve un resumen ejecutivo de máximo 750 caracteres con una recomendación concreta.`,
         temperature: 0.35,
-        max_output_tokens: 260,
+        max_output_tokens: 280,
       }),
       cache: "no-store",
     });
@@ -146,7 +197,7 @@ async function aiExecutiveSummary(summary: any) {
 
     return String(data?.output_text || data?.output?.[0]?.content?.[0]?.text || "")
       .trim()
-      .slice(0, 900);
+      .slice(0, 950);
   } catch (error) {
     console.error("[Pastoral Dashboard] AI error:", error);
     return null;
@@ -159,37 +210,43 @@ export async function GET(req: NextRequest) {
     if (auth.errorResponse) return auth.errorResponse;
 
     const supabase = auth.supabase!;
-    const monthISO = startOfMonthISO();
-    const last30ISO = daysAgoISO(30);
+    const period = normalizePeriod(req.nextUrl.searchParams.get("period"));
+    const periodLabel = PERIOD_LABELS[period];
+    const periodStartISO = startForPeriod(period);
 
     const [
-      monthOrdersRes,
-      last30OrdersRes,
+      periodOrdersRes,
       allItemsRes,
       productsRes,
       inventoryRes,
       campusRes,
-      pendingRes,
+      pendingDeliveryRes,
     ] = await Promise.all([
-      supabase.from("orders").select("*").gte("created_at", monthISO).order("created_at", { ascending: false }).limit(3000),
-      supabase.from("orders").select("*").gte("created_at", last30ISO).order("created_at", { ascending: false }).limit(5000),
-      supabase.from("order_items").select("*").limit(6000),
-      supabase.from("products").select("*").limit(2000),
-      supabase.from("inventory").select("*").limit(3000),
-      supabase.from("campus").select("*").limit(100),
-      supabase.from("orders").select("*").in("delivery_status", ["pending", "in_production", "ready"]).limit(1000),
+      supabase
+        .from("orders")
+        .select("*")
+        .gte("created_at", periodStartISO)
+        .order("created_at", { ascending: false })
+        .limit(5000),
+      supabase.from("order_items").select("*").limit(10000),
+      supabase.from("products").select("*").limit(3000),
+      supabase.from("inventory").select("*").limit(5000),
+      supabase.from("campus").select("*").limit(200),
+      supabase
+        .from("orders")
+        .select("*")
+        .in("delivery_status", ["pending", "in_production", "ready"])
+        .limit(1500),
     ]);
 
-    if (monthOrdersRes.error) throw monthOrdersRes.error;
-    if (last30OrdersRes.error) throw last30OrdersRes.error;
+    if (periodOrdersRes.error) throw periodOrdersRes.error;
 
-    const monthOrders = monthOrdersRes.data || [];
-    const last30Orders = last30OrdersRes.data || [];
+    const periodOrders = periodOrdersRes.data || [];
     const allItems = allItemsRes.data || [];
     const products = productsRes.data || [];
     const inventory = inventoryRes.data || [];
     const campusRows = campusRes.data || [];
-    const pendingOrders = pendingRes.data || [];
+    const pendingDeliveryOrders = pendingDeliveryRes.data || [];
 
     const productsById = new Map<string, any>();
     products.forEach((product: any) => productsById.set(String(product.id), product));
@@ -197,23 +254,36 @@ export async function GET(req: NextRequest) {
     const campusById = new Map<string, any>();
     campusRows.forEach((campus: any) => campusById.set(String(campus.id), campus));
 
-    const monthSales = monthOrders.reduce((sum, order) => sum + orderTotal(order), 0);
-    const last30Sales = last30Orders.reduce((sum, order) => sum + orderTotal(order), 0);
+    const periodOrderIds = new Set(periodOrders.map((order: any) => String(order.id)));
+    const periodItems = allItems.filter((item: any) => periodOrderIds.has(String(item.order_id)));
 
-    const last30OrderIds = new Set(last30Orders.map((order: any) => String(order.id)));
-    const recentItems = allItems.filter((item: any) => last30OrderIds.has(String(item.order_id)));
+    const grossSales = periodOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+    const paidOrders = periodOrders.filter(isPaidOrder);
+    const paidSales = paidOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+    const avgTicket = periodOrders.length > 0 ? grossSales / periodOrders.length : 0;
+    const paidRate = periodOrders.length > 0 ? Math.round((paidOrders.length / periodOrders.length) * 100) : 0;
+    const pendingPaymentOrders = periodOrders.filter(isPendingPayment).length;
+    const unitsSold = periodItems.reduce((sum, item) => sum + itemQty(item), 0);
 
-    const campusMap = new Map<string, { total: number; orders: number }>();
-    for (const order of last30Orders) {
+    const campusMap = new Map<string, { total: number; orders: number; units: number }>();
+    for (const order of periodOrders) {
       const name = campusNameFromMap(order?.campus_id, campusById);
-      const current = campusMap.get(name) || { total: 0, orders: 0 };
+      const current = campusMap.get(name) || { total: 0, orders: 0, units: 0 };
       current.total += orderTotal(order);
       current.orders += 1;
       campusMap.set(name, current);
     }
 
+    for (const item of periodItems) {
+      const order = periodOrders.find((o: any) => String(o.id) === String(item.order_id));
+      const name = campusNameFromMap(order?.campus_id, campusById);
+      const current = campusMap.get(name) || { total: 0, orders: 0, units: 0 };
+      current.units += itemQty(item);
+      campusMap.set(name, current);
+    }
+
     const paymentMap = new Map<string, { total: number; orders: number }>();
-    for (const order of last30Orders) {
+    for (const order of periodOrders) {
       const key = paymentMethod(order);
       const current = paymentMap.get(key) || { total: 0, orders: 0 };
       current.total += orderTotal(order);
@@ -221,18 +291,31 @@ export async function GET(req: NextRequest) {
       paymentMap.set(key, current);
     }
 
-    const productMap = new Map<string, { quantity: number }>();
-    for (const item of recentItems) {
+    const productMap = new Map<string, { quantity: number; total: number }>();
+    for (const item of periodItems) {
       const productId = itemProductId(item);
       const name = productNameFromMap(productId, productsById);
-      const current = productMap.get(name) || { quantity: 0 };
-      current.quantity += itemQty(item);
+      const current = productMap.get(name) || { quantity: 0, total: 0 };
+      const qty = itemQty(item);
+      current.quantity += qty;
+      current.total += Number(item?.unit_price || item?.price || 0) * qty;
       productMap.set(name, current);
     }
 
-    const campus_breakdown = Array.from(campusMap.entries()).map(([name, value]) => ({ name, ...value })).sort((a, b) => b.total - a.total).slice(0, 8);
-    const payment_breakdown = Array.from(paymentMap.entries()).map(([method, value]) => ({ method, ...value })).sort((a, b) => b.total - a.total).slice(0, 8);
-    const top_products = Array.from(productMap.entries()).map(([name, value]) => ({ name, ...value })).sort((a, b) => b.quantity - a.quantity).slice(0, 8);
+    const campus_breakdown = Array.from(campusMap.entries())
+      .map(([name, value]) => ({ name, ...value }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+
+    const payment_breakdown = Array.from(paymentMap.entries())
+      .map(([method, value]) => ({ method, ...value }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+
+    const top_products = Array.from(productMap.entries())
+      .map(([name, value]) => ({ name, ...value }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 8);
 
     const stockByProduct = new Map<string, number>();
     for (const row of inventory) {
@@ -256,13 +339,20 @@ export async function GET(req: NextRequest) {
       .slice(0, 10);
 
     const summary = {
-      month_sales: monthSales,
-      month_orders: monthOrders.length,
-      last_30_days_sales: last30Sales,
-      last_30_days_orders: last30Orders.length,
+      period,
+      period_label: periodLabel,
+      period_start: periodStartISO,
+      gross_sales: grossSales,
+      paid_sales: paidSales,
+      orders_count: periodOrders.length,
+      paid_orders_count: paidOrders.length,
+      pending_payment_orders: pendingPaymentOrders,
+      paid_rate: paidRate,
+      avg_ticket: avgTicket,
+      units_sold: unitsSold,
       top_campus: campus_breakdown[0]?.name || "",
       top_product: top_products[0]?.name || "",
-      pending_orders: pendingOrders.length,
+      pending_delivery_orders: pendingDeliveryOrders.length,
       critical_stock_count: critical_stock.length,
       campus_breakdown,
       payment_breakdown,
@@ -272,18 +362,66 @@ export async function GET(req: NextRequest) {
     };
 
     const cards: Array<{ title: string; value: string; detail: string; severity: Severity }> = [
-      { title: "Ventas del mes", value: money(monthSales), detail: `${monthOrders.length} órdenes registradas este mes.`, severity: monthSales > 0 ? "success" : "info" },
-      { title: "Ventas 30 días", value: money(last30Sales), detail: "Panorámica reciente de movimiento comercial.", severity: "info" },
-      { title: "Campus líder", value: summary.top_campus || "Sin datos", detail: "Campus con mayor venta en el periodo.", severity: summary.top_campus ? "success" : "info" },
-      { title: "Producto más vendido", value: summary.top_product || "Sin datos", detail: "Producto con mayor rotación reciente.", severity: summary.top_product ? "success" : "info" },
-      { title: "Pedidos pendientes", value: String(summary.pending_orders), detail: "Pendientes, en producción o listos para retiro.", severity: summary.pending_orders > 0 ? "warning" : "success" },
-      { title: "Stock crítico", value: String(summary.critical_stock_count), detail: "Productos con 3 unidades o menos.", severity: summary.critical_stock_count > 0 ? "warning" : "success" },
+      {
+        title: `Ventas ${periodLabel}`,
+        value: money(grossSales),
+        detail: `${periodOrders.length} órdenes registradas en el periodo seleccionado.`,
+        severity: grossSales > 0 ? "success" : "info",
+      },
+      {
+        title: "Ticket promedio",
+        value: money(avgTicket),
+        detail: "Promedio por orden del periodo.",
+        severity: avgTicket > 0 ? "success" : "info",
+      },
+      {
+        title: "Campus líder",
+        value: summary.top_campus || "Sin datos",
+        detail: `Mayor venta en ${periodLabel}.`,
+        severity: summary.top_campus ? "success" : "info",
+      },
+      {
+        title: "Producto top",
+        value: summary.top_product || "Sin datos",
+        detail: "Producto con mayor cantidad vendida.",
+        severity: summary.top_product ? "success" : "info",
+      },
+      {
+        title: "Unidades vendidas",
+        value: String(unitsSold),
+        detail: "Cantidad total de productos vendidos.",
+        severity: unitsSold > 0 ? "success" : "info",
+      },
+      {
+        title: "Pagos confirmados",
+        value: `${paidRate}%`,
+        detail: `${paidOrders.length} de ${periodOrders.length} órdenes aparecen pagadas/completadas.`,
+        severity: paidRate >= 80 ? "success" : paidRate >= 50 ? "warning" : "info",
+      },
+      {
+        title: "Pedidos por entregar",
+        value: String(summary.pending_delivery_orders),
+        detail: "Pendientes, en producción o listos para retiro.",
+        severity: summary.pending_delivery_orders > 0 ? "warning" : "success",
+      },
+      {
+        title: "Stock crítico",
+        value: String(summary.critical_stock_count),
+        detail: "Productos con 3 unidades o menos.",
+        severity: summary.critical_stock_count > 0 ? "warning" : "success",
+      },
     ];
 
     const fallback =
-      monthSales > 0
-        ? `ARM Merch registra ${money(monthSales)} este mes en ${monthOrders.length} órdenes. ${summary.top_campus ? `El campus con mayor movimiento es ${summary.top_campus}. ` : ""}${summary.critical_stock_count > 0 ? "Se recomienda revisar stock crítico y preparar reposición antes del próximo domingo." : "El stock se mantiene sin alertas críticas principales."}`
-        : "ARM Merch aún no registra ventas relevantes este mes. Se recomienda revisar visibilidad del catálogo, disponibilidad de productos y activar comunicación por WhatsApp.";
+      grossSales > 0
+        ? `En ${periodLabel}, ARM Merch registra ${money(grossSales)} en ${periodOrders.length} órdenes, con ticket promedio de ${money(avgTicket)}. ${
+            summary.top_campus ? `El campus con mayor movimiento es ${summary.top_campus}. ` : ""
+          }${
+            summary.critical_stock_count > 0
+              ? "Se recomienda revisar stock crítico y preparar reposición antes del próximo domingo."
+              : "El stock se mantiene sin alertas críticas principales."
+          }`
+        : `En ${periodLabel}, ARM Merch aún no registra ventas relevantes. Se recomienda revisar visibilidad del catálogo, disponibilidad de productos y comunicación por WhatsApp.`;
 
     const executive = await aiExecutiveSummary(summary);
 

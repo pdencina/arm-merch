@@ -13,11 +13,14 @@ import {
   ShoppingBag,
   Sparkles,
   Wallet,
+  CreditCard,
+  Boxes,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 
 type Severity = "success" | "warning" | "danger" | "info";
+type PeriodKey = "today" | "7d" | "month" | "30d";
 
 type Card = {
   title: string;
@@ -33,20 +36,33 @@ type PastoralResponse = {
   source: "openai" | "fallback";
   generated_at: string;
   summary: {
-    month_sales: number;
-    month_orders: number;
-    last_30_days_sales: number;
-    last_30_days_orders: number;
+    period: PeriodKey;
+    period_label: string;
+    gross_sales: number;
+    paid_sales: number;
+    orders_count: number;
+    paid_orders_count: number;
+    pending_payment_orders: number;
+    paid_rate: number;
+    avg_ticket: number;
+    units_sold: number;
     top_campus: string;
     top_product: string;
-    pending_orders: number;
+    pending_delivery_orders: number;
     critical_stock_count: number;
-    campus_breakdown: Array<{ name: string; total: number; orders: number }>;
+    campus_breakdown: Array<{ name: string; total: number; orders: number; units: number }>;
     payment_breakdown: Array<{ method: string; total: number; orders: number }>;
-    top_products: Array<{ name: string; quantity: number }>;
+    top_products: Array<{ name: string; quantity: number; total: number }>;
     critical_stock: Array<{ id: string; name: string; sku?: string | null; stock: number }>;
   };
 };
+
+const periodOptions: Array<{ key: PeriodKey; label: string }> = [
+  { key: "today", label: "Hoy" },
+  { key: "7d", label: "7 días" },
+  { key: "month", label: "Mes actual" },
+  { key: "30d", label: "30 días" },
+];
 
 const severityClass: Record<Severity, string> = {
   success: "border-green-500/20 bg-green-500/[0.06] text-green-300",
@@ -56,11 +72,12 @@ const severityClass: Record<Severity, string> = {
 };
 
 const iconMap: Record<string, any> = {
-  "Ventas del mes": Wallet,
-  "Ventas 30 días": BarChart3,
+  "Ticket promedio": CreditCard,
   "Campus líder": Building2,
-  "Producto más vendido": Crown,
-  "Pedidos pendientes": PackageCheck,
+  "Producto top": Crown,
+  "Unidades vendidas": Boxes,
+  "Pagos confirmados": CheckCircle2,
+  "Pedidos por entregar": PackageCheck,
   "Stock crítico": AlertTriangle,
 };
 
@@ -85,12 +102,13 @@ function SkeletonCard() {
 
 export default function PastoralMerchDashboard() {
   const supabase = useMemo(() => createClient(), []);
+  const [period, setPeriod] = useState<PeriodKey>("month");
   const [data, setData] = useState<PastoralResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadDashboard(isRefresh = false) {
+  async function loadDashboard(selectedPeriod = period, isRefresh = false) {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
@@ -106,7 +124,7 @@ export default function PastoralMerchDashboard() {
         return;
       }
 
-      const res = await fetch("/api/ai/pastoral-insights", {
+      const res = await fetch(`/api/ai/pastoral-insights?period=${selectedPeriod}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -131,8 +149,13 @@ export default function PastoralMerchDashboard() {
   }
 
   useEffect(() => {
-    loadDashboard();
+    loadDashboard(period);
   }, []);
+
+  function handlePeriodChange(nextPeriod: PeriodKey) {
+    setPeriod(nextPeriod);
+    loadDashboard(nextPeriod);
+  }
 
   return (
     <div className="min-h-screen bg-[#08090d] px-6 py-8 text-white">
@@ -150,13 +173,13 @@ export default function PastoralMerchDashboard() {
               </h1>
 
               <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-300 md:text-base">
-                Vista resumida para liderazgo: ventas, campus, productos,
-                pedidos pendientes, stock crítico e impacto operacional.
+                Vista clara para liderazgo: ventas, campus, productos, pagos,
+                pedidos por entregar, stock crítico y resumen ejecutivo.
               </p>
             </div>
 
             <button
-              onClick={() => loadDashboard(true)}
+              onClick={() => loadDashboard(period, true)}
               disabled={loading || refreshing}
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-5 py-3 text-sm font-bold text-white transition hover:bg-black/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -166,6 +189,33 @@ export default function PastoralMerchDashboard() {
           </div>
         </section>
 
+        <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:flex-row md:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Periodo de análisis
+            </p>
+            <p className="mt-1 text-sm text-zinc-400">
+              Todos los KPIs principales usan el mismo periodo seleccionado.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 md:flex">
+            {periodOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => handlePeriodChange(option.key)}
+                className={`rounded-2xl px-4 py-2.5 text-sm font-black transition ${
+                  period === option.key
+                    ? "bg-amber-500 text-black"
+                    : "border border-white/10 bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08]"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {error && (
           <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-200">
             {error}
@@ -173,16 +223,17 @@ export default function PastoralMerchDashboard() {
         )}
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
               <SkeletonCard key={index} />
             ))}
           </div>
         ) : data ? (
           <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {data.cards.map((card, index) => {
-                const Icon = iconMap[card.title] || ShoppingBag;
+                const Icon =
+                  card.title.startsWith("Ventas") ? Wallet : iconMap[card.title] || ShoppingBag;
 
                 return (
                   <motion.div
@@ -214,7 +265,7 @@ export default function PastoralMerchDashboard() {
               <div className="rounded-[2rem] border border-amber-500/15 bg-gradient-to-br from-amber-500/[0.11] via-white/[0.03] to-white/[0.02] p-6">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black text-amber-300">
                   <Bot size={18} />
-                  Resumen para liderazgo
+                  Resumen para liderazgo · {data.summary.period_label}
                 </div>
 
                 <p className="text-lg font-semibold leading-relaxed text-white">
@@ -230,7 +281,7 @@ export default function PastoralMerchDashboard() {
               <div className="rounded-[2rem] border border-white/8 bg-white/[0.03] p-6">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black text-white">
                   <Building2 size={18} className="text-blue-300" />
-                  Ventas por campus
+                  Ventas por campus · {data.summary.period_label}
                 </div>
 
                 {data.summary.campus_breakdown.length === 0 ? (
@@ -243,7 +294,9 @@ export default function PastoralMerchDashboard() {
                           <p className="font-bold text-white">{campus.name}</p>
                           <p className="font-black text-amber-300">{money(campus.total)}</p>
                         </div>
-                        <p className="mt-1 text-xs text-zinc-500">{campus.orders} órdenes</p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {campus.orders} órdenes · {campus.units || 0} unidades
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -255,7 +308,7 @@ export default function PastoralMerchDashboard() {
               <div className="rounded-[2rem] border border-white/8 bg-white/[0.03] p-6">
                 <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-white">
                   <Crown size={18} className="text-amber-300" />
-                  Productos top
+                  Productos top · {data.summary.period_label}
                 </h3>
 
                 <div className="space-y-3">
@@ -264,7 +317,10 @@ export default function PastoralMerchDashboard() {
                   ) : (
                     data.summary.top_products.slice(0, 6).map((product) => (
                       <div key={product.name} className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
-                        <p className="truncate text-sm font-bold text-white">{product.name}</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-white">{product.name}</p>
+                          <p className="text-xs text-zinc-600">{money(product.total || 0)} vendido</p>
+                        </div>
                         <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-300">
                           {product.quantity} uds
                         </span>
@@ -277,7 +333,7 @@ export default function PastoralMerchDashboard() {
               <div className="rounded-[2rem] border border-white/8 bg-white/[0.03] p-6">
                 <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-white">
                   <Wallet size={18} className="text-green-300" />
-                  Métodos de pago
+                  Métodos de pago · {data.summary.period_label}
                 </h3>
 
                 <div className="space-y-3">
@@ -300,7 +356,7 @@ export default function PastoralMerchDashboard() {
               <div className="rounded-[2rem] border border-white/8 bg-white/[0.03] p-6">
                 <h3 className="mb-4 flex items-center gap-2 text-sm font-black text-white">
                   <AlertTriangle size={18} className="text-amber-300" />
-                  Stock crítico
+                  Stock crítico actual
                 </h3>
 
                 <div className="space-y-3">
