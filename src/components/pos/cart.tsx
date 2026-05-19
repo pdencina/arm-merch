@@ -588,7 +588,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
             setSuccessOpen(true);
             clearCart();
-            focusSkuSearchInput();
+
+            setTimeout(() => {
+              onClose?.();
+              focusSkuSearchInput();
+            }, 250);
           }
         }, 900);
 
@@ -768,7 +772,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         setTxCode("");
         setSuccessOpen(true);
         clearCart();
-        focusSkuSearchInput();
+
+        setTimeout(() => {
+          onClose?.();
+          focusSkuSearchInput();
+        }, 250);
 
         setTimeout(() => {
           setSumupSmartOpen(false);
@@ -1001,7 +1009,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       });
       setClientPhone("");
       clearCart();
-      focusSkuSearchInput();
+
+            setTimeout(() => {
+              onClose?.();
+              focusSkuSearchInput();
+            }, 250);
     } catch (e: any) {
       setVerifyError(e?.message ?? "Error inesperado validando Smart POS");
     }
@@ -1174,7 +1186,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       setSuccessOpen(true);
       setClientPhone("");
       clearCart();
-      focusSkuSearchInput();
+
+            setTimeout(() => {
+              onClose?.();
+              focusSkuSearchInput();
+            }, 250);
     } catch (err: any) {
       setCashError(err?.message || "Error inesperado registrando efectivo.");
     } finally {
@@ -1490,7 +1506,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         setSuccessOpen(true);
         setClientPhone("");
         clearCart();
-        focusSkuSearchInput();
+
+        setTimeout(() => {
+          onClose?.();
+          focusSkuSearchInput();
+        }, 250);
       }
     } catch (err: any) {
       setVerifyError(err?.message || "Error inesperado");
