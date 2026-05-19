@@ -25,6 +25,13 @@ type TrackingEmailInput = {
   campusName?: string | null
   pickupAddress?: string | null
   total?: number | null
+  items?: Array<{
+    quantity: number
+    unit_price?: number | null
+    size?: string | null
+    fulfillment_type?: string | null
+    product_name?: string | null
+  }>
   appUrl?: string | null
 }
 
@@ -37,6 +44,13 @@ type ResolvedEmailData = {
   campusName?: string | null
   pickupAddress?: string | null
   total?: number | null
+  items?: Array<{
+    quantity: number
+    unit_price?: number | null
+    size?: string | null
+    fulfillment_type?: string | null
+    product_name?: string | null
+  }>
   appUrl?: string | null
 }
 
@@ -141,6 +155,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
       campusName: input.campusName,
       pickupAddress: input.pickupAddress,
       total: input.total,
+      items: input.items,
       appUrl: input.appUrl,
     }
   }
@@ -221,6 +236,19 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     return null
   }
 
+  const { data: orderItems } = await adminClient
+    .from('order_items')
+    .select(`
+      quantity,
+      unit_price,
+      size,
+      fulfillment_type,
+      products (
+        name
+      )
+    `)
+    .eq('order_id', input.orderId)
+
   const destinationCampus = pickupCampus || campus
 
   return {
@@ -233,6 +261,13 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     campusName: destinationCampus?.name,
     pickupAddress: destinationCampus?.address,
     total: order.total,
+    items: (orderItems || []).map((item: any) => ({
+      quantity: Number(item.quantity || 0),
+      unit_price: Number(item.unit_price || 0),
+      size: item.size || null,
+      fulfillment_type: item.fulfillment_type || 'immediate',
+      product_name: item.products?.name || 'Producto',
+    })),
     appUrl: input.appUrl,
   }
 }
@@ -262,6 +297,30 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
   const copy = STATUS_COPY[data.status] ?? STATUS_COPY.confirmed
   const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(data.trackingToken)}`
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@armerch.com'
+
+  const itemsHtml = (data.items || [])
+    .map((item) => {
+      const isProduction = item.fulfillment_type === 'production'
+      const lineTotal = Number(item.unit_price || 0) * Number(item.quantity || 0)
+
+      return `
+        <tr>
+          <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;">
+            <p style="margin:0;color:#18181b;font-size:14px;font-weight:800;">${esc(item.product_name || 'Producto')}</p>
+            ${item.size ? `<p style="margin:4px 0 0;color:#71717a;font-size:12px;">Talla: ${esc(item.size)}</p>` : ''}
+            <p style="margin:6px 0 0;color:${isProduction ? '#f59e0b' : '#16a34a'};font-size:12px;font-weight:800;">
+              ${isProduction ? 'Pendiente producción' : 'Entrega inmediata'}
+            </p>
+          </td>
+          <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;text-align:center;color:#18181b;font-size:13px;font-weight:800;">
+            x${Number(item.quantity || 0)}
+          </td>
+          <td style="padding:13px 0;border-bottom:1px solid #e4e4e7;text-align:right;color:#18181b;font-size:13px;font-weight:900;">
+            ${fmtCLP(lineTotal)}
+          </td>
+        </tr>`
+    })
+    .join('')
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -318,6 +377,26 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
                   </td>
                 </tr>
               </table>
+
+              ${itemsHtml ? `
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background:#ffffff;border:1px solid #e4e4e7;border-radius:18px;overflow:hidden;">
+                <tr>
+                  <td style="padding:18px 20px;">
+                    <p style="margin:0 0 14px;color:#18181b;font-size:16px;font-weight:900;">Detalle de compra</p>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <thead>
+                        <tr>
+                          <th style="padding:0 0 10px;text-align:left;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Producto</th>
+                          <th style="padding:0 0 10px;text-align:center;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Cant.</th>
+                          <th style="padding:0 0 10px;text-align:right;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>${itemsHtml}</tbody>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
 
               <a href="${trackingUrl}" style="display:block;background:#f59e0b;color:#000000;text-decoration:none;text-align:center;border-radius:18px;padding:16px 18px;font-size:15px;font-weight:900;">
                 Ver seguimiento

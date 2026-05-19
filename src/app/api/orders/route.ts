@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       unit_price: number
       discount_pct?: number
       size?: string | null
+      fulfillment_type?: string | null
     }> = Array.isArray(body.items) ? body.items : []
 
     const paymentMethod: string = body.payment_method ?? null
@@ -104,6 +105,10 @@ export async function POST(req: NextRequest) {
       unit_price: Number(i.unit_price),
       discount_pct: Number(i.discount_pct ?? 0),
       size: i.size ?? null,
+      fulfillment_type:
+        i.fulfillment_type === 'production'
+          ? 'production'
+          : 'immediate',
     }))
 
     const invalidItem = normalizedItems.find(
@@ -181,7 +186,10 @@ export async function POST(req: NextRequest) {
     const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup'
     const initialStatus = isDeferredPayment ? 'pending' : 'paid'
     const trackingToken = createTrackingToken()
-    const isProductionOrder = deliveryStatus === 'pending'
+    const hasProductionItems = normalizedItems.some(
+      (item) => item.fulfillment_type === 'production'
+    )
+    const isProductionOrder = deliveryStatus === 'pending' || hasProductionItems
     const productionStatus = isProductionOrder ? 'pending_production' : 'not_required'
     const pickupCampusId = body.pickup_campus_id || sellingCampusId
 
@@ -235,6 +243,7 @@ export async function POST(req: NextRequest) {
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
+      fulfillment_type: item.fulfillment_type || 'immediate',
       ...(item.size ? { size: item.size } : {}),
     }))
 
@@ -269,8 +278,10 @@ export async function POST(req: NextRequest) {
 
     // ── Descontar stock solo en pagos confirmados inmediatos ──
     // Link/QR y Smart POS nacen pending y se descuentan después de confirmar pago.
-    if (deliveryStatus !== 'pending' && !isDeferredPayment) {
-      for (const item of normalizedItems) {
+    if (!isDeferredPayment) {
+      for (const item of normalizedItems.filter(
+        (i) => i.fulfillment_type !== 'production'
+      )) {
         const { error: movementError } = await adminClient
           .from('inventory_movements')
           .insert({
@@ -296,12 +307,8 @@ export async function POST(req: NextRequest) {
     if (shouldSendEmailImmediately && clientEmail) {
       try {
         const emailResult = await sendTrackingEmail({
-          to: clientEmail,
-          clientName,
-          orderNumber: createdOrder.order_number,
-          trackingToken: createdOrder.tracking_token,
+          orderId: createdOrder.id,
           status: 'purchase_confirmed',
-          total: createdOrder.total,
           appUrl: getAppUrl(req),
         })
 

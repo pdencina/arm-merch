@@ -169,10 +169,14 @@ function CartItemRow({
   item,
   onUpdateQty,
   onRemove,
+  isProduction,
+  onToggleProduction,
 }: {
   item: CartItem;
   onUpdateQty: (qty: number) => void;
   onRemove: () => void;
+  isProduction?: boolean;
+  onToggleProduction: () => void;
 }) {
   const lineTotal = item.unit_price * item.quantity;
 
@@ -243,6 +247,33 @@ function CartItemRow({
         </div>
         <span className="text-sm font-bold text-white">{fmt(lineTotal)}</span>
       </div>
+
+      <button
+        type="button"
+        onClick={onToggleProduction}
+        className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
+          isProduction
+            ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+            : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-300"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          {isProduction ? <Clock size={13} /> : <Package size={13} />}
+          {isProduction ? "Enviar a producción" : "Entrega inmediata"}
+        </span>
+
+        <span
+          className={`h-4 w-7 rounded-full p-0.5 transition ${
+            isProduction ? "bg-violet-500" : "bg-zinc-700"
+          }`}
+        >
+          <span
+            className={`block h-3 w-3 rounded-full bg-white transition ${
+              isProduction ? "translate-x-3" : "translate-x-0"
+            }`}
+          />
+        </span>
+      </button>
     </motion.div>
   );
 }
@@ -365,6 +396,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const soloAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [isPendingDelivery, setIsPendingDelivery] = useState(false);
+  const [productionItems, setProductionItems] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<{
@@ -464,6 +496,21 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     const safeValue = Math.max(0, Math.round(Number(value) || 0));
     setCashReceived(String(safeValue));
     setCashError(null);
+  };
+
+  const getFulfillmentType = (productId: string) =>
+    productionItems[productId] ? "production" : "immediate";
+
+  const hasProductionItems = useMemo(
+    () => items.some((item) => productionItems[item.product.id]),
+    [items, productionItems],
+  );
+
+  const toggleProductionItem = (productId: string) => {
+    setProductionItems((current) => ({
+      ...current,
+      [productId]: !current[productId],
+    }));
   };
 
   const canSubmit = useMemo(
@@ -1089,7 +1136,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           payment_method: "efectivo",
           discount: 0,
           notes: cashNotes || null,
-          delivery_status: isPendingDelivery ? "pending" : null,
+          delivery_status: hasProductionItems ? "pending" : null,
         }),
       });
 
@@ -1100,6 +1147,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       }
 
       setIsPendingDelivery(false);
+      setProductionItems({});
       setCreatedOrder({
         id: data.order_id,
         number: data.order_number ?? data.order_id,
@@ -1183,12 +1231,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               unit_price: i.unit_price,
               discount_pct: i.discount_pct,
               size: i.size ?? null,
+              fulfillment_type: getFulfillmentType(i.product.id),
             })),
             client_name: clientName.trim() || null,
             client_email: clientEmail.trim() || null,
             client_phone: clientPhone.trim() || null,
             notes: "SumUp SOLO - pago enviado al lector",
-            delivery_status: isPendingDelivery ? "pending" : null,
+            delivery_status: hasProductionItems ? "pending" : null,
           }),
         });
 
@@ -1280,12 +1329,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               quantity: i.quantity,
               size: i.size ?? null,
               unit_price: i.product.price,
+              fulfillment_type: getFulfillmentType(i.product.id),
             })),
             client_name: clientName.trim() || null,
             client_email: clientEmail.trim() || null,
             client_phone: clientPhone.trim() || null,
             notes: "Smart POS SumUp - pendiente de validación TX",
-            delivery_status: isPendingDelivery ? "pending" : null,
+            delivery_status: hasProductionItems ? "pending" : null,
           }),
         });
 
@@ -1388,7 +1438,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             paymentMethod === "link" && (window as any).__sumupCheckoutRef
               ? `sumup:${(window as any).__sumupCheckoutRef}`
               : notes.trim() || null,
-          delivery_status: isPendingDelivery ? "pending" : null,
+          delivery_status: hasProductionItems ? "pending" : null,
         }),
       });
 
@@ -1399,6 +1449,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       const orderTotal = total();
 
       setIsPendingDelivery(false);
+      setProductionItems({});
       setCreatedOrder({
         id: data.order_id,
         number: data.order_number ?? data.order_id,
@@ -1560,6 +1611,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         updateQuantity(item.product.id, qty)
                       }
                       onRemove={() => removeItem(item.product.id)}
+                      isProduction={Boolean(productionItems[item.product.id])}
+                      onToggleProduction={() => toggleProductionItem(item.product.id)}
                     />
                   ))}
                 </div>
@@ -1663,52 +1716,41 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </AnimatePresence>
               </div>
 
-              {/* PEDIDO PARA PRODUCIR */}
-              <button
-                onClick={() => setIsPendingDelivery((v) => !v)}
-                className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all ${
-                  isPendingDelivery
-                    ? "border-violet-500/40 bg-violet-500/10"
-                    : "border-white/6 bg-white/[0.02] hover:border-white/10"
+              {/* PRODUCCIÓN POR PRODUCTO */}
+              <div
+                className={`rounded-2xl border p-3.5 ${
+                  hasProductionItems
+                    ? "border-violet-500/30 bg-violet-500/10"
+                    : "border-white/6 bg-white/[0.02]"
                 }`}
               >
-                <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${
-                    isPendingDelivery ? "bg-violet-500/20" : "bg-white/5"
-                  }`}
-                >
-                  {isPendingDelivery ? (
-                    <Clock size={16} className="text-violet-400" />
-                  ) : (
-                    <Package size={16} className="text-zinc-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-semibold ${isPendingDelivery ? "text-violet-300" : "text-zinc-300"}`}
-                  >
-                    {isPendingDelivery
-                      ? "Pedido para producir"
-                      : "Entrega inmediata"}
-                  </p>
-                  <p className="text-[10px] text-zinc-600">
-                    {isPendingDelivery
-                      ? "Pagado · quedará pendiente de entrega"
-                      : "El producto se entrega en el momento"}
-                  </p>
-                </div>
-                <div
-                  className={`relative flex h-5 w-9 shrink-0 items-center rounded-full transition-all ${
-                    isPendingDelivery ? "bg-violet-500" : "bg-zinc-700"
-                  }`}
-                >
-                  <span
-                    className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow transition-all ${
-                      isPendingDelivery ? "left-[18px]" : "left-[3px]"
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      hasProductionItems ? "bg-violet-500/20" : "bg-white/5"
                     }`}
-                  />
+                  >
+                    {hasProductionItems ? (
+                      <Clock size={16} className="text-violet-400" />
+                    ) : (
+                      <Package size={16} className="text-zinc-500" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`text-sm font-semibold ${
+                        hasProductionItems ? "text-violet-300" : "text-zinc-300"
+                      }`}
+                    >
+                      Producción por producto
+                    </p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-zinc-600">
+                      Marca en cada producto si será entrega inmediata o si debe enviarse a producción.
+                    </p>
+                  </div>
                 </div>
-              </button>
+              </div>
 
               {/* MÉTODO DE PAGO */}
               <div className="space-y-2">
@@ -1849,10 +1891,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                     Procesando...
                   </span>
-                ) : isPendingDelivery ? (
+                ) : hasProductionItems ? (
                   <span className="flex items-center justify-center gap-2">
                     <Clock size={18} />
-                    Registrar pedido · {fmt(total())}
+                    Registrar venta · {fmt(total())}
                   </span>
                 ) : paymentMethod === "efectivo" ? (
                   <span className="flex items-center justify-center gap-2">
