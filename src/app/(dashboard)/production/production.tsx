@@ -171,7 +171,7 @@ export default function ProductionPage() {
         production_status,
         tracking_token,
         order_contacts(client_name, client_email, client_phone),
-        order_items(quantity, size, products(name, sku))
+        order_items(quantity, size, fulfillment_type, products(name, sku))
       `)
       .in('production_status', [
         'pending_production',
@@ -368,6 +368,14 @@ export default function ProductionPage() {
 
             const sla = getSlaInfo(order)
 
+            const productionItems = (order.order_items ?? []).filter(
+              (item: any) => item.fulfillment_type === 'production'
+            )
+
+            const immediateItems = (order.order_items ?? []).filter(
+              (item: any) => item.fulfillment_type !== 'production'
+            )
+
             return (
               <div
                 key={order.id}
@@ -426,38 +434,87 @@ export default function ProductionPage() {
                       />
                     </div>
 
-                    <div className="mt-4 rounded-2xl bg-zinc-950/60 p-4">
-                      <p className="mb-2 text-xs uppercase tracking-widest text-zinc-500">
-                        Productos
-                      </p>
+                    <div className="mt-4 space-y-4">
+                      <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-xs font-black uppercase tracking-widest text-violet-300">
+                            Productos a producir
+                          </p>
 
-                      <div className="space-y-2">
-                        {(order.order_items ?? []).map(
-                          (item: any, idx: number) => {
-                            const product = Array.isArray(item.products)
-                              ? item.products[0]
-                              : item.products
+                          <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs font-black text-violet-200">
+                            {productionItems.length} item{productionItems.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
 
-                            return (
-                              <div
-                                key={idx}
-                                className="flex justify-between gap-3 text-sm"
-                              >
-                                <span className="text-zinc-300">
-                                  {product?.name ?? 'Producto'}
-                                  {item.size
-                                    ? ` · Talla ${item.size}`
-                                    : ''}
-                                </span>
+                        {productionItems.length === 0 ? (
+                          <p className="text-sm text-zinc-500">
+                            Esta orden no tiene productos marcados para producción.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {productionItems.map((item: any, idx: number) => {
+                              const product = Array.isArray(item.products)
+                                ? item.products[0]
+                                : item.products
 
-                                <span className="font-semibold text-white">
-                                  x{item.quantity}
-                                </span>
-                              </div>
-                            )
-                          }
+                              return (
+                                <div
+                                  key={`production-${idx}`}
+                                  className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-sm"
+                                >
+                                  <span className="text-zinc-100">
+                                    <span className="mr-2 text-violet-300">●</span>
+                                    {product?.name ?? 'Producto'}
+                                    {item.size ? ` · Talla ${item.size}` : ''}
+                                  </span>
+
+                                  <span className="rounded-full bg-violet-500/20 px-2.5 py-1 text-xs font-black text-violet-200">
+                                    x{item.quantity}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
                         )}
                       </div>
+
+                      {immediateItems.length > 0 && (
+                        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/5 p-4">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
+                              Entrega inmediata
+                            </p>
+
+                            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-black text-emerald-200">
+                              Ya entregados
+                            </span>
+                          </div>
+
+                          <div className="space-y-2">
+                            {immediateItems.map((item: any, idx: number) => {
+                              const product = Array.isArray(item.products)
+                                ? item.products[0]
+                                : item.products
+
+                              return (
+                                <div
+                                  key={`immediate-${idx}`}
+                                  className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-sm"
+                                >
+                                  <span className="text-zinc-400">
+                                    {product?.name ?? 'Producto'}
+                                    {item.size ? ` · Talla ${item.size}` : ''}
+                                  </span>
+
+                                  <span className="text-xs font-bold text-emerald-300">
+                                    x{item.quantity}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <p className="mt-3 text-xs text-zinc-600">
