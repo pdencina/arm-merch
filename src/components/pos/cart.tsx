@@ -355,6 +355,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [txCode, setTxCode] = useState("");
   const [showTransferQR, setShowTransferQR] = useState(false);
   const [transferTotal, setTransferTotal] = useState(0);
+  const [showCashModal, setShowCashModal] = useState(false);
+  const [cashReceived, setCashReceived] = useState("");
+  const [cashError, setCashError] = useState<string | null>(null);
   const [sumupPolling, setSumupPolling] = useState(false);
   const [sumupStatus, setSumupStatus] = useState<SoloStatus>("waiting");
   const [soloCountdown, setSoloCountdown] = useState(SOLO_TIMEOUT_SECONDS);
@@ -445,6 +448,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       mounted = false;
     };
   }, []);
+
+  const cashReceivedAmount = useMemo(() => {
+    const digits = cashReceived.replace(/\D/g, "");
+    return Number(digits || 0);
+  }, [cashReceived]);
+
+  const cashChange = Math.max(0, cashReceivedAmount - total());
 
   const canSubmit = useMemo(
     () =>
@@ -1011,6 +1021,108 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     }
   }
 
+  async function handleConfirmCashSale() {
+    const orderTotal = total();
+
+    if (cashReceivedAmount < orderTotal) {
+      setCashError(
+        `El efectivo recibido debe ser igual o mayor al total (${fmt(orderTotal)}).`,
+      );
+      return;
+    }
+
+    setCashError(null);
+    setSubmitting(true);
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        throw new Error("Sesión expirada.");
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("campus_id")
+        .eq("id", session.user.id)
+        .single();
+
+      const cashNotes = [
+        notes.trim() || null,
+        `Efectivo recibido: ${fmt(cashReceivedAmount)}`,
+        `Vuelto: ${fmt(cashChange)}`,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          campus_id: profile?.campus_id ?? null,
+          items: items.map((i) => ({
+            product_id: i.product.id,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            discount_pct: i.discount_pct,
+            size: i.size ?? null,
+          })),
+          client_name: clientName.trim(),
+          client_email: clientEmail.trim() || null,
+          client_phone: clientPhone.trim() || null,
+          payment_method: "efectivo",
+          discount: 0,
+          notes: cashNotes || null,
+          delivery_status: isPendingDelivery ? "pending" : null,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Error al registrar la venta en efectivo.");
+      }
+
+      setIsPendingDelivery(false);
+      setCreatedOrder({
+        id: data.order_id,
+        number: data.order_number ?? data.order_id,
+        total: orderTotal,
+        emailSent: data.email_sent,
+      });
+
+      setPaymentLinkUrl(null);
+      if (soundEnabled) playPaymentSuccessSound();
+      notifyLocalStockDiscount();
+      registerLastSale({
+        id: data.order_id,
+        number: data.order_number ?? data.order_id,
+        total: orderTotal,
+        method: "Efectivo",
+        clientName: clientName.trim() || null,
+        at: new Date().toISOString(),
+      });
+
+      setShowCashModal(false);
+      setCashReceived("");
+      setCashError(null);
+      setSuccessOpen(true);
+      setClientPhone("");
+      clearCart();
+      focusSkuSearchInput();
+    } catch (err: any) {
+      setCashError(err?.message || "Error inesperado registrando efectivo.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleConfirmSale() {
     if (!canSubmit) return;
     setSubmitting(true);
@@ -1029,6 +1141,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         .select("campus_id")
         .eq("id", session.user.id)
         .single();
+
+      if (paymentMethod === "efectivo") {
+        setCashReceived(String(total()));
+        setCashError(null);
+        setShowCashModal(true);
+        setSubmitting(false);
+        return;
+      }
 
       // ── SumUp SOLO Cloud API: envía el cobro directo a la máquina ──
       if (paymentMethod === "solo") {
@@ -1724,6 +1844,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     <Clock size={18} />
                     Registrar pedido · {fmt(total())}
                   </span>
+                ) : paymentMethod === "efectivo" ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Banknote size={18} />
+                    Cobrar efectivo · {fmt(total())}
+                  </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <CreditCard size={18} />
@@ -1741,6 +1866,115 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           )}
         </div>
       </aside>
+
+      {/* Efectivo — Cálculo de vuelto */}
+      {showCashModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.96 }}
+            className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-7 text-center shadow-2xl"
+          >
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border border-green-500/25 bg-green-500/10 text-5xl">
+              💵
+            </div>
+
+            <h2 className="mb-2 text-xl font-black text-white">
+              Pago en efectivo
+            </h2>
+
+            <p className="mb-5 text-sm leading-relaxed text-zinc-400">
+              Ingresa el efectivo recibido para calcular el vuelto antes de registrar la venta.
+            </p>
+
+            <div className="mb-5 space-y-3 rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 text-left">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Total a cobrar</span>
+                <span className="text-base font-black text-amber-400">
+                  {fmt(total())}
+                </span>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  Efectivo recibido
+                </label>
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  value={cashReceived}
+                  onChange={(e) => {
+                    setCashReceived(e.target.value.replace(/\D/g, ""));
+                    setCashError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && cashReceivedAmount >= total()) {
+                      e.preventDefault();
+                      handleConfirmCashSale();
+                    }
+                  }}
+                  placeholder="Ej: 20000"
+                  className="w-full rounded-2xl border border-white/8 bg-black/25 px-4 py-3 text-center text-2xl font-black text-white placeholder-zinc-700 outline-none transition focus:border-green-500/40"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-zinc-500">Recibido</span>
+                  <span className="font-bold text-white">
+                    {fmt(cashReceivedAmount)}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between border-t border-white/6 pt-3">
+                  <span className="text-sm font-bold text-zinc-300">
+                    Vuelto a entregar
+                  </span>
+                  <span
+                    className={`text-2xl font-black ${
+                      cashReceivedAmount >= total()
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {cashReceivedAmount >= total()
+                      ? fmt(cashChange)
+                      : fmt(0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {cashError && (
+              <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {cashError}
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setShowCashModal(false);
+                  setCashError(null);
+                  setSubmitting(false);
+                }}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.08]"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={handleConfirmCashSale}
+                disabled={submitting || cashReceivedAmount < total()}
+                className="rounded-2xl bg-green-500 py-3 text-sm font-black text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {submitting ? "Registrando..." : "Confirmar efectivo"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* SumUp SOLO — Flujo de pago */}
       {sumupSmartOpen && sumupSmartOrder && (
