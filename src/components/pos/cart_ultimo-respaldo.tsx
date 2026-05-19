@@ -315,8 +315,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   );
 
   const [clientPhone, setClientPhone] = useState("");
-  const [cardType, setCardType] = useState<"debit" | "credit">("debit");
-  const [installments, setInstallments] = useState(1);
   const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
   const [showPaymentQR, setShowPaymentQR] = useState(false);
   const [paymentQrTotal, setPaymentQrTotal] = useState(0);
@@ -345,8 +343,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     total: number;
     checkoutId?: string | null;
     checkoutReference?: string | null;
-    cardType?: "debit" | "credit";
-    installments?: number;
   } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -639,8 +635,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     total: number;
     checkoutId?: string | null;
     checkoutReference?: string | null;
-    cardType?: "debit" | "credit";
-    installments?: number;
   }) {
     if (sumupPollRef.current) clearInterval(sumupPollRef.current);
     if (soloAutoCloseRef.current) clearTimeout(soloAutoCloseRef.current);
@@ -684,10 +678,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         id: order.id,
         number: data?.order_number ?? order.number,
         total: order.total,
-        method:
-          order.cardType === "credit"
-            ? `SumUp SOLO Crédito ${order.installments ?? 1} cuotas`
-            : "SumUp SOLO Débito",
+        method: "SumUp SOLO",
         clientName: clientName.trim() || null,
         at: new Date().toISOString(),
       });
@@ -1083,8 +1074,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           body: JSON.stringify({
             order_id: orderId,
             amount: orderTotal,
-            card_type: cardType,
-            installments: cardType === "credit" ? installments : 1,
           }),
         });
 
@@ -1102,20 +1091,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           total: orderTotal,
           checkoutId: soloData?.checkout_id ?? null,
           checkoutReference: soloData?.checkout_reference ?? null,
-          cardType,
-          installments: cardType === "credit" ? installments : 1,
         };
 
         setSumupSmartOrder(orderPayload);
         setTxCode("");
         setVerifyError(null);
-        setVerifySuccess(
-          `Cobro enviado a ${soloData?.reader?.name ?? "SumUp SOLO"} · ${
-            cardType === "credit"
-              ? `Crédito ${installments} cuotas`
-              : "Débito"
-          }`,
-        );
+        setVerifySuccess(`Cobro enviado a ${soloData?.reader?.name ?? "SumUp SOLO"}`);
         setSumupStatus("waiting");
         setSumupSmartOpen(true);
         setSubmitting(false);
@@ -1598,79 +1579,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </div>
               </div>
 
-              {paymentMethod === "solo" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4"
-                >
-                  <div>
-                    <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                      Tipo de tarjeta SOLO
-                    </label>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCardType("debit");
-                          setInstallments(1);
-                        }}
-                        className={`rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-                          cardType === "debit"
-                            ? "border-green-500/40 bg-green-500/15 text-green-300"
-                            : "border-white/8 bg-white/[0.03] text-zinc-400 hover:border-white/15 hover:bg-white/[0.06]"
-                        }`}
-                      >
-                        Débito
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setCardType("credit")}
-                        className={`rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-                          cardType === "credit"
-                            ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
-                            : "border-white/8 bg-white/[0.03] text-zinc-400 hover:border-white/15 hover:bg-white/[0.06]"
-                        }`}
-                      >
-                        Crédito
-                      </button>
-                    </div>
-                  </div>
-
-                  {cardType === "credit" && (
-                    <div>
-                      <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                        Cuotas
-                      </label>
-
-                      <div className="grid grid-cols-5 gap-2">
-                        {[1, 2, 3, 6, 12].map((q) => (
-                          <button
-                            key={q}
-                            type="button"
-                            onClick={() => setInstallments(q)}
-                            className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${
-                              installments === q
-                                ? "border-amber-500/40 bg-amber-500/20 text-amber-300"
-                                : "border-white/8 bg-white/[0.03] text-zinc-400 hover:border-white/15 hover:bg-white/[0.06]"
-                            }`}
-                          >
-                            {q}x
-                          </button>
-                        ))}
-                      </div>
-
-                      <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-                        Se enviará a SumUp SOLO el monto total y la cantidad de cuotas.
-                        SumUp procesa el resto en el lector.
-                      </p>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
               {/* RESUMEN TOTAL */}
               <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-4 space-y-2">
                 <div className="flex justify-between text-sm text-zinc-400">
@@ -1812,24 +1720,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         {fmt(sumupSmartOrder.total)}
                       </span>
                     </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500">Tarjeta</span>
-                      <span className="font-bold text-white">
-                        {(sumupSmartOrder.cardType ?? cardType) === "credit"
-                          ? "Crédito"
-                          : "Débito"}
-                      </span>
-                    </div>
-
-                    {(sumupSmartOrder.cardType ?? cardType) === "credit" && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-500">Cuotas</span>
-                        <span className="font-bold text-amber-400">
-                          {sumupSmartOrder.installments ?? installments} cuotas
-                        </span>
-                      </div>
-                    )}
 
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-zinc-500">Estado</span>
