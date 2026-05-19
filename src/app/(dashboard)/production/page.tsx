@@ -10,6 +10,10 @@ import {
   PackageCheck,
   Shirt,
   Truck,
+  BarChart3,
+  Building2,
+  Timer,
+  Trophy,
 } from 'lucide-react'
 
 type OrderRow = {
@@ -22,7 +26,17 @@ type OrderRow = {
   production_status?: string | null
   tracking_token?: string | null
   order_contacts?: any[] | any
-  order_items?: any[]
+  order_items?: Array<{
+    id?: string
+    quantity?: number
+    unit_price?: number
+    size?: string | null
+    fulfillment_type?: string | null
+    production_started_at?: string | null
+    ready_pickup_at?: string | null
+    delivered_at?: string | null
+    products?: any[] | any
+  }>
 }
 
 type CampusRow = { id: string; name: string }
@@ -64,6 +78,32 @@ function getDaysSince(date: string) {
   const now = new Date().getTime()
 
   return Math.floor((now - created) / (1000 * 60 * 60 * 24))
+}
+
+function getHoursBetween(start?: string | null, end?: string | null) {
+  if (!start) return null
+
+  const from = new Date(start).getTime()
+  const to = end ? new Date(end).getTime() : new Date().getTime()
+
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return null
+
+  return Math.round(((to - from) / (1000 * 60 * 60)) * 10) / 10
+}
+
+function formatHours(hours: number | null) {
+  if (hours === null) return 'Sin datos'
+  if (hours < 24) return `${hours}h`
+
+  const days = Math.floor(hours / 24)
+  const rest = Math.round(hours % 24)
+
+  return rest > 0 ? `${days}d ${rest}h` : `${days}d`
+}
+
+function getProductName(item: any) {
+  const product = Array.isArray(item?.products) ? item.products[0] : item?.products
+  return product?.name ?? 'Producto'
 }
 
 function getSlaInfo(order: OrderRow) {
@@ -171,7 +211,17 @@ export default function ProductionPage() {
         production_status,
         tracking_token,
         order_contacts(client_name, client_email, client_phone),
-        order_items(quantity, size, fulfillment_type, products(name, sku))
+        order_items(
+          id,
+          quantity,
+          unit_price,
+          size,
+          fulfillment_type,
+          production_started_at,
+          ready_pickup_at,
+          delivered_at,
+          products(name, sku)
+        )
       `)
       .in('production_status', [
         'pending_production',
@@ -232,12 +282,86 @@ export default function ProductionPage() {
   }, [orders, statusFilter])
 
   const metrics = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const productionItems = filtered.flatMap((order) =>
+      (order.order_items ?? [])
+        .filter((item: any) => item.fulfillment_type === 'production')
+        .map((item: any) => ({ ...item, order })),
+    )
+
+    const openProductionItems = productionItems.filter(
+      (item: any) => !item.delivered_at,
+    )
+
+    const todayProductionItems = openProductionItems.filter((item: any) => {
+      const referenceDate =
+        item.production_started_at ||
+        item.order?.created_at ||
+        new Date().toISOString()
+
+      return new Date(referenceDate).getTime() >= today.getTime()
+    })
+
+    const readyPickupOrders = filtered.filter(
+      (order) => order.production_status === 'ready_pickup',
+    ).length
+
+    const productionHours = productionItems
+      .map((item: any) =>
+        getHoursBetween(
+          item.production_started_at,
+          item.ready_pickup_at || item.delivered_at,
+        ),
+      )
+      .filter((value): value is number => value !== null)
+
+    const averageProductionHours =
+      productionHours.length > 0
+        ? Math.round(
+            (productionHours.reduce((sum, value) => sum + value, 0) /
+              productionHours.length) *
+              10,
+          ) / 10
+        : null
+
+    const campusCounter = new Map<string, number>()
+    productionItems.forEach((item: any) => {
+      const order = item.order as OrderRow
+      const campus = order.pickup_campus_id || order.campus_id || 'sin-campus'
+      campusCounter.set(campus, (campusCounter.get(campus) ?? 0) + Number(item.quantity ?? 0))
+    })
+
+    const topCampus = Array.from(campusCounter.entries()).sort(
+      (a, b) => b[1] - a[1],
+    )[0]
+
+    const productCounter = new Map<string, number>()
+    productionItems.forEach((item: any) => {
+      const name = getProductName(item)
+      productCounter.set(name, (productCounter.get(name) ?? 0) + Number(item.quantity ?? 0))
+    })
+
+    const topProduct = Array.from(productCounter.entries()).sort(
+      (a, b) => b[1] - a[1],
+    )[0]
+
     return {
       ok: filtered.filter((o) => getSlaInfo(o).level === 'ok').length,
       warning: filtered.filter((o) => getSlaInfo(o).level === 'warning').length,
       late: filtered.filter((o) => getSlaInfo(o).level === 'late').length,
-      critical: filtered.filter((o) => getSlaInfo(o).level === 'critical')
-        .length,
+      critical: filtered.filter((o) => getSlaInfo(o).level === 'critical').length,
+      productionToday: todayProductionItems.reduce(
+        (sum: number, item: any) => sum + Number(item.quantity ?? 0),
+        0,
+      ),
+      averageProductionHours,
+      topCampusId: topCampus?.[0] ?? null,
+      topCampusQuantity: topCampus?.[1] ?? 0,
+      topProductName: topProduct?.[0] ?? 'Sin datos',
+      topProductQuantity: topProduct?.[1] ?? 0,
+      readyPickupOrders,
     }
   }, [filtered])
 
@@ -308,6 +432,57 @@ export default function ProductionPage() {
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-5">
+        <MetricCard
+          title="Productos por producir hoy"
+          value={metrics.productionToday}
+          color="text-violet-300"
+          icon={<Shirt size={18} />}
+        />
+
+        <MetricCard
+          title="Tiempo prom. producción"
+          value={formatHours(metrics.averageProductionHours)}
+          color="text-blue-300"
+          icon={<Timer size={18} />}
+        />
+
+        <MetricCard
+          title="Campus con más producción"
+          value={
+            metrics.topCampusId
+              ? campusMap.get(metrics.topCampusId) ?? 'Sin campus'
+              : 'Sin datos'
+          }
+          detail={
+            metrics.topCampusQuantity
+              ? `${metrics.topCampusQuantity} productos`
+              : undefined
+          }
+          color="text-amber-300"
+          icon={<Building2 size={18} />}
+        />
+
+        <MetricCard
+          title="Producto más producido"
+          value={metrics.topProductName}
+          detail={
+            metrics.topProductQuantity
+              ? `${metrics.topProductQuantity} unidades`
+              : undefined
+          }
+          color="text-green-300"
+          icon={<Trophy size={18} />}
+        />
+
+        <MetricCard
+          title="Listos para retiro"
+          value={metrics.readyPickupOrders}
+          color="text-emerald-300"
+          icon={<PackageCheck size={18} />}
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -468,9 +643,23 @@ export default function ProductionPage() {
                                     {item.size ? ` · Talla ${item.size}` : ''}
                                   </span>
 
-                                  <span className="rounded-full bg-violet-500/20 px-2.5 py-1 text-xs font-black text-violet-200">
-                                    x{item.quantity}
-                                  </span>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className="rounded-full bg-violet-500/20 px-2.5 py-1 text-xs font-black text-violet-200">
+                                      x{item.quantity}
+                                    </span>
+
+                                    {item.production_started_at && (
+                                      <span className="text-[10px] font-semibold text-zinc-500">
+                                        Inicio: {formatDate(item.production_started_at)}
+                                      </span>
+                                    )}
+
+                                    {item.ready_pickup_at && (
+                                      <span className="text-[10px] font-semibold text-emerald-300">
+                                        Listo: {formatDate(item.ready_pickup_at)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               )
                             })}
@@ -566,20 +755,34 @@ function MetricCard({
   title,
   value,
   color,
+  detail,
+  icon,
 }: {
   title: string
-  value: number
+  value: number | string
   color: string
+  detail?: string
+  icon?: React.ReactNode
 }) {
   return (
     <div className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5">
-      <p className="text-xs uppercase tracking-widest text-zinc-500">
-        {title}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs uppercase tracking-widest text-zinc-500">
+          {title}
+        </p>
 
-      <p className={`mt-3 text-3xl font-black ${color}`}>
+        {icon && <div className={`${color}`}>{icon}</div>}
+      </div>
+
+      <p className={`mt-3 truncate text-2xl font-black ${color}`}>
         {value}
       </p>
+
+      {detail && (
+        <p className="mt-2 text-xs font-semibold text-zinc-500">
+          {detail}
+        </p>
+      )}
     </div>
   )
 }

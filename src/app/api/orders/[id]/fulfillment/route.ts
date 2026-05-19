@@ -37,6 +37,30 @@ function getAppUrl(req: NextRequest) {
   ).replace(/\/$/, '')
 }
 
+function getItemTimestampPayload(nextStatus: string) {
+  const now = new Date().toISOString()
+
+  if (nextStatus === 'in_production') {
+    return {
+      production_started_at: now,
+    }
+  }
+
+  if (nextStatus === 'ready_pickup') {
+    return {
+      ready_pickup_at: now,
+    }
+  }
+
+  if (nextStatus === 'delivered') {
+    return {
+      delivered_at: now,
+    }
+  }
+
+  return {}
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -140,6 +164,23 @@ export async function PATCH(
       return NextResponse.json({ error: updateError.message }, { status: 400 })
     }
 
+    const itemTimestampPayload = getItemTimestampPayload(nextStatus)
+
+    if (Object.keys(itemTimestampPayload).length > 0) {
+      const { error: itemUpdateError } = await adminClient
+        .from('order_items')
+        .update(itemTimestampPayload)
+        .eq('order_id', order.id)
+        .eq('fulfillment_type', 'production')
+
+      if (itemUpdateError) {
+        return NextResponse.json(
+          { error: itemUpdateError.message },
+          { status: 400 },
+        )
+      }
+    }
+
     const config = STATUS_CONFIG[nextStatus]
 
     await adminClient.from('order_status_history').insert({
@@ -161,6 +202,7 @@ export async function PATCH(
       status: nextStatus,
       email_sent: Boolean((emailResult as any)?.sent),
       email_result: emailResult,
+      item_timestamps_updated: Object.keys(getItemTimestampPayload(nextStatus)).length > 0,
     })
   } catch (error: any) {
     console.error('PATCH /api/orders/[id]/fulfillment error:', error)
