@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Plus, X, Loader2, MapPin, Users, Package, TrendingUp, Edit2, Check,
-         AlertTriangle, Clock, ArrowRight, BarChart2, Eye, EyeOff, RotateCcw, ShieldCheck } from 'lucide-react'
+         AlertTriangle, Clock, ArrowRight, BarChart2 } from 'lucide-react'
 import { BarChart, Bar, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 
 const CAMPUS_COLORS: Record<string, { bg: string; text: string; border: string; dot: string; chart: string }> = {
@@ -33,20 +33,13 @@ export default function CampusAdminPage() {
   const [saving, setSaving]         = useState(false)
   const [editId, setEditId]         = useState<string | null>(null)
   const [editName, setEditName]     = useState('')
-  const [showInactive, setShowInactive] = useState(false)
 
-  useEffect(() => { loadAll() }, [showInactive])
+  useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
     const supabase = createClient()
-    let campusQuery = supabase.from('campus').select('*').order('name')
-
-    if (!showInactive) {
-      campusQuery = campusQuery.or('is_active.eq.true,is_active.is.null')
-    }
-
-    const { data: campusList } = await campusQuery
+    const { data: campusList } = await supabase.from('campus').select('*').order('name')
     if (!campusList) { setLoading(false); return }
     setCampus(campusList)
 
@@ -133,7 +126,7 @@ export default function CampusAdminPage() {
     if (!newName.trim()) { toast.error('El nombre es obligatorio'); return }
     setSaving(true)
     const { error } = await createClient().from('campus').insert({
-      name: newName.trim(), city: newCity.trim() || null, country: newCountry.trim() || null, active: true, is_active: true, deleted_at: null
+      name: newName.trim(), city: newCity.trim() || null, country: newCountry.trim() || null, active: true
     })
     setSaving(false)
     if (error) { toast.error(error.message); return }
@@ -150,45 +143,10 @@ export default function CampusAdminPage() {
     loadAll()
   }
 
-  async function toggleActive(id: string, active: boolean, name?: string) {
-    if (!active) {
-      const ok = window.confirm(
-        `¿Desactivar ${name ?? 'este campus'}?\n\nNo se eliminarán órdenes, inventario ni historial. Solo quedará oculto para la operación.`
-      )
-
-      if (!ok) return
-    }
-
-    const { error } = await createClient()
-      .from('campus')
-      .update({
-        active,
-        is_active: active,
-        deleted_at: active ? null : new Date().toISOString(),
-      })
-      .eq('id', id)
-
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
-    toast.success(active ? 'Campus reactivado' : 'Campus desactivado')
+  async function toggleActive(id: string, active: boolean) {
+    await createClient().from('campus').update({ active }).eq('id', id)
+    toast.success(active ? 'Campus activado' : 'Campus desactivado')
     loadAll()
-  }
-
-  function getCampusHealth(s: any) {
-    const lowStockCount = s.lowStock?.length ?? 0
-
-    if (lowStockCount >= 3) {
-      return { label: 'Crítico', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
-    }
-
-    if (lowStockCount > 0 || (!s.lastMovement && (s.products ?? 0) > 0)) {
-      return { label: 'Atención', className: 'bg-amber-500/10 text-amber-300 border-amber-500/20' }
-    }
-
-    return { label: 'Operativo', className: 'bg-green-500/10 text-green-400 border-green-500/20' }
   }
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -213,20 +171,12 @@ export default function CampusAdminPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">Administración de campus</h1>
-          <p className="text-xs text-zinc-500 mt-0.5">{campus.filter(c => c.is_active ?? c.active ?? true).length} campus activos · Total mes: {fmt(totalSales)}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{campus.filter(c => c.active).length} campus activos · Total mes: {fmt(totalSales)}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowInactive(v => !v)}
-            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl px-4 py-2.5 text-sm transition active:scale-[0.98] border border-zinc-700">
-            {showInactive ? <EyeOff size={15} /> : <Eye size={15} />}
-            {showInactive ? 'Ocultar inactivos' : 'Ver inactivos'}
-          </button>
-
-          <button onClick={() => setShowNew(!showNew)}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl px-4 py-2.5 text-sm transition active:scale-[0.98]">
-            <Plus size={15} />Nuevo campus
-          </button>
-        </div>
+        <button onClick={() => setShowNew(!showNew)}
+          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl px-4 py-2.5 text-sm transition active:scale-[0.98]">
+          <Plus size={15} />Nuevo campus
+        </button>
       </div>
 
       {/* Barra de participación global */}
@@ -237,7 +187,7 @@ export default function CampusAdminPage() {
             <span className="text-xs font-medium text-zinc-300">Participación en ventas — mes actual</span>
           </div>
           <div className="flex rounded-lg overflow-hidden h-5 gap-0.5">
-            {campus.filter(c => (c.is_active ?? c.active ?? true) && (stats[c.id]?.monthSales ?? 0) > 0).map(c => {
+            {campus.filter(c => c.active && (stats[c.id]?.monthSales ?? 0) > 0).map(c => {
               const pct = Math.round((stats[c.id]?.monthSales ?? 0) / totalSales * 100)
               const col = (CAMPUS_COLORS[c.name] ?? DEFAULT_COLOR).dot
               return (
@@ -247,7 +197,7 @@ export default function CampusAdminPage() {
             })}
           </div>
           <div className="flex flex-wrap gap-3 mt-2">
-            {campus.filter(c => c.is_active ?? c.active ?? true).map(c => {
+            {campus.filter(c => c.active).map(c => {
               const pct = totalSales > 0 ? Math.round((stats[c.id]?.monthSales ?? 0) / totalSales * 100) : 0
               const col = (CAMPUS_COLORS[c.name] ?? DEFAULT_COLOR)
               return (
@@ -300,12 +250,9 @@ export default function CampusAdminPage() {
           const s       = stats[c.id] ?? {}
           const pct     = totalSales > 0 ? Math.round((s.monthSales ?? 0) / totalSales * 100) : 0
           const isEdit  = editId === c.id
-          const isCampusActive = c.is_active ?? c.active ?? true
-          const health = getCampusHealth(s)
-          const isEmptyCampus = (s.users ?? 0) === 0 && (s.products ?? 0) === 0 && (s.orderCount ?? 0) === 0
 
           return (
-            <div key={c.id} className={`rounded-2xl border p-5 flex flex-col gap-4 ${color.bg} ${color.border} transition ${!isCampusActive ? 'opacity-50 grayscale' : ''}`}>
+            <div key={c.id} className={`rounded-2xl border p-5 flex flex-col gap-4 ${color.bg} ${color.border} transition ${!c.active ? 'opacity-50' : ''}`}>
 
               {/* Header campus */}
               <div className="flex items-center justify-between gap-2">
@@ -329,15 +276,10 @@ export default function CampusAdminPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {pct > 0 && <span className={`text-xs font-bold px-2 py-0.5 rounded-lg bg-black/20 ${color.text}`}>{pct}%</span>}
-                  <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-lg border ${health.className}`}>
-                    <ShieldCheck size={10} />
-                    {health.label}
-                  </span>
-
-                  <button onClick={() => toggleActive(c.id, !isCampusActive, c.name)}
+                  <button onClick={() => toggleActive(c.id, !c.active)}
                     className={`text-[9px] font-semibold px-2 py-1 rounded-lg border transition ${
-                      isCampusActive ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-zinc-700/50 text-zinc-500 border-zinc-600'}`}>
-                    {isCampusActive ? 'Activo' : 'Inactivo'}
+                      c.active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-zinc-700/50 text-zinc-500 border-zinc-600'}`}>
+                    {c.active ? 'Activo' : 'Inactivo'}
                   </button>
                 </div>
               </div>
@@ -351,7 +293,7 @@ export default function CampusAdminPage() {
               )}
 
               {/* Stats principales */}
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {[
                   { label:'Usuarios', value:s.users ?? 0, icon:<Users size={11}/> },
                   { label:'Productos', value:s.products ?? 0, icon:<Package size={11}/> },
@@ -364,18 +306,6 @@ export default function CampusAdminPage() {
                   </div>
                 ))}
               </div>
-
-              {isEmptyCampus && (
-                <div className="bg-blue-500/5 border border-blue-500/15 rounded-xl px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <Package size={13} className="text-blue-300" />
-                    <div>
-                      <p className="text-xs font-semibold text-blue-300">Campus recién creado</p>
-                      <p className="text-[10px] text-zinc-500">Sin operaciones aún · configura inventario y usuarios para comenzar.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Gráfico tendencia 7 días */}
               {s.trend && s.trend.some((d: any) => d.total > 0) ? (
@@ -455,19 +385,10 @@ export default function CampusAdminPage() {
                       : 'Sin movimientos'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  {!isCampusActive && (
-                    <button onClick={() => toggleActive(c.id, true, c.name)}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-green-400 hover:opacity-80 transition">
-                      <RotateCcw size={11} /> Reactivar
-                    </button>
-                  )}
-
-                  <button onClick={() => router.push(`/inventory?campus=${c.id}`)}
-                    className={`flex items-center gap-1 text-[10px] font-semibold ${color.text} hover:opacity-80 transition`}>
-                    Ver inventario <ArrowRight size={11} />
-                  </button>
-                </div>
+                <button onClick={() => router.push(`/inventory?campus=${c.id}`)}
+                  className={`flex items-center gap-1 text-[10px] font-semibold ${color.text} hover:opacity-80 transition`}>
+                  Ver inventario <ArrowRight size={11} />
+                </button>
               </div>
             </div>
           )
