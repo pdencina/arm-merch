@@ -116,6 +116,14 @@ export async function PATCH(
         category_id: body.category_id ?? null,
         image_url: body.image_url ?? null,
         active: Boolean(body.active),
+
+        // NUEVO: variantes dinámicas
+        has_variants: Boolean(body.has_variants),
+        variant_type: body.variant_type ?? null,
+        variants: Array.isArray(body.variants)
+          ? body.variants
+          : null,
+
         updated_at: new Date().toISOString(),
       })
       .eq('id', productId)
