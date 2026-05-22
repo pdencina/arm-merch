@@ -25,6 +25,7 @@ type TrackingEmailInput = {
   campusName?: string | null
   pickupAddress?: string | null
   total?: number | null
+  paymentMethod?: string | null
   items?: Array<{
     quantity: number
     unit_price?: number | null
@@ -44,6 +45,7 @@ type ResolvedEmailData = {
   campusName?: string | null
   pickupAddress?: string | null
   total?: number | null
+  paymentMethod?: string | null
   items?: Array<{
     quantity: number
     unit_price?: number | null
@@ -139,6 +141,19 @@ function esc(value?: string | number | null) {
     .replace(/>/g, '&gt;')
 }
 
+
+function paymentMethodLabel(value?: string | null) {
+  const method = String(value ?? '').toLowerCase()
+
+  if (method === 'solo' || method === 'sumup') return 'SumUp SOLO'
+  if (method === 'link') return 'Link de pago / Wallet'
+  if (method === 'cash' || method === 'efectivo') return 'Efectivo'
+  if (method === 'transfer' || method === 'transferencia') return 'Transferencia'
+  if (method === 'card' || method === 'tarjeta') return 'Tarjeta'
+
+  return value ? String(value) : 'Pago confirmado'
+}
+
 function buildTrackingTokenFallback(orderNumber: string | number) {
   return `ARM-${String(orderNumber).padStart(6, '0')}`
 }
@@ -155,6 +170,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
       campusName: input.campusName,
       pickupAddress: input.pickupAddress,
       total: input.total,
+      paymentMethod: input.paymentMethod || null,
       items: input.items,
       appUrl: input.appUrl,
     }
@@ -189,6 +205,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
       order_number,
       tracking_token,
       total,
+      payment_method,
       campus_id,
       pickup_campus_id
     `,
@@ -261,6 +278,7 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     campusName: destinationCampus?.name,
     pickupAddress: destinationCampus?.address,
     total: order.total,
+    paymentMethod: order.payment_method || input.paymentMethod || null,
     items: (orderItems || []).map((item: any) => ({
       quantity: Number(item.quantity || 0),
       unit_price: Number(item.unit_price || 0),
@@ -295,6 +313,7 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
     'https://armerch.com'
 
   const copy = STATUS_COPY[data.status] ?? STATUS_COPY.confirmed
+  const methodLabel = paymentMethodLabel(data.paymentMethod)
   const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(data.trackingToken)}`
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@armerch.com'
 
@@ -380,6 +399,12 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
                   <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
                     <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Orden</p>
                     <p style="margin:6px 0 0;color:#18181b;font-size:16px;font-weight:800;">#${esc(data.orderNumber)}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 20px;border-bottom:1px solid #e4e4e7;">
+                    <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Método de pago</p>
+                    <p style="margin:6px 0 0;color:#18181b;font-size:15px;font-weight:800;">${esc(methodLabel)}</p>
                   </td>
                 </tr>
                 <tr>

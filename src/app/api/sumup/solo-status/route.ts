@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendTrackingEmail } from '@/lib/tracking-email'
 
 const PAID_STATUSES = [
   'PAID',
@@ -280,140 +281,22 @@ async function sendVoucherEmail({
   order: any
   transactionCode?: string | null
 }) {
-  const { resendApiKey, fromEmail } = getEnv()
-
-  if (!resendApiKey) {
-    console.warn('[SOLO Status] RESEND_API_KEY no configurada')
-    return false
-  }
-
   try {
-    const { data: contact } = await adminClient
-      .from('order_contacts')
-      .select('client_name, client_email')
-      .eq('order_id', order.id)
-      .maybeSingle()
-
-    if (!contact?.client_email || !String(contact.client_email).includes('@')) {
-      console.warn('[SOLO Status] Orden sin email de cliente')
-      return false
-    }
-
-    const { data: itemsData } = await adminClient
-      .from('order_items')
-      .select('quantity, unit_price, size, products(name)')
-      .eq('order_id', order.id)
-
-    const rows = (itemsData ?? [])
-      .map((item: any) => {
-        const productName = esc(item.products?.name ?? 'Producto')
-        const sizeLabel = item.size
-          ? `<br/><span style="font-size:11px;color:#71717a;">Talla: ${esc(item.size)}</span>`
-          : ''
-
-        const quantity = Number(item.quantity ?? 0)
-        const unitPrice = Number(item.unit_price ?? 0)
-        const lineTotal = quantity * unitPrice
-
-        return `
-          <tr>
-            <td style="padding:12px 8px;border-bottom:1px solid #e4e4e7;font-size:14px;color:#18181b;">
-              ${productName}${sizeLabel}
-            </td>
-            <td style="padding:12px 8px;border-bottom:1px solid #e4e4e7;text-align:center;font-size:14px;color:#52525b;">
-              ${quantity}
-            </td>
-            <td style="padding:12px 8px;border-bottom:1px solid #e4e4e7;text-align:right;font-size:14px;font-weight:700;color:#18181b;">
-              ${fmtCLP(lineTotal)}
-            </td>
-          </tr>
-        `
-      })
-      .join('')
-
-    const html = `
-<!doctype html>
-<html>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 0;">
-    <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e4e4e7;">
-          <tr>
-            <td style="background:#111827;padding:28px 32px;text-align:center;">
-              <div style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#f59e0b;font-weight:700;">ARM Merch</div>
-              <h1 style="margin:12px 0 0;font-size:26px;line-height:1.2;color:#ffffff;">Compra confirmada</h1>
-              <p style="margin:8px 0 0;font-size:14px;color:#d4d4d8;">Orden #${esc(order.order_number)}</p>
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding:28px 32px;">
-              <p style="margin:0 0 16px;font-size:15px;color:#3f3f46;">
-                Hola <strong>${esc(contact.client_name || 'Cliente')}</strong>, gracias por tu compra. Tu pago fue confirmado correctamente mediante SumUp SOLO.
-              </p>
-
-              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:16px;">
-                <thead>
-                  <tr>
-                    <th style="padding:10px 8px;text-align:left;font-size:12px;color:#71717a;font-weight:700;border-bottom:2px solid #e4e4e7;">PRODUCTO</th>
-                    <th style="padding:10px 8px;text-align:center;font-size:12px;color:#71717a;font-weight:700;border-bottom:2px solid #e4e4e7;">CANT.</th>
-                    <th style="padding:10px 8px;text-align:right;font-size:12px;color:#71717a;font-weight:700;border-bottom:2px solid #e4e4e7;">TOTAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rows || '<tr><td colspan="3" style="padding:12px;color:#71717a;">Sin detalle de productos</td></tr>'}
-                </tbody>
-              </table>
-
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
-                <tr>
-                  <td style="padding:12px 0;font-size:17px;font-weight:700;color:#18181b;">Total pagado</td>
-                  <td style="padding:12px 0;font-size:22px;font-weight:800;color:#18181b;text-align:right;">${fmtCLP(Number(order.total ?? 0))}</td>
-                </tr>
-              </table>
-
-              ${
-                transactionCode
-                  ? `<p style="margin:10px 0 0;font-size:12px;color:#71717a;">Transacción: ${esc(transactionCode)}</p>`
-                  : ''
-              }
-            </td>
-          </tr>
-
-          <tr>
-            <td style="background:#f9fafb;padding:22px 32px;text-align:center;border-top:1px solid #e4e4e7;">
-              <p style="margin:0 0 6px;font-size:13px;color:#71717a;">¿Tienes alguna consulta? Contáctanos y menciona tu número de orden.</p>
-              <p style="margin:0;font-size:12px;color:#a1a1aa;">ARM Merch · ARM Global · armerch.com</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-`
-
-    const { Resend } = await import('resend')
-    const resend = new Resend(resendApiKey)
-
-    const { error: mailError } = await resend.emails.send({
-      from: `ARM Merch <${fromEmail}>`,
-      to: contact.client_email,
-      subject: `Comprobante Orden #${order.order_number}`,
-      html,
+    const result = await sendTrackingEmail({
+      orderId: order.id,
+      status: 'purchase_confirmed',
+      appUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://armerch.com',
     })
 
-    if (mailError) {
-      console.error('[SOLO Status] Voucher email error:', mailError)
+    if (!result.sent) {
+      console.warn('[SOLO Status] Tracking email no enviado:', result.error)
       return false
     }
 
-    console.log('[SOLO Status] Voucher enviado')
+    console.log('[SOLO Status] Voucher unificado enviado:', result.id)
     return true
   } catch (error) {
-    console.error('[SOLO Status] Error enviando voucher:', error)
+    console.error('[SOLO Status] Error enviando voucher unificado:', error)
     return false
   }
 }
@@ -463,6 +346,8 @@ async function markOrderPaid({
   // Stock: solo se descuenta aquí, después de pago aprobado.
   // Si el pago falla/cancela/expira, este bloque no se ejecuta.
   for (const item of order.order_items ?? []) {
+    if (item.fulfillment_type === 'production') continue
+
     const { error: movementError } = await adminClient
       .from('inventory_movements')
       .insert({
@@ -553,7 +438,7 @@ export async function POST(req: NextRequest) {
         total,
         notes,
         sumup_checkout_id,
-        order_items(product_id, quantity, unit_price, size)
+        order_items(product_id, quantity, unit_price, size, fulfillment_type)
       `)
       .eq('id', orderId)
       .maybeSingle()
