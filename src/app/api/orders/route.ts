@@ -5,6 +5,7 @@ import { sendTrackingEmail } from '@/lib/tracking-email'
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
 // Reglas importantes:
 // - Pagos normales: crean orden paid, descuentan stock y envían voucher inmediato.
+// - Transferencia: crea orden pending_transfer, NO descuenta stock y NO envía voucher hasta validar pago.
 // - Link/QR SumUp: crean orden pending, NO descuentan stock y NO envían voucher hasta confirmar pago.
 // - Smart POS SumUp: crea orden pending, NO descuenta stock y NO envía voucher hasta validar código TX.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,14 +178,20 @@ export async function POST(req: NextRequest) {
     const orderNumber = Number(lastOrder?.order_number ?? 1000) + 1
 
     // ── Notas combinadas ──
-    const combinedNotes = [
+    const rawNotes = [
       promoCode ? `Cupón: ${promoCode}` : null,
       extraNotes,
     ].filter(Boolean).join(' | ') || null
 
-    const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup'
-    const initialStatus = isDeferredPayment ? 'pending' : 'paid'
+    const isTransferPayment = paymentMethod === 'transferencia'
+    const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup' || isTransferPayment
+    const initialStatus = isTransferPayment ? 'pending_transfer' : isDeferredPayment ? 'pending' : 'paid'
     const trackingToken = createTrackingToken(orderNumber)
+    const combinedNotes = [
+      rawNotes,
+      isTransferPayment ? `Transferencia pendiente · Referencia: ${trackingToken}` : null,
+    ].filter(Boolean).join(' | ') || null
+
     const hasProductionItems = normalizedItems.some(
       (item) => item.fulfillment_type === 'production'
     )
@@ -261,7 +268,9 @@ export async function POST(req: NextRequest) {
       title: 'Compra confirmada',
       message: initialStatus === 'paid'
         ? 'Tu compra fue confirmada correctamente.'
-        : 'Recibimos tu pedido y estamos esperando confirmación del pago.',
+        : isTransferPayment
+          ? 'Recibimos tu pedido y estamos esperando validación de la transferencia.'
+          : 'Recibimos tu pedido y estamos esperando confirmación del pago.',
       created_by: profile.id,
     })
 

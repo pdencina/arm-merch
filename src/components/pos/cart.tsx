@@ -7,6 +7,7 @@ import { useCart, type CartItem } from "@/lib/hooks/use-cart";
 import {
   showCustomerCart,
   showCustomerPayment,
+  showCustomerTransferPayment,
   showCustomerPaid,
   showCustomerRejected,
   clearCustomerDisplay,
@@ -50,6 +51,16 @@ const fmt = (n: number) =>
 type SoloStatus = "waiting" | "processing" | "found" | "rejected" | "timeout";
 
 const SOLO_TIMEOUT_SECONDS = 180;
+
+const ARM_TRANSFER_BANK_ACCOUNT = {
+  holder: "Iglesia Cristiana AR Ministries",
+  rut: "65.108.056-8",
+  bank: "Banco Estado",
+  account_type: "Cuenta Corriente",
+  account_number: "29100078943",
+  email: "donaciones@armglobal.org",
+};
+
 
 const soloStatusCopy: Record<
   SoloStatus,
@@ -1513,9 +1524,70 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       }
 
       // ── Si es link de pago, crear checkout en SumUp primero ──
-      // ── Si es transferencia, mostrar QR antes de confirmar ──
+      // ── Si es transferencia, crear orden pending_transfer y mostrar datos al cliente ──
       if (paymentMethod === "transferencia") {
-        setTransferTotal(total());
+        const orderRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            campus_id: profile?.campus_id ?? null,
+            items: items.map((i) => ({
+              product_id: i.product.id,
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              discount_pct: i.discount_pct,
+              size: i.size ?? null,
+              variant_type: i.variant_type ?? null,
+              variant_value: i.variant_value ?? i.size ?? null,
+              fulfillment_type: getFulfillmentType(i.product.id),
+            })),
+            client_name: clientName.trim(),
+            client_email: clientEmail.trim() || null,
+            client_phone: clientPhone.trim() || null,
+            payment_method: "transferencia",
+            discount: 0,
+            notes: notes.trim() || null,
+            delivery_status: hasProductionItems ? "pending" : null,
+          }),
+        });
+
+        const orderData = await orderRes.json().catch(() => null);
+
+        if (!orderRes.ok) {
+          throw new Error(orderData?.error || "Error al registrar la transferencia.");
+        }
+
+        const orderTotal = total();
+        const orderNumber = orderData.order_number ?? orderData.order_id;
+        const transferReference = orderData.tracking_token ?? `ARM-${orderNumber}`;
+
+        setTransferTotal(orderTotal);
+        setCreatedOrder({
+          id: orderData.order_id,
+          number: orderNumber,
+          total: orderTotal,
+          emailSent: false,
+        });
+
+        showCustomerTransferPayment({
+          items: items.map((item) => ({
+            id: item.product.id,
+            name: item.product.name,
+            variant: item.variant_value ?? item.size ?? null,
+            image_url: item.product.image_url ?? null,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price * item.quantity,
+          })),
+          total: orderTotal,
+          order_number: orderNumber,
+          transfer_reference: transferReference,
+          bank_account: ARM_TRANSFER_BANK_ACCOUNT,
+        });
+
         setShowTransferQR(true);
         setSubmitting(false);
         return;

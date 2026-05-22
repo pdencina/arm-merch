@@ -13,6 +13,7 @@ export type CustomerDisplayStatus =
   | 'cart'
   | 'awaiting_payment'
   | 'awaiting_link'
+  | 'awaiting_transfer'
   | 'paid'
   | 'rejected'
   | 'cancelled'
@@ -23,6 +24,15 @@ export type CustomerDisplayState = {
   total: number
   payment_method?: string | null
   payment_url?: string | null
+  transfer_reference?: string | null
+  bank_account?: {
+    holder: string
+    rut: string
+    bank: string
+    account_type: string
+    account_number: string
+    email: string
+  } | null
   order_number?: string | number | null
   message?: string | null
   updated_at?: string
@@ -83,6 +93,33 @@ export function showCustomerPayment(input: {
     total: input.total,
     payment_method: input.payment_method,
     payment_url: input.payment_url ?? null,
+  })
+}
+
+
+export function showCustomerTransferPayment(input: {
+  items: CustomerDisplayItem[]
+  total: number
+  order_number: string | number
+  transfer_reference: string
+  bank_account: {
+    holder: string
+    rut: string
+    bank: string
+    account_type: string
+    account_number: string
+    email: string
+  }
+}) {
+  publishCustomerDisplayState({
+    status: 'awaiting_transfer',
+    items: input.items,
+    total: input.total,
+    payment_method: 'transferencia',
+    order_number: input.order_number,
+    transfer_reference: input.transfer_reference,
+    bank_account: input.bank_account,
+    message: 'Transferencia bancaria pendiente de validación',
   })
 }
 

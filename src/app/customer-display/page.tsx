@@ -27,6 +27,7 @@ type DisplayStatus =
   | 'cart'
   | 'awaiting_payment'
   | 'awaiting_link'
+  | 'awaiting_transfer'
   | 'paid'
   | 'rejected'
   | 'cancelled'
@@ -37,6 +38,15 @@ type CustomerDisplayState = {
   total: number
   payment_method?: string | null
   payment_url?: string | null
+  transfer_reference?: string | null
+  bank_account?: {
+    holder: string
+    rut: string
+    bank: string
+    account_type: string
+    account_number: string
+    email: string
+  } | null
   order_number?: string | number | null
   message?: string | null
   updated_at?: string
@@ -48,6 +58,8 @@ const EMPTY_STATE: CustomerDisplayState = {
   total: 0,
   payment_method: null,
   payment_url: null,
+  transfer_reference: null,
+  bank_account: null,
   order_number: null,
   message: null,
 }
@@ -131,6 +143,7 @@ export default function CustomerDisplayPage() {
   const isPaid = state.status === 'paid'
   const isRejected = state.status === 'rejected' || state.status === 'cancelled'
   const isAwaitingLink = state.status === 'awaiting_link'
+  const isAwaitingTransfer = state.status === 'awaiting_transfer'
   const isAwaitingPayment = state.status === 'awaiting_payment'
 
   if (isPaid) {
@@ -216,7 +229,58 @@ export default function CustomerDisplayPage() {
 
         </div>
 
-        {isAwaitingLink ? (
+        {isAwaitingTransfer ? (
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <CartPanel items={state.items} total={total} />
+
+            <div className="rounded-[32px] border border-[#D8DDD2] bg-white/80 p-8 text-center shadow-[0_12px_40px_rgba(0,0,0,0.04)]">
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-[#EEF2EA]">
+                <QrCode className="h-10 w-10 text-[#7E9078]" />
+              </div>
+
+              <p className="text-sm font-black uppercase tracking-[0.25em] text-[#7E9078]">
+                Transferencia bancaria
+              </p>
+
+              <h2 className="mt-3 text-4xl font-black">
+                {formatCLP(total)}
+              </h2>
+
+              <div className="mx-auto mt-7 flex h-[280px] w-[280px] items-center justify-center rounded-[28px] border border-[#D8DDD2] bg-white p-5 shadow-sm">
+                <img
+                  src={qrSrc(buildTransferText(state))}
+                  alt="QR datos de transferencia"
+                  className="h-full w-full rounded-2xl object-contain"
+                />
+              </div>
+
+              <div className="mt-6 rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-5 text-left">
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.20em] text-[#7E9078]">
+                  Datos para transferir
+                </p>
+
+                <InfoRow label="Nombre" value={state.bank_account?.holder ?? 'Iglesia Cristiana AR Ministries'} />
+                <InfoRow label="RUT" value={state.bank_account?.rut ?? '65.108.056-8'} />
+                <InfoRow label="Banco" value={state.bank_account?.bank ?? 'Banco Estado'} />
+                <InfoRow label="Cuenta" value={`${state.bank_account?.account_type ?? 'Cuenta Corriente'} · ${state.bank_account?.account_number ?? '29100078943'}`} />
+                <InfoRow label="Correo" value={state.bank_account?.email ?? 'donaciones@armglobal.org'} />
+              </div>
+
+              <div className="mt-5 rounded-3xl bg-[#EEF2EA] p-5">
+                <p className="text-xs font-black uppercase tracking-[0.20em] text-[#7E9078]">
+                  Comentario obligatorio
+                </p>
+                <p className="mt-2 text-4xl font-black text-[#111111]">
+                  {state.transfer_reference ?? `ARM-${state.order_number ?? ''}`}
+                </p>
+              </div>
+
+              <p className="mt-4 text-sm text-[#6B6B6B]">
+                La venta quedará pendiente hasta validar la transferencia.
+              </p>
+            </div>
+          </div>
+        ) : isAwaitingLink ? (
           <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             <CartPanel items={state.items} total={total} />
 
@@ -264,6 +328,33 @@ export default function CustomerDisplayPage() {
     </main>
   )
 }
+
+
+function buildTransferText(state: CustomerDisplayState) {
+  const bank = state.bank_account
+
+  return [
+    'Transferencia ARM Merch',
+    `Nombre: ${bank?.holder ?? 'Iglesia Cristiana AR Ministries'}`,
+    `RUT: ${bank?.rut ?? '65.108.056-8'}`,
+    `Banco: ${bank?.bank ?? 'Banco Estado'}`,
+    `Tipo cuenta: ${bank?.account_type ?? 'Cuenta Corriente'}`,
+    `N cuenta: ${bank?.account_number ?? '29100078943'}`,
+    `Email: ${bank?.email ?? 'donaciones@armglobal.org'}`,
+    `Monto: ${formatCLP(Number(state.total || 0))}`,
+    `Comentario: ${state.transfer_reference ?? `ARM-${state.order_number ?? ''}`}`,
+  ].join('\\n')
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-[#E1E3DD] py-2 last:border-b-0">
+      <span className="text-sm font-bold text-[#7E9078]">{label}</span>
+      <span className="text-right text-sm font-black text-[#111111]">{value}</span>
+    </div>
+  )
+}
+
 
 function Header() {
   return (
