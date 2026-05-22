@@ -8,10 +8,11 @@ import {
   MapPin, KeyRound, Eye, EyeOff,
 } from 'lucide-react'
 
-type Role = 'super_admin' | 'admin' | 'voluntario'
+type Role = 'super_admin' | 'adm_merch' | 'admin' | 'voluntario'
 
 const ROLE_STYLES: Record<Role, string> = {
   super_admin: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  adm_merch:   'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
   admin:       'bg-blue-500/10 text-blue-400 border-blue-500/20',
   voluntario:  'bg-green-500/10 text-green-400 border-green-500/20',
 }
@@ -168,7 +169,12 @@ export default function UsersPage() {
   const stats = {
     total:       users.length,
     activos:     users.filter(u => u.active !== false).length,
-    admins:      users.filter(u => u.role === 'admin' || u.role === 'super_admin').length,
+    admins:      users.filter(
+      u =>
+        u.role === 'admin' ||
+        u.role === 'adm_merch' ||
+        u.role === 'super_admin'
+    ).length,
     voluntarios: users.filter(u => u.role === 'voluntario').length,
   }
 
@@ -269,6 +275,7 @@ export default function UsersPage() {
                       >
                         <option value="voluntario">Voluntario</option>
                         <option value="admin">Admin</option>
+                        <option value="adm_merch">ADM Merch</option>
                         <option value="super_admin">Super Admin</option>
                       </select>
                     </td>
@@ -380,6 +387,7 @@ export default function UsersPage() {
                       className="w-full bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition">
                       <option value="voluntario">Voluntario</option>
                       <option value="admin">Admin</option>
+                      <option value="adm_merch">ADM Merch</option>
                       <option value="super_admin">Super Admin</option>
                     </select>
                   </div>
