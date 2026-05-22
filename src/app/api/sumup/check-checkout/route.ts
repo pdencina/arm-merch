@@ -30,6 +30,13 @@ function normalizeStatus(value: any) {
   return String(value ?? "").trim().toUpperCase();
 }
 
+function appendNotes(current: string | null | undefined, ...parts: Array<string | null | undefined>) {
+  return [current ?? "", ...parts]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -125,7 +132,7 @@ export async function POST(req: NextRequest) {
     const { data: order, error: orderError } = await adminClient
       .from("orders")
       .select(
-        "id, order_number, campus_id, status, notes, order_items(product_id, quantity, size)",
+        "id, order_number, campus_id, status, notes, payment_method, order_items(product_id, quantity, size, fulfillment_type)",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -156,15 +163,31 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const resolvedStatus = transactionStatus || checkoutStatus;
+    const resolvedStatus = checkoutStatus || transactionStatus;
+    const isPaid =
+      paidStatuses.includes(checkoutStatus) ||
+      paidStatuses.includes(transactionStatus) ||
+      paidStatuses.includes(resolvedStatus);
+
+    const isFailed =
+      failedStatuses.includes(checkoutStatus) ||
+      failedStatuses.includes(transactionStatus) ||
+      failedStatuses.includes(resolvedStatus);
 
     // Pago aprobado: descontar stock una sola vez.
-    if (paidStatuses.includes(transactionStatus) || paidStatuses.includes(checkoutStatus)) {
+    if (isPaid) {
       const { error: updateError } = await adminClient
         .from("orders")
         .update({
           status: "paid",
-          notes: `Pagado via SumUp | Ref: ${checkoutReference ?? ""} | TXN: ${transactionCode}`,
+          notes: appendNotes(
+            order.notes,
+            "Pagado vía SumUp Wallet/Link",
+            `Ref: ${checkoutReference ?? ""}`,
+            `TXN: ${transactionCode || "N/A"}`,
+            `Estado: ${resolvedStatus || "PAID"}`,
+          ),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", order.id);
 
@@ -176,7 +199,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
+
+      await adminClient.from("order_status_history").insert({
+        order_id: order.id,
+        status: "payment_confirmed",
+        title: "Pago confirmado",
+        message: "El pago fue confirmado correctamente por SumUp Wallet/Link.",
+        created_at: new Date().toISOString(),
+      }).then(() => null);
+
       for (const item of order.order_items ?? []) {
+        if (item.fulfillment_type === "production") continue;
+
         const { error: movementError } = await adminClient
           .from("inventory_movements")
           .insert({
@@ -388,8 +422,7 @@ export async function POST(req: NextRequest) {
 
     // Pago rechazado, expirado o cancelación forzada por timeout del POS.
     if (
-      failedStatuses.includes(transactionStatus) ||
-      failedStatuses.includes(checkoutStatus) ||
+      isFailed ||
       forceCancel
     ) {
       const cancelReason = forceCancel ? "timeout" : (transactionStatus || checkoutStatus || "cancelled");
@@ -398,7 +431,12 @@ export async function POST(req: NextRequest) {
         .from("orders")
         .update({
           status: "cancelled",
-          notes: `Pago ${String(cancelReason).toLowerCase()} via SumUp | Ref: ${checkoutReference ?? ""}`,
+          notes: appendNotes(
+            order.notes,
+            `Pago ${String(cancelReason).toLowerCase()} vía SumUp Wallet/Link`,
+            `Ref: ${checkoutReference ?? ""}`,
+          ),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", order.id);
 
