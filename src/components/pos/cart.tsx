@@ -5,6 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useCart, type CartItem } from "@/lib/hooks/use-cart";
 import {
+  showCustomerCart,
+  showCustomerPayment,
+  showCustomerPaid,
+  showCustomerRejected,
+  clearCustomerDisplay,
+} from "@/lib/customer-display";
+import {
   ShoppingCart,
   Trash2,
   CreditCard,
@@ -663,6 +670,21 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             notifyLocalStockDiscount();
 
             if (createdOrder) {
+              showCustomerPaid({
+                items: items.map((item) => ({
+                  id: item.product.id,
+                  name: item.product.name,
+                  variant: item.variant_value ?? item.size ?? null,
+                  image_url: item.product.image_url ?? null,
+                  quantity: item.quantity,
+                  unit_price: item.unit_price,
+                  subtotal: item.unit_price * item.quantity,
+                })),
+                total: createdOrder.total,
+                payment_method: "link",
+                order_number: createdOrder.number,
+              });
+
               registerLastSale({
                 id: createdOrder.id,
                 number: createdOrder.number,
@@ -689,6 +711,20 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       if (["cancelled", "canceled", "failed", "declined", "rejected", "expired", "timeout"].includes(status)) {
         setPaymentQrStatus("rejected");
         setPaymentQrMessage("❌ Pago rechazado, expirado o no confirmado. El stock NO fue descontado.");
+
+        showCustomerRejected({
+          items: items.map((item) => ({
+            id: item.product.id,
+            name: item.product.name,
+            variant: item.variant_value ?? item.size ?? null,
+            image_url: item.product.image_url ?? null,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price * item.quantity,
+          })),
+          total: total(),
+          payment_method: "link",
+        });
         stopPolling();
         return true;
       }
@@ -1520,6 +1556,22 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         setPaymentQrTotal(total());
         setPaymentQrStatus("pending");
         setPaymentQrMessage("Esperando confirmación automática del pago...");
+
+        showCustomerPayment({
+          items: items.map((item) => ({
+            id: item.product.id,
+            name: item.product.name,
+            variant: item.variant_value ?? item.size ?? null,
+            image_url: item.product.image_url ?? null,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price * item.quantity,
+          })),
+          total: total(),
+          payment_method: "link",
+          payment_url: checkoutData.payment_url,
+        });
+
         setWhatsappLinkStatus("idle");
         setWhatsappLinkMessage(null);
       }
@@ -1632,6 +1684,28 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canSubmit, paymentMethod, items.length, clientName]);
+
+
+  // ── CUSTOMER DISPLAY LIVE SYNC ───────────────────────────────────────────
+  useEffect(() => {
+    if (items.length === 0) {
+      clearCustomerDisplay();
+      return;
+    }
+
+    showCustomerCart(
+      items.map((item) => ({
+        id: item.product.id,
+        name: item.product.name,
+        variant: item.variant_value ?? item.size ?? null,
+        image_url: item.product.image_url ?? null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.unit_price * item.quantity,
+      })),
+      total(),
+    );
+  }, [items, total]);
 
   // ─── render ───────────────────────────────────────────────────────────────
   return (
