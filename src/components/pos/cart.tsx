@@ -209,9 +209,11 @@ function CartItemRow({
           </p>
           <p className="mt-0.5 text-xs text-zinc-500">
             {fmt(item.unit_price)} c/u
-            {item.size && (
+            {(item.variant_value || item.size) && (
               <span className="ml-1.5 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-bold text-violet-400">
-                Talla {item.size}
+                {item.variant_type === 'tamaño'
+                  ? `Tamaño ${item.variant_value}`
+                  : `Talla ${item.variant_value ?? item.size}`}
               </span>
             )}
           </p>
@@ -1141,6 +1143,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             unit_price: i.unit_price,
             discount_pct: i.discount_pct,
             size: i.size ?? null,
+            variant_type: i.variant_type ?? null,
+            variant_value: i.variant_value ?? i.size ?? null,
             fulfillment_type: getFulfillmentType(i.product.id),
           })),
           client_name: clientName.trim(),
@@ -1248,6 +1252,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               unit_price: i.unit_price,
               discount_pct: i.discount_pct,
               size: i.size ?? null,
+            variant_type: i.variant_type ?? null,
+            variant_value: i.variant_value ?? i.size ?? null,
               fulfillment_type: getFulfillmentType(i.product.id),
             })),
             client_name: clientName.trim() || null,
@@ -1345,6 +1351,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               product_id: i.product.id,
               quantity: i.quantity,
               size: i.size ?? null,
+            variant_type: i.variant_type ?? null,
+            variant_value: i.variant_value ?? i.size ?? null,
               unit_price: i.product.price,
               fulfillment_type: getFulfillmentType(i.product.id),
             })),
@@ -1445,6 +1453,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             unit_price: i.unit_price,
             discount_pct: i.discount_pct,
             size: i.size ?? null,
+            variant_type: i.variant_type ?? null,
+            variant_value: i.variant_value ?? i.size ?? null,
             fulfillment_type: getFulfillmentType(i.product.id),
           })),
           client_name: clientName.trim(),
@@ -1627,12 +1637,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <div className="space-y-2.5">
                   {items.map((item) => (
                     <CartItemRow
-                      key={item.product.id}
+                      key={`${item.product.id}-${item.variant_value ?? item.size ?? 'default'}`}
                       item={item}
                       onUpdateQty={(qty) =>
-                        updateQuantity(item.product.id, qty)
+                        updateQuantity(item.product.id, qty, item.variant_value ?? item.size ?? null)
                       }
-                      onRemove={() => removeItem(item.product.id)}
+                      onRemove={() => removeItem(item.product.id, item.variant_value ?? item.size ?? null)}
                       isProduction={Boolean(productionItems[item.product.id])}
                       onToggleProduction={() => toggleProductionItem(item.product.id)}
                     />
@@ -2429,6 +2439,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       quantity: i.quantity,
                       unit_price: i.product.price,
                       size: i.size ?? null,
+            variant_type: i.variant_type ?? null,
+            variant_value: i.variant_value ?? i.size ?? null,
                       fulfillment_type: getFulfillmentType(i.product.id),
                     })),
                     client_name: clientName.trim(),

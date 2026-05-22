@@ -14,9 +14,11 @@ export interface CartProduct {
 export interface CartItem {
   product: CartProduct
   quantity: number
-  unit_price: number       // precio al momento de agregar (respeta congelado)
-  discount_pct: number     // descuento por ítem (0-100)
-  size?: string | null     // talla seleccionada (para productos de vestuario)
+  unit_price: number
+  discount_pct: number
+  size?: string | null
+  variant_type?: string | null
+  variant_value?: string | null
 }
 
 export interface Promotion {
@@ -25,46 +27,53 @@ export interface Promotion {
   label: string
   type: 'percent' | 'fixed'
   value: number
-  min_amount?: number      // monto mínimo para activar
+  min_amount?: number
   max_uses?: number
 }
 
 interface CartStore {
-  // Estado
   items: CartItem[]
   paymentMethod: string
-  globalDiscount: number        // descuento fijo global en CLP
-  discount: number              // alias de globalDiscount (compatibilidad con checkout-modal)
+  globalDiscount: number
+  discount: number
   appliedPromo: Promotion | null
   clientName: string
   clientEmail: string
   notes: string
 
-  // Acciones de items
-  addItem: (product: CartProduct, size?: string | null) => void
-  removeItem: (productId: string) => void
-  updateQuantity: (productId: string, quantity: number) => void
-  setItemDiscount: (productId: string, pct: number) => void
+  addItem: (
+    product: CartProduct,
+    size?: string | null,
+    variantType?: string | null,
+    variantValue?: string | null,
+    customPrice?: number | null
+  ) => void
+  removeItem: (productId: string, variantValue?: string | null) => void
+  updateQuantity: (productId: string, quantity: number, variantValue?: string | null) => void
+  setItemDiscount: (productId: string, pct: number, variantValue?: string | null) => void
   clearCart: () => void
 
-  // Acciones de pago/descuento
   setPaymentMethod: (method: string) => void
   setGlobalDiscount: (amount: number) => void
   applyPromo: (promo: Promotion) => void
   removePromo: () => void
 
-  // Datos del cliente
   setClientName: (name: string) => void
   setClientEmail: (email: string) => void
   setNotes: (notes: string) => void
 
-  // Derivados
   subtotal: () => number
   promoDiscount: () => number
   total: () => number
   itemCount: () => number
-  hasStock: (productId: string, qty: number) => boolean
+  hasStock: (productId: string, qty: number, variantValue?: string | null) => boolean
 }
+
+const variantKey = (value?: string | null) => value ?? null
+
+const sameLine = (item: CartItem, productId: string, value?: string | null) =>
+  item.product.id === productId &&
+  (item.variant_value ?? item.size ?? null) === variantKey(value)
 
 export const useCart = create<CartStore>()(
   persist(
@@ -72,62 +81,72 @@ export const useCart = create<CartStore>()(
       items: [],
       paymentMethod: 'efectivo',
       globalDiscount: 0,
-      discount: 0,              // alias de globalDiscount
+      discount: 0,
       appliedPromo: null,
       clientName: '',
       clientEmail: '',
       notes: '',
 
-      addItem: (product, size) =>
+      addItem: (product, size, variantType, variantValue, customPrice) =>
         set((state) => {
-          // Match by product id AND size (same product diff size = diff item)
-          const existing = state.items.find((i) => i.product.id === product.id && (i.size ?? null) === (size ?? null))
+          const selectedValue = variantValue ?? size ?? null
+          const existing = state.items.find((i) => sameLine(i, product.id, selectedValue))
+
           if (existing) {
             if (existing.quantity >= product.stock) return state
+
             return {
               items: state.items.map((i) =>
-                i.product.id === product.id && (i.size ?? null) === (size ?? null)
+                sameLine(i, product.id, selectedValue)
                   ? { ...i, quantity: i.quantity + 1 }
                   : i
               ),
             }
           }
+
           return {
             items: [
               ...state.items,
               {
                 product,
                 quantity: 1,
-                unit_price: product.price,
+                unit_price: customPrice ?? product.price,
                 size: size ?? null,
+                variant_type: variantType ?? (size ? 'talla' : null),
+                variant_value: selectedValue,
                 discount_pct: 0,
               },
             ],
           }
         }),
 
-      removeItem: (productId) =>
+      removeItem: (productId, variantValue) =>
         set((state) => ({
-          items: state.items.filter((i) => i.product.id !== productId),
+          items: state.items.filter((i) => !sameLine(i, productId, variantValue)),
         })),
 
-      updateQuantity: (productId, quantity) =>
+      updateQuantity: (productId, quantity, variantValue) =>
         set((state) => {
-          if (quantity <= 0)
-            return { items: state.items.filter((i) => i.product.id !== productId) }
-          const item = state.items.find((i) => i.product.id === productId)
+          if (quantity <= 0) {
+            return {
+              items: state.items.filter((i) => !sameLine(i, productId, variantValue)),
+            }
+          }
+
+          const item = state.items.find((i) => sameLine(i, productId, variantValue))
           if (item && quantity > item.product.stock) return state
+
           return {
             items: state.items.map((i) =>
-              i.product.id === productId ? { ...i, quantity } : i
+              sameLine(i, productId, variantValue) ? { ...i, quantity } : i
             ),
           }
         }),
 
-      setItemDiscount: (productId, pct) =>
+      setItemDiscount: (productId, pct, variantValue) =>
         set((state) => ({
           items: state.items.map((i) =>
-            i.product.id === productId
+            sameLine(i, productId, variantValue)
               ? { ...i, discount_pct: Math.min(100, Math.max(0, pct)) }
               : i
           ),
@@ -145,13 +164,13 @@ export const useCart = create<CartStore>()(
         }),
 
       setPaymentMethod: (method) => set({ paymentMethod: method }),
-      setGlobalDiscount: (amount) => set({ globalDiscount: Math.max(0, amount), discount: Math.max(0, amount) }),
+      setGlobalDiscount: (amount) =>
+        set({ globalDiscount: Math.max(0, amount), discount: Math.max(0, amount) }),
 
       applyPromo: (promo) =>
         set((state) => {
           const sub = state.items.reduce(
-            (sum, i) =>
-              sum + i.unit_price * i.quantity * (1 - i.discount_pct / 100),
+            (sum, i) => sum + i.unit_price * i.quantity * (1 - i.discount_pct / 100),
             0
           )
           if (promo.min_amount && sub < promo.min_amount) return state
@@ -166,8 +185,7 @@ export const useCart = create<CartStore>()(
 
       subtotal: () =>
         get().items.reduce(
-          (sum, i) =>
-            sum + i.unit_price * i.quantity * (1 - i.discount_pct / 100),
+          (sum, i) => sum + i.unit_price * i.quantity * (1 - i.discount_pct / 100),
           0
         ),
 
@@ -175,12 +193,10 @@ export const useCart = create<CartStore>()(
         const { appliedPromo, items } = get()
         if (!appliedPromo) return 0
         const sub = items.reduce(
-          (sum, i) =>
-            sum + i.unit_price * i.quantity * (1 - i.discount_pct / 100),
+          (sum, i) => sum + i.unit_price * i.quantity * (1 - i.discount_pct / 100),
           0
         )
-        if (appliedPromo.type === 'percent')
-          return Math.round((sub * appliedPromo.value) / 100)
+        if (appliedPromo.type === 'percent') return Math.round((sub * appliedPromo.value) / 100)
         return Math.min(appliedPromo.value, sub)
       },
 
@@ -193,15 +209,14 @@ export const useCart = create<CartStore>()(
 
       itemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
-      hasStock: (productId, qty) => {
-        const item = get().items.find((i) => i.product.id === productId)
+      hasStock: (productId, qty, variantValue) => {
+        const item = get().items.find((i) => sameLine(i, productId, variantValue))
         if (!item) return true
         return item.quantity + qty <= item.product.stock
       },
     }),
     {
       name: 'arm-merch-cart',
-      // Solo persistir datos del cliente y método de pago, no los items (evita stock desactualizado)
       partialize: (state) => ({
         paymentMethod: state.paymentMethod,
         clientName: state.clientName,

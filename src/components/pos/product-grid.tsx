@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Search, ScanLine, XCircle } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { useBarcode } from '@/lib/hooks/use-barcode'
+import ProductVariantModal, { type ProductVariantOption } from './product-variant-modal'
 
 interface Product {
   id: string
@@ -52,6 +53,14 @@ export default function ProductGrid({ products, categories }: Props) {
   const [category, setCategory] = useState('')
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [variantOpen, setVariantOpen] = useState(false)
+  const [selectedVariantProduct, setSelectedVariantProduct] = useState<{
+    product: Product
+    variantType: 'talla' | 'tamaño'
+    title: string
+    subtitle: string
+    options: ProductVariantOption[]
+  } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -98,10 +107,88 @@ export default function ProductGrid({ products, categories }: Props) {
     })
   }, [liveProducts, search, category])
 
+
+  function getProductVariantConfig(product: Product) {
+    const name = normalizeCode(product.name)
+    const sku = normalizeCode(product.sku ?? '')
+
+    const isClothing =
+      name.includes('polera') ||
+      name.includes('poleron') ||
+      name.includes('polerón') ||
+      name.includes('hoodie') ||
+      name.includes('chaqueta') ||
+      name.includes('camiseta') ||
+      sku.includes('polera') ||
+      sku.includes('poleron') ||
+      sku.includes('hoodie')
+
+    if (isClothing) {
+      return {
+        variantType: 'talla' as const,
+        title: 'Selecciona la talla',
+        subtitle: 'La talla quedará visible en el carrito y en la orden para producción.',
+        options: [
+          { label: 'XS', value: 'XS' },
+          { label: 'S', value: 'S' },
+          { label: 'M', value: 'M' },
+          { label: 'L', value: 'L' },
+          { label: 'XL', value: 'XL' },
+          { label: 'XXL', value: 'XXL' },
+        ],
+      }
+    }
+
+    const isCoffee =
+      name.includes('cafe') ||
+      name.includes('café') ||
+      name.includes('latte') ||
+      name.includes('capuccino') ||
+      name.includes('cappuccino') ||
+      name.includes('americano') ||
+      name.includes('mocca') ||
+      name.includes('mocha')
+
+    if (isCoffee) {
+      const basePrice = product.price
+
+      return {
+        variantType: 'tamaño' as const,
+        title: 'Selecciona el tamaño',
+        subtitle: 'El valor se ajustará según el tamaño elegido.',
+        options: [
+          { label: 'Chico', value: 'Chico', price: basePrice },
+          { label: 'Mediano', value: 'Mediano', price: basePrice + 500 },
+          { label: 'Grande', value: 'Grande', price: basePrice + 1000 },
+        ],
+      }
+    }
+
+    return null
+  }
+
+  function openVariantSelector(product: Product) {
+    const config = getProductVariantConfig(product)
+
+    if (!config) return false
+
+    setSelectedVariantProduct({
+      product,
+      ...config,
+    })
+    setVariantOpen(true)
+
+    return true
+  }
+
   function addProduct(product: Product) {
     if ((product.stock ?? 0) <= 0) {
       setScanError(`Sin stock: ${product.name}`)
       setTimeout(() => setScanError(null), 2500)
+      return
+    }
+
+    if (openVariantSelector(product)) {
       return
     }
 
@@ -111,6 +198,8 @@ export default function ProductGrid({ products, categories }: Props) {
       price: product.price,
       image_url: product.image_url,
       stock: product.stock ?? 0,
+      sku: product.sku,
+      category_id: product.category_id,
     })
 
     playAddSound()
@@ -221,7 +310,8 @@ export default function ProductGrid({ products, categories }: Props) {
   }, [])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <>
+      <div className="flex h-full flex-col overflow-hidden">
       <div className="border-b border-zinc-800 px-5 py-4">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -342,6 +432,42 @@ export default function ProductGrid({ products, categories }: Props) {
       <div className="hidden border-t border-zinc-800 px-5 py-3 text-center text-[11px] text-zinc-600 md:block">
         Escanea un código de barras para agregar rápido al carrito
       </div>
-    </div>
+      </div>
+      <ProductVariantModal
+        open={variantOpen}
+        title={selectedVariantProduct?.title ?? 'Selecciona una opción'}
+        subtitle={selectedVariantProduct?.subtitle}
+        options={selectedVariantProduct?.options ?? []}
+        onClose={() => {
+          setVariantOpen(false)
+          setSelectedVariantProduct(null)
+        }}
+        onSelect={(option) => {
+          if (!selectedVariantProduct) return
+
+          const product = selectedVariantProduct.product
+
+          addItem(
+            {
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              image_url: product.image_url,
+              stock: product.stock ?? 0,
+              sku: product.sku,
+              category_id: product.category_id,
+            },
+            selectedVariantProduct.variantType === 'talla' ? option.value : null,
+            selectedVariantProduct.variantType,
+            option.value,
+            option.price ?? product.price
+          )
+
+          playAddSound()
+          setVariantOpen(false)
+          setSelectedVariantProduct(null)
+        }}
+      />
+    </>
   )
 }
