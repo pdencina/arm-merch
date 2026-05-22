@@ -161,7 +161,7 @@ function isPaidOrder(order: any) {
 
 function isPendingPayment(order: any) {
   const status = String(order?.status || "").toLowerCase();
-  return ["pending", "created", "unpaid", "waiting"].includes(status);
+  return ["pending", "pending_transfer", "created", "unpaid", "waiting"].includes(status);
 }
 
 async function aiExecutiveSummary(summary: any) {
@@ -257,16 +257,24 @@ export async function GET(req: NextRequest) {
     const periodOrderIds = new Set(periodOrders.map((order: any) => String(order.id)));
     const periodItems = allItems.filter((item: any) => periodOrderIds.has(String(item.order_id)));
 
-    const grossSales = periodOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+    // KPIs financieros reales: solo órdenes pagadas.
+    // Las órdenes pending/pending_transfer representan intención de compra, no venta confirmada.
     const paidOrders = periodOrders.filter(isPaidOrder);
-    const paidSales = paidOrders.reduce((sum, order) => sum + orderTotal(order), 0);
-    const avgTicket = periodOrders.length > 0 ? grossSales / periodOrders.length : 0;
+    const paidOrderIds = new Set(paidOrders.map((order: any) => String(order.id)));
+    const paidItems = allItems.filter((item: any) => paidOrderIds.has(String(item.order_id)));
+
+    const grossSales = paidOrders.reduce((sum, order) => sum + orderTotal(order), 0);
+    const paidSales = grossSales;
+    const avgTicket = paidOrders.length > 0 ? grossSales / paidOrders.length : 0;
     const paidRate = periodOrders.length > 0 ? Math.round((paidOrders.length / periodOrders.length) * 100) : 0;
     const pendingPaymentOrders = periodOrders.filter(isPendingPayment).length;
-    const unitsSold = periodItems.reduce((sum, item) => sum + itemQty(item), 0);
+    const pendingPaymentTotal = periodOrders
+      .filter(isPendingPayment)
+      .reduce((sum, order) => sum + orderTotal(order), 0);
+    const unitsSold = paidItems.reduce((sum, item) => sum + itemQty(item), 0);
 
     const campusMap = new Map<string, { total: number; orders: number; units: number }>();
-    for (const order of periodOrders) {
+    for (const order of paidOrders) {
       const name = campusNameFromMap(order?.campus_id, campusById);
       const current = campusMap.get(name) || { total: 0, orders: 0, units: 0 };
       current.total += orderTotal(order);
@@ -274,8 +282,8 @@ export async function GET(req: NextRequest) {
       campusMap.set(name, current);
     }
 
-    for (const item of periodItems) {
-      const order = periodOrders.find((o: any) => String(o.id) === String(item.order_id));
+    for (const item of paidItems) {
+      const order = paidOrders.find((o: any) => String(o.id) === String(item.order_id));
       const name = campusNameFromMap(order?.campus_id, campusById);
       const current = campusMap.get(name) || { total: 0, orders: 0, units: 0 };
       current.units += itemQty(item);
@@ -283,7 +291,7 @@ export async function GET(req: NextRequest) {
     }
 
     const paymentMap = new Map<string, { total: number; orders: number }>();
-    for (const order of periodOrders) {
+    for (const order of paidOrders) {
       const key = paymentMethod(order);
       const current = paymentMap.get(key) || { total: 0, orders: 0 };
       current.total += orderTotal(order);
@@ -292,7 +300,7 @@ export async function GET(req: NextRequest) {
     }
 
     const productMap = new Map<string, { quantity: number; total: number }>();
-    for (const item of periodItems) {
+    for (const item of paidItems) {
       const productId = itemProductId(item);
       const name = productNameFromMap(productId, productsById);
       const current = productMap.get(name) || { quantity: 0, total: 0 };
@@ -347,6 +355,7 @@ export async function GET(req: NextRequest) {
       orders_count: periodOrders.length,
       paid_orders_count: paidOrders.length,
       pending_payment_orders: pendingPaymentOrders,
+      pending_payment_total: pendingPaymentTotal,
       paid_rate: paidRate,
       avg_ticket: avgTicket,
       units_sold: unitsSold,
@@ -363,15 +372,21 @@ export async function GET(req: NextRequest) {
 
     const cards: Array<{ title: string; value: string; detail: string; severity: Severity }> = [
       {
-        title: `Ventas ${periodLabel}`,
+        title: `Ventas confirmadas ${periodLabel}`,
         value: money(grossSales),
-        detail: `${periodOrders.length} órdenes registradas en el periodo seleccionado.`,
+        detail: `${paidOrders.length} órdenes pagadas en el periodo seleccionado.`,
         severity: grossSales > 0 ? "success" : "info",
+      },
+      {
+        title: "Pendiente confirmación",
+        value: money(pendingPaymentTotal),
+        detail: `${pendingPaymentOrders} órdenes pendientes de pago o transferencia.`,
+        severity: pendingPaymentOrders > 0 ? "warning" : "success",
       },
       {
         title: "Ticket promedio",
         value: money(avgTicket),
-        detail: "Promedio por orden del periodo.",
+        detail: "Promedio por orden pagada del periodo.",
         severity: avgTicket > 0 ? "success" : "info",
       },
       {
@@ -395,7 +410,7 @@ export async function GET(req: NextRequest) {
       {
         title: "Pagos confirmados",
         value: `${paidRate}%`,
-        detail: `${paidOrders.length} de ${periodOrders.length} órdenes aparecen pagadas/completadas.`,
+        detail: `${paidOrders.length} de ${periodOrders.length} órdenes aparecen pagadas/completadas. Pendientes: ${pendingPaymentOrders}.`,
         severity: paidRate >= 80 ? "success" : paidRate >= 50 ? "warning" : "info",
       },
       {
@@ -414,14 +429,16 @@ export async function GET(req: NextRequest) {
 
     const fallback =
       grossSales > 0
-        ? `En ${periodLabel}, ARM Merch registra ${money(grossSales)} en ${periodOrders.length} órdenes, con ticket promedio de ${money(avgTicket)}. ${
+        ? `En ${periodLabel}, ARM Merch registra ${money(grossSales)} confirmados en ${paidOrders.length} órdenes pagadas, con ticket promedio de ${money(avgTicket)}. ${
             summary.top_campus ? `El campus con mayor movimiento es ${summary.top_campus}. ` : ""
           }${
             summary.critical_stock_count > 0
               ? "Se recomienda revisar stock crítico y preparar reposición antes del próximo domingo."
               : "El stock se mantiene sin alertas críticas principales."
           }`
-        : `En ${periodLabel}, ARM Merch aún no registra ventas relevantes. Se recomienda revisar visibilidad del catálogo, disponibilidad de productos y comunicación por WhatsApp.`;
+        : pendingPaymentOrders > 0
+          ? `En ${periodLabel}, ARM Merch no registra ventas confirmadas, pero existen ${pendingPaymentOrders} órdenes pendientes por ${money(pendingPaymentTotal)}. Se recomienda validar pagos antes de considerar estos montos como venta real.`
+          : `En ${periodLabel}, ARM Merch aún no registra ventas confirmadas. Se recomienda revisar visibilidad del catálogo, disponibilidad de productos y comunicación por WhatsApp.`;
 
     const executive = await aiExecutiveSummary(summary);
 
