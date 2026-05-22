@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { ArrowUpDown, ArrowDownUp } from 'lucide-react'
+import { ArrowUpDown, ArrowDownUp, AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import StockBadge from './stock-badge'
 
@@ -12,6 +12,7 @@ interface Props {
   products: any[]
   campus: { id: string; name: string }[]
   onMovement: (product: any) => void
+  onSetZero: (product: any) => void
 }
 
 const fmt = (n: number) =>
@@ -25,7 +26,7 @@ const CAMPUS_COLORS: Record<string, string> = {
   'ARM Maracaibo':   'bg-red-500/10 text-red-400 border-red-500/20',
 }
 
-export default function ProductTable({ products, campus, onMovement }: Props) {
+export default function ProductTable({ products, campus, onMovement, onSetZero }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -142,12 +143,26 @@ export default function ProductTable({ products, campus, onMovement }: Props) {
                   </td>
 
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => onMovement(product)}
-                      className="text-xs bg-zinc-700 hover:bg-amber-500/20 hover:text-amber-400
-                                 text-zinc-400 border border-zinc-600 hover:border-amber-500/40
-                                 px-3 py-1.5 rounded-lg transition font-medium">
-                      Ajustar
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => onSetZero(product)}
+                        className="flex items-center gap-1 text-xs bg-red-500/10 hover:bg-red-500/20
+                                   text-red-400 border border-red-500/20 hover:border-red-500/40
+                                   px-3 py-1.5 rounded-lg transition font-medium"
+                      >
+                        <AlertTriangle size={12} />
+                        Stock 0
+                      </button>
+
+                      <button
+                        onClick={() => onMovement(product)}
+                        className="text-xs bg-zinc-700 hover:bg-amber-500/20 hover:text-amber-400
+                                   text-zinc-400 border border-zinc-600 hover:border-amber-500/40
+                                   px-3 py-1.5 rounded-lg transition font-medium"
+                      >
+                        Ajustar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )

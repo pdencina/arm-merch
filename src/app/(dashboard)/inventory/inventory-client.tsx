@@ -174,6 +174,47 @@ export default function InventoryClient({
         products={filtered}
         campus={campuses}
         onMovement={(p) => setMovProd(p)}
+        onSetZero={async (product) => {
+          const ok = confirm(`¿Deseas dejar "${product.name}" con stock 0?`)
+          if (!ok) return
+
+          try {
+            const token = localStorage.getItem('sb-access-token')
+
+            const res = await fetch('/api/inventory', {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                inventory_id: product.inventory_id,
+                stock: 0,
+              }),
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+              alert(data.error ?? 'No se pudo actualizar stock')
+              return
+            }
+
+            setProducts((prev) =>
+              prev.map((p) =>
+                p.inventory_id === product.inventory_id
+                  ? {
+                      ...p,
+                      stock: 0,
+                      low_stock: true,
+                    }
+                  : p
+              )
+            )
+          } catch {
+            alert('Error actualizando stock')
+          }
+        }}
       />
 
       {movementProduct && (
