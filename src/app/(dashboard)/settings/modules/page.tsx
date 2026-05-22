@@ -151,12 +151,61 @@ const PERMISSION_GROUPS = [
 ]
 
 const ROLES = [
-  { key: 'admin',      label: 'Admin',      color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/20' },
-  { key: 'voluntario', label: 'Voluntario', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+  { key: 'adm_merch',  label: 'ADM Merch',  color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+  { key: 'admin',      label: 'Admin',      color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
+  { key: 'voluntario', label: 'Voluntario', color: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
 ]
 
 // Default permissions per role
 const DEFAULTS: Record<string, Record<string, boolean>> = {
+  adm_merch: {
+    'dashboard.view': true,
+
+    'pos.view': true,
+    'pos.sell': true,
+    'pos.all_payments': true,
+    'pos.discount': true,
+    'pos.smart_pos': true,
+    'pos.link_payment': true,
+    'pos.pending_orders': true,
+
+    'orders.view': true,
+    'orders.export': true,
+    'orders.refund': true,
+
+    'deliveries.view': true,
+    'deliveries.ready': true,
+    'deliveries.deliver': true,
+    'deliveries.whatsapp': true,
+
+    'inventory.view': true,
+    'inventory.movements': true,
+    'inventory.scan': true,
+    'inventory.adjust': true,
+    'inventory.transfer': true,
+
+    'movements.view': true,
+
+    'products.view': true,
+    'products.create': true,
+    'products.edit': true,
+    'products.delete': false,
+    'products.labels': true,
+    'products.prices': true,
+
+    'reports.view': true,
+    'reports.all_campus': true,
+    'reports.export': true,
+
+    'close_day.view': true,
+    'close_day.open': true,
+    'close_day.close': true,
+    'close_day.all': true,
+
+    'categories.view': true,
+    'categories.manage': true,
+  },
+
   admin: {
     'dashboard.view': true,
     'pos.view': true, 'pos.sell': true, 'pos.all_payments': true, 'pos.discount': false,
