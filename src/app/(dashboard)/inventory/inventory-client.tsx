@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search, MapPin, RefreshCw, Barcode } from 'lucide-react'
+import { Search, MapPin, RefreshCw, Barcode, AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import ProductTable from '@/components/inventory/product-table'
 import MovementForm from '@/components/inventory/movement-form'
 import LowStockAlert from '@/components/inventory/low-stock-alert'
+import { createClient } from '@/lib/supabase/client'
 
 interface CampusOption {
   id: string
@@ -37,6 +38,13 @@ export default function InventoryClient({
   const [filterStock, setFilterStock] = useState<'all' | 'low' | 'out'>('all')
   const [movementProduct, setMovProd] = useState<any | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [stockZeroProduct, setStockZeroProduct] = useState<any | null>(null)
+  const [stockZeroLoading, setStockZeroLoading] = useState(false)
+  const [stockZeroMessage, setStockZeroMessage] = useState<{
+    type: 'success' | 'error'
+    title: string
+    description: string
+  } | null>(null)
 
   const isSuperAdmin = userRole === 'super_admin'
 
@@ -78,6 +86,82 @@ export default function InventoryClient({
     setRefreshing(true)
     await onReload()
     setRefreshing(false)
+  }
+
+  async function handleSetStockZero() {
+    if (!stockZeroProduct) return
+
+    setStockZeroLoading(true)
+
+    try {
+      const supabase = createClient()
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError || !session?.access_token) {
+        setStockZeroMessage({
+          type: 'error',
+          title: 'No autenticado',
+          description: 'Tu sesión no está disponible. Cierra sesión e ingresa nuevamente.',
+        })
+        setStockZeroLoading(false)
+        return
+      }
+
+      const res = await fetch('/api/inventory', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          inventory_id: stockZeroProduct.inventory_id,
+          stock: 0,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setStockZeroMessage({
+          type: 'error',
+          title: 'No se pudo actualizar',
+          description: data.error ?? 'Intenta nuevamente en unos segundos.',
+        })
+        setStockZeroLoading(false)
+        return
+      }
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.inventory_id === stockZeroProduct.inventory_id
+            ? {
+                ...p,
+                stock: 0,
+                low_stock: true,
+              }
+            : p
+        )
+      )
+
+      setStockZeroProduct(null)
+      setStockZeroMessage({
+        type: 'success',
+        title: 'Stock actualizado',
+        description: `${stockZeroProduct.name} quedó con stock 0.`,
+      })
+    } catch {
+      setStockZeroMessage({
+        type: 'error',
+        title: 'Error inesperado',
+        description: 'No se pudo dejar el producto en stock 0.',
+      })
+    } finally {
+      setStockZeroLoading(false)
+    }
   }
 
   return (
@@ -174,47 +258,7 @@ export default function InventoryClient({
         products={filtered}
         campus={campuses}
         onMovement={(p) => setMovProd(p)}
-        onSetZero={async (product) => {
-          const ok = confirm(`¿Deseas dejar "${product.name}" con stock 0?`)
-          if (!ok) return
-
-          try {
-            const token = localStorage.getItem('sb-access-token')
-
-            const res = await fetch('/api/inventory', {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                inventory_id: product.inventory_id,
-                stock: 0,
-              }),
-            })
-
-            const data = await res.json()
-
-            if (!res.ok) {
-              alert(data.error ?? 'No se pudo actualizar stock')
-              return
-            }
-
-            setProducts((prev) =>
-              prev.map((p) =>
-                p.inventory_id === product.inventory_id
-                  ? {
-                      ...p,
-                      stock: 0,
-                      low_stock: true,
-                    }
-                  : p
-              )
-            )
-          } catch {
-            alert('Error actualizando stock')
-          }
-        }}
+        onSetZero={(p) => setStockZeroProduct(p)}
       />
 
       {movementProduct && (
@@ -241,6 +285,92 @@ export default function InventoryClient({
             setMovProd(null)
           }}
         />
+      )}
+
+      {stockZeroProduct && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#0F1216] shadow-2xl">
+            <div className="border-b border-white/10 px-6 py-5">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400">
+                <AlertTriangle size={22} />
+              </div>
+
+              <h2 className="text-2xl font-black tracking-tight text-white">
+                Dejar stock en 0
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                ¿Deseas dejar{' '}
+                <span className="font-bold text-white">“{stockZeroProduct.name}”</span>{' '}
+                con stock 0?
+              </p>
+
+              <p className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-200">
+                Esta acción no elimina el producto ni sus ventas históricas. Solo ajusta el inventario actual.
+              </p>
+            </div>
+
+            <div className="flex gap-3 p-5">
+              <button
+                type="button"
+                onClick={() => setStockZeroProduct(null)}
+                disabled={stockZeroLoading}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSetStockZero}
+                disabled={stockZeroLoading}
+                className="flex-1 rounded-2xl bg-red-500 px-4 py-3 text-sm font-black text-white transition hover:bg-red-400 disabled:opacity-50"
+              >
+                {stockZeroLoading ? 'Actualizando...' : 'Sí, dejar en 0'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stockZeroMessage && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#0F1216] shadow-2xl">
+            <div className="px-6 py-6">
+              <div
+                className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${
+                  stockZeroMessage.type === 'success'
+                    ? 'bg-green-500/10 text-green-400'
+                    : 'bg-red-500/10 text-red-400'
+                }`}
+              >
+                {stockZeroMessage.type === 'success' ? (
+                  <CheckCircle2 size={22} />
+                ) : (
+                  <X size={22} />
+                )}
+              </div>
+
+              <h2 className="text-2xl font-black tracking-tight text-white">
+                {stockZeroMessage.title}
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                {stockZeroMessage.description}
+              </p>
+            </div>
+
+            <div className="border-t border-white/10 p-5">
+              <button
+                type="button"
+                onClick={() => setStockZeroMessage(null)}
+                className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-zinc-200"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
