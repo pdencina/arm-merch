@@ -104,7 +104,7 @@ export default function ProductGrid({ products, categories }: Props) {
   const filtered = useMemo(() => {
     const text = normalizeCode(search)
 
-    return liveProducts.filter((p) => {
+    const filteredProducts = liveProducts.filter((p) => {
       const matchSearch =
         !text ||
         p.name.toLowerCase().includes(text) ||
@@ -115,7 +115,28 @@ export default function ProductGrid({ products, categories }: Props) {
 
       return matchSearch && matchCat
     })
-  }, [liveProducts, search, category])
+
+    return [...filteredProducts].sort((a, b) => {
+      const categoryA =
+        categories.find((c) => c.id === a.category_id)?.name || ''
+
+      const categoryB =
+        categories.find((c) => c.id === b.category_id)?.name || ''
+
+      const categoryCompare = categoryA.localeCompare(categoryB, 'es', {
+        sensitivity: 'base',
+      })
+
+      if (categoryCompare !== 0) {
+        return categoryCompare
+      }
+
+      return a.name.localeCompare(b.name, 'es', {
+        sensitivity: 'base',
+        numeric: true,
+      })
+    })
+  }, [liveProducts, search, category, categories])
 
 
   function getProductVariantConfig(product: Product) {
