@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { Search, ScanLine, XCircle } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { useBarcode } from '@/lib/hooks/use-barcode'
-import { createClient } from '@/lib/supabase/client'
 import ProductVariantModal, { type ProductVariantOption } from './product-variant-modal'
 
 interface Product {
@@ -18,9 +17,6 @@ interface Product {
   category_id: string | null
   sku: string | null
   barcode?: string | null
-  has_variants?: boolean | null
-  variant_type?: 'talla' | 'tamaño' | 'personalizado' | string | null
-  variants?: ProductVariantOption[] | null
 }
 
 interface Props {
@@ -51,7 +47,6 @@ function normalizeBarcode(value: string) {
 
 export default function ProductGrid({ products, categories }: Props) {
   const { addItem } = useCart()
-  const supabase = createClient()
 
   const [liveProducts, setLiveProducts] = useState(products)
   const [search, setSearch] = useState('')
@@ -113,40 +108,7 @@ export default function ProductGrid({ products, categories }: Props) {
   }, [liveProducts, search, category])
 
 
-  function buildProductVariantConfig(product: Product) {
-    const dbVariants = Array.isArray(product.variants)
-      ? product.variants
-          .map((variant: any) => ({
-            label: String(variant?.label ?? ''),
-            value: String(variant?.value ?? variant?.label ?? ''),
-            price:
-              typeof variant?.price === 'number'
-                ? variant.price
-                : Number(variant?.price ?? product.price),
-          }))
-          .filter((variant) => variant.label && variant.value)
-      : []
-
-    if (product.has_variants && dbVariants.length > 0) {
-const variantType: 'talla' | 'tamaño' =
-  product.variant_type === 'talla'
-    ? 'talla'
-    : 'tamaño'
-
-      return {
-        variantType,
-        title:
-          variantType === 'talla'
-            ? 'Selecciona la talla'
-            : 'Selecciona el tamaño',
-        subtitle:
-          variantType === 'talla'
-            ? 'La talla quedará visible en el carrito y en la orden para producción.'
-            : 'El valor se ajustará según el tamaño elegido.',
-        options: dbVariants,
-      }
-    }
-
+  function getProductVariantConfig(product: Product) {
     const name = normalizeCode(product.name)
     const sku = normalizeCode(product.sku ?? '')
 
@@ -177,78 +139,31 @@ const variantType: 'talla' | 'tamaño' =
       }
     }
 
-    const isCoffee =
-      name.includes('cafe') ||
-      name.includes('café') ||
-      name.includes('latte') ||
-      name.includes('capuccino') ||
-      name.includes('cappuccino') ||
-      name.includes('americano') ||
-      name.includes('mocca') ||
-      name.includes('mocha')
-
-    if (isCoffee) {
-      const basePrice = product.price
-
-      return {
-        variantType: 'tamaño' as const,
-        title: 'Selecciona el tamaño',
-        subtitle: 'El valor se ajustará según el tamaño elegido.',
-        options: [
-          { label: 'Chico', value: 'Chico', price: basePrice },
-          { label: 'Mediano', value: 'Mediano', price: basePrice + 500 },
-          { label: 'Grande', value: 'Grande', price: basePrice + 1000 },
-        ],
-      }
-    }
-
     return null
   }
 
-  async function openVariantSelector(product: Product) {
-    let productWithVariants: Product = product
-
-    try {
-      const { data } = await supabase
-        .from('products')
-        .select('has_variants, variant_type, variants')
-        .eq('id', product.id)
-        .maybeSingle()
-
-      if (data) {
-        productWithVariants = {
-          ...product,
-          has_variants: data.has_variants,
-          variant_type: data.variant_type,
-          variants: data.variants,
-        }
-      }
-    } catch {
-      // Si no se puede leer Supabase, usamos fallback por nombre/precio base.
-    }
-
-    const config = buildProductVariantConfig(productWithVariants)
+  function openVariantSelector(product: Product) {
+    const config = getProductVariantConfig(product)
 
     if (!config) return false
 
     setSelectedVariantProduct({
-      product: productWithVariants,
+      product,
       ...config,
     })
-
     setVariantOpen(true)
 
     return true
   }
 
-  async function addProduct(product: Product) {
+  function addProduct(product: Product) {
     if ((product.stock ?? 0) <= 0) {
       setScanError(`Sin stock: ${product.name}`)
       setTimeout(() => setScanError(null), 2500)
       return
     }
 
-    if (await openVariantSelector(product)) {
+    if (openVariantSelector(product)) {
       return
     }
 
