@@ -3,11 +3,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ConfirmActionModal from '@/components/ui/confirm-action-modal'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 type Category = {
   id: string
   name: string
+}
+
+type VariantRow = {
+  label: string
+  value: string
+  price: string
 }
 
 interface Props {
@@ -20,8 +27,43 @@ interface Props {
     category_id?: string | null
     image_url?: string | null
     active: boolean
+    has_variants?: boolean | null
+    variant_type?: string | null
+    variants?: any[] | null
   }
   categories: Category[]
+}
+
+const DEFAULT_SIZE_VARIANTS: VariantRow[] = [
+  { label: 'XS', value: 'XS', price: '' },
+  { label: 'S', value: 'S', price: '' },
+  { label: 'M', value: 'M', price: '' },
+  { label: 'L', value: 'L', price: '' },
+  { label: 'XL', value: 'XL', price: '' },
+  { label: 'XXL', value: 'XXL', price: '' },
+]
+
+const DEFAULT_COFFEE_VARIANTS: VariantRow[] = [
+  { label: 'Chico', value: 'Chico', price: '' },
+  { label: 'Mediano', value: 'Mediano', price: '' },
+  { label: 'Grande', value: 'Grande', price: '' },
+]
+
+function normalizeVariants(product: Props['product']): VariantRow[] {
+  const raw = product?.variants
+
+  if (!Array.isArray(raw)) return []
+
+  return raw.map((item: any) => ({
+    label: String(item?.label ?? ''),
+    value: String(item?.value ?? item?.label ?? ''),
+    price:
+      typeof item?.price === 'number'
+        ? String(item.price)
+        : item?.price
+          ? String(item.price)
+          : '',
+  }))
 }
 
 export default function EditProductForm({ product, categories }: Props) {
@@ -40,8 +82,18 @@ export default function EditProductForm({ product, categories }: Props) {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(product.image_url ?? null)
 
+  const [hasVariants, setHasVariants] = useState(Boolean(product.has_variants))
+  const [variantType, setVariantType] = useState<string>(product.variant_type ?? 'tamaño')
+  const [variants, setVariants] = useState<VariantRow[]>(() => {
+    const normalized = normalizeVariants(product)
+    return normalized.length > 0 ? normalized : DEFAULT_COFFEE_VARIANTS
+  })
+
   const fieldClassName =
     'w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-black placeholder-zinc-500 focus:outline-none focus:border-amber-500'
+
+  const darkFieldClassName =
+    'w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500'
 
   const imagePreviewUrl = useMemo(() => {
     if (!imageFile) return ''
@@ -53,6 +105,83 @@ export default function EditProductForm({ product, categories }: Props) {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
     }
   }, [imagePreviewUrl])
+
+  function loadPreset(type: string) {
+    setVariantType(type)
+
+    if (type === 'talla') {
+      setVariants(DEFAULT_SIZE_VARIANTS.map((item) => ({
+        ...item,
+        price: String(price || 0),
+      })))
+      return
+    }
+
+    if (type === 'tamaño') {
+      setVariants(DEFAULT_COFFEE_VARIANTS.map((item, index) => ({
+        ...item,
+        price: String(Number(price || 0) + index * 500),
+      })))
+      return
+    }
+
+    setVariants([{ label: '', value: '', price: String(price || 0) }])
+  }
+
+  function updateVariant(index: number, field: keyof VariantRow, value: string) {
+    setVariants((current) =>
+      current.map((variant, i) => {
+        if (i !== index) return variant
+
+        const updated = { ...variant, [field]: value }
+
+        if (field === 'label') {
+          updated.value = value
+        }
+
+        return updated
+      })
+    )
+  }
+
+  function addVariant() {
+    setVariants((current) => [
+      ...current,
+      {
+        label: '',
+        value: '',
+        price: String(price || 0),
+      },
+    ])
+  }
+
+  function removeVariant(index: number) {
+    setVariants((current) => current.filter((_, i) => i !== index))
+  }
+
+  function buildVariantsPayload() {
+    if (!hasVariants) {
+      return {
+        has_variants: false,
+        variant_type: null,
+        variants: null,
+      }
+    }
+
+    const cleanVariants = variants
+      .map((variant) => ({
+        label: variant.label.trim(),
+        value: (variant.value || variant.label).trim(),
+        price: Number(variant.price || 0),
+      }))
+      .filter((variant) => variant.label && variant.value && variant.price >= 0)
+
+    return {
+      has_variants: cleanVariants.length > 0,
+      variant_type: cleanVariants.length > 0 ? variantType : null,
+      variants: cleanVariants.length > 0 ? cleanVariants : null,
+    }
+  }
 
   async function uploadImage(): Promise<string | null> {
     if (!imageFile) return currentImageUrl
@@ -128,6 +257,8 @@ export default function EditProductForm({ product, categories }: Props) {
         imageUrl = await uploadImage()
       }
 
+      const variantPayload = buildVariantsPayload()
+
       const res = await fetch(`/api/products/${product.id}`, {
         method: 'PATCH',
         headers: {
@@ -142,6 +273,7 @@ export default function EditProductForm({ product, categories }: Props) {
           category_id: categoryId || null,
           image_url: imageUrl || null,
           active,
+          ...variantPayload,
         }),
       })
 
@@ -168,7 +300,7 @@ export default function EditProductForm({ product, categories }: Props) {
         <div className="mb-5">
           <h2 className="text-lg font-semibold text-white">Editar producto</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Actualiza los datos generales del producto.
+            Actualiza los datos generales, variantes y precios por tamaño.
           </p>
         </div>
 
@@ -184,7 +316,7 @@ export default function EditProductForm({ product, categories }: Props) {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-zinc-400">Precio</label>
+            <label className="text-xs font-medium text-zinc-400">Precio base</label>
             <input
               type="number"
               value={price}
@@ -281,6 +413,99 @@ export default function EditProductForm({ product, categories }: Props) {
               Producto activo
             </label>
           </div>
+
+          <div className="md:col-span-2 rounded-2xl border border-zinc-700/70 bg-zinc-950/50 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Variantes y precios por tamaño
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                  Activa esto para café chico, mediano y grande, tallas de ropa u otras variantes con precio propio.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setHasVariants((value) => !value)}
+                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                  hasVariants
+                    ? 'bg-green-500/15 text-green-300'
+                    : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                {hasVariants ? 'Activado' : 'Desactivado'}
+              </button>
+            </div>
+
+            {hasVariants && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-xs text-zinc-500">
+                    Tipo de variante
+                  </label>
+                  <select
+                    value={variantType}
+                    onChange={(e) => loadPreset(e.target.value)}
+                    className={darkFieldClassName}
+                  >
+                    <option value="tamaño">Tamaño</option>
+                    <option value="talla">Talla</option>
+                    <option value="personalizado">Personalizado</option>
+                  </select>
+                </div>
+
+                <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-3">
+                  <p className="text-xs font-bold text-amber-300">
+                    Ejemplo café:
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Chico $2.000 · Mediano $2.500 · Grande $3.000
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {variants.map((variant, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_130px_38px] gap-2">
+                      <input
+                        value={variant.label}
+                        onChange={(e) => updateVariant(index, 'label', e.target.value)}
+                        placeholder="Ej: Grande"
+                        className={darkFieldClassName}
+                      />
+
+                      <input
+                        type="number"
+                        min="0"
+                        value={variant.price}
+                        onChange={(e) => updateVariant(index, 'price', e.target.value)}
+                        placeholder="Precio"
+                        className={darkFieldClassName}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(index)}
+                        className="flex items-center justify-center rounded-xl bg-red-500/10 text-red-300 transition hover:bg-red-500/20"
+                        aria-label="Eliminar variante"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addVariant}
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+                >
+                  <Plus size={14} />
+                  Agregar variante
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="pt-5">
@@ -301,7 +526,7 @@ export default function EditProductForm({ product, categories }: Props) {
       <ConfirmActionModal
         open={confirmOpen}
         title="¿Guardar cambios del producto?"
-        description="Se actualizarán los datos generales del producto. Esta acción impactará la información visible para los usuarios."
+        description="Se actualizarán los datos generales del producto, incluyendo variantes y precios por tamaño."
         confirmText="Sí, guardar cambios"
         cancelText="Revisar otra vez"
         loading={loading || uploadingImage}
