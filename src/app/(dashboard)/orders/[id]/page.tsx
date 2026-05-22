@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { CheckCircle2 } from 'lucide-react'
 import SendReceipt from '@/components/orders/send-receipt'
 import ResendVoucherButton from '@/components/orders/resend-voucher-button'
 
@@ -53,6 +54,58 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString('es-CL')
 }
 
+function getStatusLabel(status?: string | null) {
+  const value = String(status ?? '').toLowerCase()
+
+  const labels: Record<string, string> = {
+    paid: 'Pagado',
+    pending: 'Pendiente pago',
+    pending_transfer: 'Transferencia pendiente',
+    rejected: 'Rechazada',
+    cancelled: 'Cancelada',
+    refunded: 'Reembolsada',
+  }
+
+  return labels[value] ?? (status || '—')
+}
+
+function getStatusClass(status?: string | null) {
+  const value = String(status ?? '').toLowerCase()
+
+  if (value === 'paid') {
+    return 'border-green-500/20 bg-green-500/10 text-green-300'
+  }
+
+  if (value === 'pending_transfer') {
+    return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+  }
+
+  if (value === 'pending') {
+    return 'border-blue-500/20 bg-blue-500/10 text-blue-300'
+  }
+
+  if (value === 'rejected' || value === 'cancelled') {
+    return 'border-red-500/20 bg-red-500/10 text-red-300'
+  }
+
+  return 'border-zinc-700 bg-zinc-800 text-zinc-300'
+}
+
+function getPaymentLabel(payment?: string | null) {
+  const value = String(payment ?? '').toLowerCase()
+
+  const labels: Record<string, string> = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia',
+    sumup: 'SumUp',
+    solo: 'SumUp SOLO',
+    link: 'Link de pago',
+    card: 'Tarjeta',
+  }
+
+  return labels[value] ?? (payment || 'Sin definir')
+}
+
 export default function OrderDetailPage() {
   const supabase = createClient()
   const params = useParams()
@@ -67,6 +120,8 @@ export default function OrderDetailPage() {
   const [profile, setProfile] = useState<{ role: string; campus_id: string | null } | null>(null)
   const [campuses, setCampuses] = useState<CampusRow[]>([])
   const [items, setItems] = useState<ItemRow[]>([])
+  const [confirmingTransfer, setConfirmingTransfer] = useState(false)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -212,6 +267,51 @@ export default function OrderDetailPage() {
   const discount = Number(order?.discount ?? 0)
   const total = Number(order?.total ?? 0)
 
+
+  async function confirmTransferPayment() {
+    if (!order || order.status !== 'pending_transfer') return
+
+    const confirmed = window.confirm(
+      `¿Confirmar transferencia de la orden #${order.order_number}?\n\nEsto la marcará como pagada y aparecerá como venta confirmada en los dashboards.`
+    )
+
+    if (!confirmed) return
+
+    setConfirmingTransfer(true)
+    setActionMessage(null)
+
+    try {
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          status: 'paid',
+          notes: order.notes
+            ? `${order.notes} | Transferencia confirmada manualmente`
+            : 'Transferencia confirmada manualmente',
+        })
+        .eq('id', order.id)
+        .eq('status', 'pending_transfer')
+
+      if (updateError) {
+        throw new Error(updateError.message)
+      }
+
+      setOrder({
+        ...order,
+        status: 'paid',
+        notes: order.notes
+          ? `${order.notes} | Transferencia confirmada manualmente`
+          : 'Transferencia confirmada manualmente',
+      })
+
+      setActionMessage('Transferencia confirmada correctamente.')
+    } catch (err: any) {
+      setActionMessage(err?.message || 'No se pudo confirmar la transferencia.')
+    } finally {
+      setConfirmingTransfer(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -250,7 +350,29 @@ export default function OrderDetailPage() {
           </h1>
         </div>
 
+        {actionMessage && (
+          <div className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+            actionMessage.includes('correctamente')
+              ? 'border-green-500/20 bg-green-500/10 text-green-200'
+              : 'border-red-500/20 bg-red-500/10 text-red-200'
+          }`}>
+            {actionMessage}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3">
+          {order.status === 'pending_transfer' && (
+            <button
+              type="button"
+              onClick={confirmTransferPayment}
+              disabled={confirmingTransfer}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckCircle2 size={16} />
+              {confirmingTransfer ? 'Confirmando...' : 'Confirmar transferencia'}
+            </button>
+          )}
+
           <Link
             href="/orders"
             className="inline-flex items-center justify-center rounded-xl bg-zinc-800 px-4 py-2.5 text-sm text-white hover:bg-zinc-700"
@@ -281,14 +403,18 @@ export default function OrderDetailPage() {
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
           <p className="text-sm text-zinc-400">Método de pago</p>
-          <p className="mt-1 text-white capitalize">
-            {order.payment_method ?? 'Sin definir'}
+          <p className="mt-1 text-white">
+            {getPaymentLabel(order.payment_method)}
           </p>
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
           <p className="text-sm text-zinc-400">Estado</p>
-          <p className="mt-1 text-white">{order.status ?? '—'}</p>
+          <p className="mt-2">
+            <span className={`inline-flex rounded-lg border px-3 py-1 text-sm font-semibold ${getStatusClass(order.status)}`}>
+              {getStatusLabel(order.status)}
+            </span>
+          </p>
         </div>
       </div>
 
@@ -348,7 +474,29 @@ export default function OrderDetailPage() {
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
         <h2 className="mb-3 text-lg font-semibold text-white">Acciones</h2>
 
+        {actionMessage && (
+          <div className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${
+            actionMessage.includes('correctamente')
+              ? 'border-green-500/20 bg-green-500/10 text-green-200'
+              : 'border-red-500/20 bg-red-500/10 text-red-200'
+          }`}>
+            {actionMessage}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3">
+          {order.status === 'pending_transfer' && (
+            <button
+              type="button"
+              onClick={confirmTransferPayment}
+              disabled={confirmingTransfer}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckCircle2 size={16} />
+              {confirmingTransfer ? 'Confirmando...' : 'Confirmar transferencia'}
+            </button>
+          )}
+
           <Link
             href={`/orders/${order.id}/print`}
             target="_blank"

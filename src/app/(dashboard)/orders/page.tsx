@@ -35,6 +35,58 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString('es-CL')
 }
 
+function getStatusLabel(status?: string | null) {
+  const value = String(status ?? '').toLowerCase()
+
+  const labels: Record<string, string> = {
+    paid: 'Pagado',
+    pending: 'Pendiente pago',
+    pending_transfer: 'Transferencia pendiente',
+    rejected: 'Rechazada',
+    cancelled: 'Cancelada',
+    refunded: 'Reembolsada',
+  }
+
+  return labels[value] ?? (status || '—')
+}
+
+function getStatusClass(status?: string | null) {
+  const value = String(status ?? '').toLowerCase()
+
+  if (value === 'paid') {
+    return 'border-green-500/20 bg-green-500/10 text-green-300'
+  }
+
+  if (value === 'pending_transfer') {
+    return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+  }
+
+  if (value === 'pending') {
+    return 'border-blue-500/20 bg-blue-500/10 text-blue-300'
+  }
+
+  if (value === 'rejected' || value === 'cancelled') {
+    return 'border-red-500/20 bg-red-500/10 text-red-300'
+  }
+
+  return 'border-zinc-700 bg-zinc-800 text-zinc-300'
+}
+
+function getPaymentLabel(payment?: string | null) {
+  const value = String(payment ?? '').toLowerCase()
+
+  const labels: Record<string, string> = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia',
+    sumup: 'SumUp',
+    solo: 'SumUp SOLO',
+    link: 'Link de pago',
+    card: 'Tarjeta',
+  }
+
+  return labels[value] ?? (payment || 'Sin definir')
+}
+
 export default function OrdersPage() {
   const supabase = createClient()
 
@@ -234,7 +286,7 @@ export default function OrdersPage() {
           <option value="">Todos los estados</option>
           {statusOptions.map((status) => (
             <option key={status} value={status}>
-              {status}
+              {getStatusLabel(status)}
             </option>
           ))}
         </select>
@@ -247,7 +299,7 @@ export default function OrdersPage() {
           <option value="">Todos los pagos</option>
           {paymentOptions.map((payment) => (
             <option key={payment} value={payment}>
-              {payment}
+              {getPaymentLabel(payment)}
             </option>
           ))}
         </select>
@@ -283,7 +335,7 @@ export default function OrdersPage() {
               </div>
 
               <div className="text-zinc-300">
-                {order.payment_method ?? 'Sin definir'}
+                {getPaymentLabel(order.payment_method)}
               </div>
 
               <div className="font-semibold text-amber-400">
@@ -291,8 +343,8 @@ export default function OrdersPage() {
               </div>
 
               <div>
-                <span className="rounded-lg bg-zinc-800 px-3 py-1 text-sm text-zinc-300">
-                  {order.status ?? '—'}
+                <span className={`rounded-lg border px-3 py-1 text-sm font-semibold ${getStatusClass(order.status)}`}>
+                  {getStatusLabel(order.status)}
                 </span>
               </div>
 
@@ -326,8 +378,8 @@ export default function OrdersPage() {
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="font-semibold text-white">#{order.order_number}</p>
-                <span className="rounded-lg bg-zinc-800 px-3 py-1 text-xs text-zinc-300">
-                  {order.status ?? '—'}
+                <span className={`rounded-lg border px-3 py-1 text-xs font-semibold ${getStatusClass(order.status)}`}>
+                  {getStatusLabel(order.status)}
                 </span>
               </div>
 
@@ -341,7 +393,7 @@ export default function OrdersPage() {
 
                 <div className="rounded-xl bg-zinc-950/50 px-3 py-2">
                   <p className="text-[11px] uppercase tracking-wide text-zinc-500">Pago</p>
-                  <p className="mt-1 text-white">{order.payment_method ?? 'Sin definir'}</p>
+                  <p className="mt-1 text-white">{getPaymentLabel(order.payment_method)}</p>
                 </div>
 
                 <div className="rounded-xl bg-zinc-950/50 px-3 py-2">
