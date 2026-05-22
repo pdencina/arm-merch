@@ -69,9 +69,20 @@ export default function Sidebar({
   const isCollapsed = collapsed && !isMobile
 
   const visible = NAV_ITEMS.filter((item) => {
-    if (!item.roles.includes(role)) return false
+    // SUPER ADMIN VE TODO
     if (role === 'super_admin') return true
+
+    // SI TIENE PERMISO EXPLÍCITO → MOSTRAR
+    if (item.permKey && permissions[item.permKey] === true) {
+      return true
+    }
+
+    // FALLBACK POR ROL
+    if (!item.roles.includes(role)) return false
+
+    // ITEMS SIN PERMISO
     if (!item.permKey) return true
+
     return permissions[item.permKey] !== false
   })
 
