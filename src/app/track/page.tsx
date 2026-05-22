@@ -1,141 +1,97 @@
-'use client'
+import Link from "next/link"
+import { ArrowRight, PackageSearch, Search, Home } from "lucide-react"
 
-import { useState } from 'react'
-import Link from 'next/link'
-import {
-  ArrowRight,
-  Home,
-  ReceiptText,
-  Search,
-  Sparkles,
-} from 'lucide-react'
-
-export default function TrackLookupPage() {
-  const [code, setCode] = useState('')
-  const [error, setError] = useState('')
-
-  function goToTracking() {
-    const clean = code.trim()
-
-    if (!clean) {
-      setError('Ingresa tu código de seguimiento.')
-      return
-    }
-
-    setError('')
-
-    window.location.assign(`/track/${encodeURIComponent(clean)}`)
-  }
-
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    goToTracking()
-  }
-
+export default function TrackPage() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#090b10] text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.18),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.12),transparent_35%)]" />
+    <main className="min-h-screen bg-[#F5F4EF] relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,181,162,0.20),transparent_45%)]" />
 
-      <section className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-5 py-8 sm:px-6">
-        <header className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500 text-lg font-black text-black">
-              A
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-8">
+        {/* HEADER */}
+        <div className="flex items-center justify-between mb-12">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-black flex items-center justify-center shadow-sm">
+              <span className="text-white font-black text-xl">A</span>
             </div>
 
             <div>
-              <p className="text-sm font-black text-white">ARM Merch</p>
-              <p className="text-xs text-zinc-500">Seguimiento de pedidos</p>
+              <h1 className="text-2xl font-black text-[#111111]">
+                ARM Merch
+              </h1>
+              <p className="text-[#7E9078] text-sm">
+                Seguimiento de pedidos
+              </p>
             </div>
-          </Link>
+          </div>
 
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-[#D8DDD2] bg-white text-[#111111] font-semibold hover:bg-[#F7F8F5] transition-all"
           >
-            <Home size={15} />
+            <Home className="w-4 h-4" />
             Inicio
           </Link>
-        </header>
+        </div>
 
-        <div className="flex flex-1 items-center justify-center py-16">
-          <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.055] p-6 shadow-2xl backdrop-blur sm:p-8">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[1.7rem] bg-amber-500 text-black shadow-[0_0_40px_rgba(245,158,11,0.25)]">
-              <ReceiptText size={40} />
+        {/* HERO */}
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white/80 backdrop-blur-xl border border-[#D8DDD2] rounded-[36px] shadow-[0_10px_40px_rgba(0,0,0,0.04)] p-8 md:p-12">
+
+            <div className="flex justify-center mb-8">
+              <div className="w-24 h-24 rounded-[28px] bg-[#A8B5A2] flex items-center justify-center shadow-sm">
+                <PackageSearch className="w-12 h-12 text-white" />
+              </div>
             </div>
 
-            <div className="text-center">
-              <p className="text-xs font-black uppercase tracking-[0.25em] text-amber-400">
+            <div className="text-center mb-10">
+              <p className="uppercase tracking-[0.35em] text-[#7E9078] text-sm font-black mb-4">
                 Seguimiento
               </p>
 
-              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
+              <h2 className="text-5xl md:text-6xl font-black text-[#111111] leading-none mb-6">
                 Revisa tu pedido
-              </h1>
+              </h2>
 
-              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-zinc-400 sm:text-base">
-                Ingresa el código de seguimiento que recibiste por correo para ver
-                el estado actual de tu pedido.
+              <p className="text-[#5F5F5F] text-lg leading-relaxed max-w-2xl mx-auto">
+                Ingresa el código de seguimiento que recibiste por correo
+                para revisar el estado actual de tu pedido ARM Merch.
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            {/* INPUT */}
+            <div className="space-y-6">
               <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-zinc-500">
+                <label className="block uppercase tracking-[0.18em] text-[#7E9078] text-sm font-black mb-4">
                   Código de seguimiento
                 </label>
 
                 <div className="relative">
-                  <Search
-                    size={18}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
-                  />
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-[#7E9078]" />
 
                   <input
-                    value={code}
-                    onChange={(e) => {
-                      setCode(e.target.value)
-                      setError('')
-                    }}
-                    placeholder="Ej: 1900d68993d74ba4..."
-                    className="w-full rounded-2xl border border-white/10 bg-black/25 py-4 pl-12 pr-4 font-mono text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-500"
-                    autoFocus
-                    autoComplete="off"
+                    type="text"
+                    placeholder="Ej: ARM-TRACK-123456"
+                    className="w-full h-16 rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] px-14 text-[#111111] text-lg outline-none focus:ring-4 focus:ring-[#A8B5A2]/20 focus:border-[#A8B5A2] transition-all"
                   />
                 </div>
-
-                {error && (
-                  <p className="mt-2 text-sm font-semibold text-red-300">
-                    {error}
-                  </p>
-                )}
               </div>
 
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-6 py-4 font-black text-black transition hover:scale-[1.01]"
-              >
+              <button className="w-full h-16 rounded-2xl bg-[#111111] hover:bg-[#1D1D1D] text-white font-black text-lg transition-all flex items-center justify-center gap-3">
                 Ver seguimiento
-                <ArrowRight size={18} />
+                <ArrowRight className="w-5 h-5" />
               </button>
-            </form>
+            </div>
 
-            <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
-              <div className="flex gap-3">
-                <Sparkles size={18} className="mt-0.5 shrink-0 text-amber-300" />
-                <p className="text-sm leading-6 text-amber-100/80">
-                  El seguimiento aplica especialmente a productos en producción,
-                  como poleras, polerones o pedidos personalizados.
-                </p>
-              </div>
+            {/* INFO */}
+            <div className="mt-8 rounded-2xl border border-[#D8DDD2] bg-[#EEF2EA] p-5">
+              <p className="text-[#52604C] leading-relaxed">
+                El seguimiento aplica especialmente para productos en producción,
+                pedidos personalizados, polerones o productos con retiro en campus.
+              </p>
             </div>
           </div>
         </div>
-
-        <footer className="text-center text-xs text-zinc-600">
-          ARM Merch · Plataforma oficial
-        </footer>
-      </section>
+      </div>
     </main>
   )
 }
