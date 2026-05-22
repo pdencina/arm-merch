@@ -45,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
 
   useEffect(() => {
     const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY)
@@ -109,6 +110,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     init()
   }, [router])
+
+
+  useEffect(() => {
+    if (!profile?.full_name) return
+
+    const today = new Date().toISOString().slice(0, 10)
+    const key = `arm_merch_welcome_${profile.id}_${today}`
+
+    const alreadySeen = window.localStorage.getItem(key)
+
+    if (!alreadySeen) {
+      const timer = setTimeout(() => {
+        setShowWelcome(true)
+      }, 500)
+
+      return () => clearTimeout(timer)
+    }
+  }, [profile])
+
+  function closeWelcome() {
+    if (!profile?.id) {
+      setShowWelcome(false)
+      return
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const key = `arm_merch_welcome_${profile.id}_${today}`
+
+    window.localStorage.setItem(key, 'true')
+    setShowWelcome(false)
+  }
 
   useEffect(() => {
     function handleResize() {
@@ -191,6 +223,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+
+
+      {showWelcome && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-md overflow-hidden rounded-[32px] border border-white/10 bg-[#111418] shadow-2xl">
+
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.12),transparent_45%)]" />
+
+            <div className="relative p-8">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1A2230] border border-[#2A3445] shadow-lg">
+                <span className="text-2xl">👋</span>
+              </div>
+
+              <h2 className="text-2xl font-black tracking-tight text-white">
+                Hola {String(profile?.full_name ?? '').split(' ')[0]}
+              </h2>
+
+              <p className="mt-4 text-sm leading-7 text-[#A1AAB8]">
+                Qué bueno verte nuevamente.
+                Esperamos que tengas un excelente día de servicio en ARM Merch. 🤗
+              </p>
+
+              <button
+                onClick={closeWelcome}
+                className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[#F59E0B] px-5 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.01] hover:bg-[#FDBA2D]"
+              >
+                Vamos 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toaster
         position="bottom-right"
