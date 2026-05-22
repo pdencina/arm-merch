@@ -149,7 +149,7 @@ export default function CustomerDisplayPage() {
 
           <h1 className="max-w-4xl text-7xl font-black leading-[0.95] tracking-tight md:text-8xl">
             ¡Que tengas
-            <span className="block text-[#8FA28A]">un lindo día! ♡</span>
+            <span className="block text-[#8FA28A]">un lindo día!</span>
           </h1>
 
           <div className="mt-10 rounded-full bg-[#EEF2EA] px-8 py-4 text-2xl font-black text-[#52604C]">
@@ -167,7 +167,7 @@ export default function CustomerDisplayPage() {
           )}
 
           <p className="mt-12 max-w-xl text-lg leading-relaxed text-[#6B6B6B]">
-            Gracias por apoyar lo que hacemos 💚
+            Gracias por tu compra.
           </p>
         </section>
       </main>
@@ -210,12 +210,10 @@ export default function CustomerDisplayPage() {
           <h1 className="text-7xl font-black leading-[0.95] tracking-tight md:text-8xl">
             Tu compra
             <span className="block text-[#8FA28A]">
-              {hasItems ? 'en camino ♡' : 'comienza aquí'}
+              {hasItems ? 'en camino' : 'comienza aquí'}
             </span>
           </h1>
-          <p className="mt-5 text-2xl text-[#4F4F4F]">
-            Gracias por apoyar lo que hacemos 💚
-          </p>
+
         </div>
 
         {isAwaitingLink ? (
