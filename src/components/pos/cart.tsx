@@ -1700,7 +1700,22 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <input
                   placeholder="Nombre del cliente"
                   value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
+                  onChange={(e) => {
+                    const formatted = e.target.value
+                      .toLowerCase()
+                      .replace(/\b\w/g, (char) => char.toUpperCase())
+
+                    setClientName(formatted)
+                  }}
+                  onBlur={(e) => {
+                    const formatted = e.target.value
+                      .trim()
+                      .replace(/\s+/g, " ")
+                      .toLowerCase()
+                      .replace(/\b\w/g, (char) => char.toUpperCase())
+
+                    setClientName(formatted)
+                  }}
                   className="w-full rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-amber-500/40"
                 />
                 <input
