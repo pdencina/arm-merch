@@ -4,10 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 
 export type CurrentProfile = {
   id: string
-  role: 'super_admin' | 'admin' | 'voluntario'
+  role: 'super_admin' | 'adm_merch' | 'admin' | 'voluntario'
   campus_id: string | null
   full_name: string | null
   email: string | null
+  active?: boolean | null
 }
 
 export async function getCurrentProfile(): Promise<
@@ -26,7 +27,7 @@ export async function getCurrentProfile(): Promise<
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, role, campus_id, full_name, email')
+    .select('id, role, campus_id, full_name, email, active')
     .eq('id', user.id)
     .single()
 
@@ -41,6 +42,7 @@ export async function getCurrentProfile(): Promise<
       campus_id: data.campus_id,
       full_name: data.full_name,
       email: data.email,
+      active: data.active,
     },
   }
 }

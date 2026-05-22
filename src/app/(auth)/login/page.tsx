@@ -35,6 +35,26 @@ export default function LoginPage() {
         return
       }
 
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, active, role')
+        .eq('id', data.session.user.id)
+        .maybeSingle()
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut()
+        setError('No se pudo validar tu perfil. Contacta a un administrador.')
+        setLoading(false)
+        return
+      }
+
+      if (profile.active === false) {
+        await supabase.auth.signOut()
+        setError('Tu acceso fue deshabilitado. Contacta a un administrador.')
+        setLoading(false)
+        return
+      }
+
       setTimeout(() => {
         window.location.href = '/dashboard'
       }, 100)
