@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const PAID_STATUSES = [
   'PAID',
+  'PAID_OUT',
   'SUCCESS',
   'SUCCESSFUL',
   'APPROVED',
@@ -10,6 +11,9 @@ const PAID_STATUSES = [
   'COMPLETE',
   'FINISHED',
   'CHECKOUT_FINISHED',
+  'ACCEPTED',
+  'AUTHORISED',
+  'AUTHORIZED',
 ]
 
 const FAILED_STATUSES = [
@@ -191,12 +195,24 @@ function getTxAmount(tx: any) {
     tx?.amount_money?.amount ??
     tx?.transaction_amount ??
     tx?.gross_amount ??
-    tx?.transactions?.[0]?.amount
+    tx?.transactions?.[0]?.amount ??
+    tx?.transactions?.[0]?.total_amount?.value ??
+    tx?.transaction?.amount ??
+    tx?.transaction?.total_amount?.value
 
   const parsed = Number(value ?? 0)
 
-  // Algunos endpoints devuelven CLP como 100 y otros como 10000 con minor_unit.
-  if (parsed > 1000 && Number(tx?.total_amount?.minor_unit ?? 0) === 2) {
+  const minorUnit =
+    Number(
+      tx?.total_amount?.minor_unit ??
+        tx?.amount_money?.minor_unit ??
+        tx?.transactions?.[0]?.total_amount?.minor_unit ??
+        tx?.transaction?.total_amount?.minor_unit ??
+        0,
+    )
+
+  // Algunos endpoints devuelven CLP como 2000 y otros como 200000 con minor_unit 2.
+  if (parsed > 1000 && minorUnit === 2) {
     return Math.round(parsed / 100)
   }
 
@@ -421,7 +437,12 @@ async function markOrderPaid({
     .from('orders')
     .update({
       status: 'paid',
-      notes: `${order.notes ?? ''} | SumUp SOLO pagado | TX: ${transactionCode ?? 'N/A'} | Estado: ${rawStatus ?? 'PAID'}`,
+      notes: [
+        order.notes ?? '',
+        `SumUp SOLO pagado`,
+        `TX: ${transactionCode ?? 'N/A'}`,
+        `Estado: ${rawStatus ?? 'PAID'}`,
+      ].filter(Boolean).join(' | '),
       updated_at: new Date().toISOString(),
     })
     .eq('id', order.id)
@@ -429,6 +450,15 @@ async function markOrderPaid({
   if (updateError) {
     throw new Error(updateError.message)
   }
+
+
+  await adminClient.from('order_status_history').insert({
+    order_id: order.id,
+    status: 'payment_confirmed',
+    title: 'Pago confirmado',
+    message: 'El pago fue confirmado correctamente por SumUp SOLO.',
+    created_at: new Date().toISOString(),
+  }).then(() => null)
 
   // Stock: solo se descuenta aquí, después de pago aprobado.
   // Si el pago falla/cancela/expira, este bloque no se ejecuta.
@@ -474,7 +504,11 @@ async function markOrderFailed({
     .from('orders')
     .update({
       status: 'cancelled',
-      notes: `${order.notes ?? ''} | SumUp SOLO rechazado/cancelado | Estado: ${rawStatus ?? 'FAILED'}`,
+      notes: [
+        order.notes ?? '',
+        `SumUp SOLO rechazado/cancelado`,
+        `Estado: ${rawStatus ?? 'FAILED'}`,
+      ].filter(Boolean).join(' | '),
       updated_at: new Date().toISOString(),
     })
     .eq('id', order.id)
@@ -670,6 +704,7 @@ export async function POST(req: NextRequest) {
       email_sent: false,
       reference,
       checked_transactions: transactions.length,
+      expected_amount: expectedAmount,
     })
   } catch (error: any) {
     console.error('[SOLO Status] Error:', error)
