@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Search, ScanLine, XCircle } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { useBarcode } from '@/lib/hooks/use-barcode'
+import { createClient } from '@/lib/supabase/client'
 import ProductVariantModal, { type ProductVariantOption } from './product-variant-modal'
 
 interface Product {
@@ -17,6 +18,9 @@ interface Product {
   category_id: string | null
   sku: string | null
   barcode?: string | null
+  has_variants?: boolean | null
+  variant_type?: 'talla' | 'tamaño' | 'personalizado' | string | null
+  variants?: ProductVariantOption[] | null
 }
 
 interface Props {
@@ -47,6 +51,7 @@ function normalizeBarcode(value: string) {
 
 export default function ProductGrid({ products, categories }: Props) {
   const { addItem } = useCart()
+  const supabase = createClient()
 
   const [liveProducts, setLiveProducts] = useState(products)
   const [search, setSearch] = useState('')
@@ -108,7 +113,42 @@ export default function ProductGrid({ products, categories }: Props) {
   }, [liveProducts, search, category])
 
 
-  function getProductVariantConfig(product: Product) {
+  function buildProductVariantConfig(product: Product) {
+    const dbVariants = Array.isArray(product.variants)
+      ? product.variants
+          .map((variant: any) => ({
+            label: String(variant?.label ?? ''),
+            value: String(variant?.value ?? variant?.label ?? ''),
+            price:
+              typeof variant?.price === 'number'
+                ? variant.price
+                : Number(variant?.price ?? product.price),
+          }))
+          .filter((variant) => variant.label && variant.value)
+      : []
+
+    if (product.has_variants && dbVariants.length > 0) {
+      const variantType =
+        product.variant_type === 'talla'
+          ? 'talla'
+          : product.variant_type === 'tamaño'
+            ? 'tamaño'
+            : 'tamaño'
+
+      return {
+        variantType,
+        title:
+          variantType === 'talla'
+            ? 'Selecciona la talla'
+            : 'Selecciona el tamaño',
+        subtitle:
+          variantType === 'talla'
+            ? 'La talla quedará visible en el carrito y en la orden para producción.'
+            : 'El valor se ajustará según el tamaño elegido.',
+        options: dbVariants,
+      }
+    }
+
     const name = normalizeCode(product.name)
     const sku = normalizeCode(product.sku ?? '')
 
@@ -167,28 +207,50 @@ export default function ProductGrid({ products, categories }: Props) {
     return null
   }
 
-  function openVariantSelector(product: Product) {
-    const config = getProductVariantConfig(product)
+  async function openVariantSelector(product: Product) {
+    let productWithVariants: Product = product
+
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('has_variants, variant_type, variants')
+        .eq('id', product.id)
+        .maybeSingle()
+
+      if (data) {
+        productWithVariants = {
+          ...product,
+          has_variants: data.has_variants,
+          variant_type: data.variant_type,
+          variants: data.variants,
+        }
+      }
+    } catch {
+      // Si no se puede leer Supabase, usamos fallback por nombre/precio base.
+    }
+
+    const config = buildProductVariantConfig(productWithVariants)
 
     if (!config) return false
 
     setSelectedVariantProduct({
-      product,
+      product: productWithVariants,
       ...config,
     })
+
     setVariantOpen(true)
 
     return true
   }
 
-  function addProduct(product: Product) {
+  async function addProduct(product: Product) {
     if ((product.stock ?? 0) <= 0) {
       setScanError(`Sin stock: ${product.name}`)
       setTimeout(() => setScanError(null), 2500)
       return
     }
 
-    if (openVariantSelector(product)) {
+    if (await openVariantSelector(product)) {
       return
     }
 
