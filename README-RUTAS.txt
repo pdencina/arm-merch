@@ -1,22 +1,16 @@
-RUTAS A REEMPLAZAR
+REEMPLAZAR ARCHIVO:
 
-1) Reemplaza:
 src/components/products/edit-product-form.tsx
 
-2) Ejecuta en Supabase SQL Editor:
+Este ajuste hace visible el botón:
+➕ Activar variantes
+
+Luego:
+
+npm run build
+git add .
+git commit -m "improve product variants toggle visibility"
+git push origin main
+
+Recuerda ejecutar el SQL si aún no lo hiciste:
 supabase/add-product-variants.sql
-
-IMPORTANTE:
-Si al editar el producto NO ves las variantes guardadas, tu page de detalle del producto debe traer estos campos en el SELECT:
-
-has_variants,
-variant_type,
-variants
-
-Ejemplo:
-.select('id, name, description, price, sku, category_id, image_url, active, has_variants, variant_type, variants')
-
-También el endpoint PATCH /api/products/[id] debe permitir guardar:
-has_variants
-variant_type
-variants

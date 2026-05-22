@@ -414,27 +414,27 @@ export default function EditProductForm({ product, categories }: Props) {
             </label>
           </div>
 
-          <div className="md:col-span-2 rounded-2xl border border-zinc-700/70 bg-zinc-950/50 p-4">
+          <div className="md:col-span-2 rounded-3xl border-2 border-amber-500/40 bg-zinc-950/70 p-5 shadow-xl shadow-amber-500/5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-white">
-                  Variantes y precios por tamaño
+                <h3 className="flex items-center gap-2 text-base font-black text-white">
+                  ☕ Variantes y precios por tamaño
                 </h3>
                 <p className="mt-1 text-xs leading-5 text-zinc-500">
-                  Activa esto para café chico, mediano y grande, tallas de ropa u otras variantes con precio propio.
+                  Haz click en “Activar variantes” para editar Café Chico, Mediano y Grande, o tallas de ropa con precio propio.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setHasVariants((value) => !value)}
-                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                className={`rounded-2xl border px-5 py-3 text-sm font-black shadow-lg transition ${
                   hasVariants
-                    ? 'bg-green-500/15 text-green-300'
-                    : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    ? 'border-green-400 bg-green-500 text-white shadow-green-500/20 hover:bg-green-400'
+                    : 'border-amber-400 bg-amber-500 text-black shadow-amber-500/20 hover:bg-amber-400'
                 }`}
               >
-                {hasVariants ? 'Activado' : 'Desactivado'}
+                {hasVariants ? '✅ Variantes activadas' : '➕ Activar variantes'}
               </button>
             </div>
 
