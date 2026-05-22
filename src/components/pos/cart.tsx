@@ -21,6 +21,7 @@ import {
   Volume2,
   Building2,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import SaleSuccessModal from "@/components/pos/sale-success-modal";
 import { QRCodeCanvas } from "qrcode.react";
@@ -162,6 +163,19 @@ function focusSkuSearchInput() {
     searchInput?.select?.();
   }, 250);
 }
+
+function formatCustomerName(value: string) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+type CustomerSuggestion = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
 
 
 // ─── CartItemRow ────────────────────────────────────────────────────────────
@@ -410,6 +424,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [lastSale, setLastSale] = useState<LastSale | null>(null);
   const [campusBrandName, setCampusBrandName] = useState("ARM Merch");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [customerSuggestionsOpen, setCustomerSuggestionsOpen] = useState(false);
+
 
   const registerLastSale = (sale: LastSale) => {
     setLastSale(sale);
@@ -442,6 +460,73 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       window.localStorage.setItem("arm-merch-sound-enabled", String(soundEnabled));
     }
   }, [soundEnabled]);
+
+  useEffect(() => {
+    const query = clientName.trim();
+
+    if (query.length < 2) {
+      setCustomerSuggestions([]);
+      setCustomerSuggestionsOpen(false);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        setCustomerSearchLoading(true);
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          setCustomerSearchLoading(false);
+          return;
+        }
+
+        const res = await fetch(`/api/customers/search?q=${encodeURIComponent(query)}`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          setCustomerSuggestions([]);
+          setCustomerSuggestionsOpen(false);
+          setCustomerSearchLoading(false);
+          return;
+        }
+
+        const suggestions = Array.isArray(data?.customers) ? data.customers : [];
+
+        setCustomerSuggestions(suggestions);
+        setCustomerSuggestionsOpen(suggestions.length > 0);
+      } catch {
+        setCustomerSuggestions([]);
+        setCustomerSuggestionsOpen(false);
+      } finally {
+        setCustomerSearchLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [clientName, supabase]);
+
+  function selectCustomerSuggestion(customer: CustomerSuggestion) {
+    setClientName(formatCustomerName(customer.name));
+
+    if (customer.email) {
+      setClientEmail(customer.email.toLowerCase());
+    }
+
+    if (customer.phone) {
+      setClientPhone(customer.phone);
+    }
+
+    setCustomerSuggestionsOpen(false);
+  }
+
 
   useEffect(() => {
     let mounted = true;
@@ -1697,27 +1782,62 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                   Cliente <span className="text-red-400">*</span>
                 </label>
-                <input
-                  placeholder="Nombre del cliente"
-                  value={clientName}
-                  onChange={(e) => {
-                    const formatted = e.target.value
-                      .toLowerCase()
-                      .replace(/\b\w/g, (char) => char.toUpperCase())
+                <div className="relative">
+                  <input
+                    placeholder="Nombre del cliente"
+                    value={clientName}
+                    onChange={(e) => {
+                      const formatted = formatCustomerName(e.target.value)
+                      setClientName(formatted)
+                      setCustomerSuggestionsOpen(true)
+                    }}
+                    onFocus={() => {
+                      if (customerSuggestions.length > 0) {
+                        setCustomerSuggestionsOpen(true)
+                      }
+                    }}
+                    onBlur={() => {
+                      const formatted = formatCustomerName(clientName).trim()
+                      setClientName(formatted)
 
-                    setClientName(formatted)
-                  }}
-                  onBlur={(e) => {
-                    const formatted = e.target.value
-                      .trim()
-                      .replace(/\s+/g, " ")
-                      .toLowerCase()
-                      .replace(/\b\w/g, (char) => char.toUpperCase())
+                      setTimeout(() => {
+                        setCustomerSuggestionsOpen(false)
+                      }, 180)
+                    }}
+                    className="w-full rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-amber-500/40"
+                  />
 
-                    setClientName(formatted)
-                  }}
-                  className="w-full rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-amber-500/40"
-                />
+                  {customerSuggestionsOpen && (
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-white/10 bg-[#15171d] shadow-2xl">
+                      <div className="border-b border-white/6 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                        {customerSearchLoading ? "Buscando cliente..." : "Clientes frecuentes"}
+                      </div>
+
+                      {customerSuggestions.map((customer) => (
+                        <button
+                          key={`${customer.name}-${customer.email ?? customer.phone ?? "sin-contacto"}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectCustomerSuggestion(customer)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.06]"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-300">
+                            <UserRound size={16} />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-white">
+                              {formatCustomerName(customer.name)}
+                            </p>
+                            <p className="truncate text-xs text-zinc-500">
+                              {customer.email || customer.phone || "Sin correo registrado"}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <input
                   placeholder="Email (voucher por correo)"
                   value={clientEmail}
