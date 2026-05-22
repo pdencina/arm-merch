@@ -45,6 +45,16 @@ function normalizeBarcode(value: string) {
   return String(value ?? '').replace(/\D/g, '').trim()
 }
 
+
+  function sortProductsByName(list: Product[]) {
+    return [...list].sort((a, b) =>
+      (a.name ?? '').localeCompare(b.name ?? '', 'es', {
+        sensitivity: 'base',
+        numeric: true,
+      })
+    )
+  }
+
 export default function ProductGrid({ products, categories }: Props) {
   const { addItem } = useCart()
 
