@@ -128,12 +128,10 @@ export default function ProductGrid({ products, categories }: Props) {
       : []
 
     if (product.has_variants && dbVariants.length > 0) {
-      const variantType =
-        product.variant_type === 'talla'
-          ? 'talla'
-          : product.variant_type === 'tamaño'
-            ? 'tamaño'
-            : 'tamaño'
+const variantType: 'talla' | 'tamaño' =
+  product.variant_type === 'talla'
+    ? 'talla'
+    : 'tamaño'
 
       return {
         variantType,
