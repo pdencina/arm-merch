@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
-type Role = 'super_admin' | 'admin' | 'voluntario'
+type Role = 'super_admin' | 'adm_merch' | 'admin' | 'voluntario'
 
 interface NavItem {
   label: string
@@ -22,27 +22,28 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', permKey: 'dashboard.view', icon: <LayoutDashboard size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'General' },
-  { label: 'Punto de Venta', href: '/pos', permKey: 'pos.view', icon: <ShoppingCart size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
-  { label: 'Órdenes', href: '/orders', permKey: 'orders.view', icon: <Receipt size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
-  { label: 'Pedidos entrega', href: '/production', permKey: 'deliveries.view', icon: <Truck size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Ventas' },
-  { label: 'Inventario', href: '/inventory', permKey: 'inventory.view', icon: <Package size={16} />, roles: ['admin', 'super_admin'], section: 'Inventario' },
-  { label: 'Movimientos', href: '/inventory/movements', permKey: 'movements.view', icon: <ArrowLeftRight size={16} />, roles: ['admin', 'super_admin'], section: 'Inventario' },
-  { label: 'Transferencias', href: '/transfers', icon: <ArrowRightLeft size={16} />, roles: ['super_admin'], section: 'Inventario' },
-  { label: 'Productos', href: '/products', permKey: 'products.view', icon: <ClipboardList size={16} />, roles: ['admin', 'super_admin'], section: 'Gestión' },
-  { label: 'Reportes', href: '/reports', permKey: 'reports.view', icon: <BarChart3 size={16} />, roles: ['admin', 'super_admin'], section: 'Gestión' },
-  { label: 'Cierre de caja', href: '/close-day', permKey: 'close_day.view', icon: <Calculator size={16} />, roles: ['admin', 'super_admin'], section: 'Gestión' },
+  { label: 'Dashboard', href: '/dashboard', permKey: 'dashboard.view', icon: <LayoutDashboard size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'General' },
+  { label: 'Punto de Venta', href: '/pos', permKey: 'pos.view', icon: <ShoppingCart size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
+  { label: 'Órdenes', href: '/orders', permKey: 'orders.view', icon: <Receipt size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
+  { label: 'Pedidos entrega', href: '/production', permKey: 'deliveries.view', icon: <Truck size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
+  { label: 'Inventario', href: '/inventory', permKey: 'inventory.view', icon: <Package size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
+  { label: 'Movimientos', href: '/inventory/movements', permKey: 'movements.view', icon: <ArrowLeftRight size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
+  { label: 'Transferencias', href: '/transfers', icon: <ArrowRightLeft size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Inventario' },
+  { label: 'Productos', href: '/products', permKey: 'products.view', icon: <ClipboardList size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
+  { label: 'Reportes', href: '/reports', permKey: 'reports.view', icon: <BarChart3 size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
+  { label: 'Cierre de caja', href: '/close-day', permKey: 'close_day.view', icon: <Calculator size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
   { label: 'Usuarios', href: '/settings/users', icon: <Users size={16} />, roles: ['super_admin'], section: 'Configuración' },
   { label: 'Campus', href: '/settings/campus', icon: <MapPin size={16} />, roles: ['super_admin'], section: 'Configuración' },
-  { label: 'Categorías', href: '/settings/categories', permKey: 'categories.view', icon: <Tags size={16} />, roles: ['super_admin'], section: 'Configuración' },
+  { label: 'Categorías', href: '/settings/categories', permKey: 'categories.view', icon: <Tags size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Configuración' },
   { label: 'Módulos', href: '/settings/modules', icon: <Layers size={16} />, roles: ['super_admin'], section: 'Configuración' },
-  { label: 'Mi perfil', href: '/profile', icon: <User size={16} />, roles: ['voluntario', 'admin', 'super_admin'], section: 'Mi cuenta' },
+  { label: 'Mi perfil', href: '/profile', icon: <User size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Mi cuenta' },
 ]
 
 const SECTION_ORDER = ['General', 'Ventas', 'Inventario', 'Gestión', 'Configuración', 'Mi cuenta']
 
 const ROLE_CONFIG: Record<Role, { label: string; color: string; description: string }> = {
   super_admin: { label: 'Super Admin', description: 'Acceso global · Todos los campus', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
+  adm_merch: { label: 'ADM Merch', description: 'Gestión operacional · Multi campus', color: 'bg-[#1B2028] text-[#CDB4FF] border-[#31224D]' },
   admin: { label: 'Admin Campus', description: 'Pastor · Gestión de sede', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
   voluntario: { label: 'Voluntario', description: 'Ventas y punto de venta', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
 }

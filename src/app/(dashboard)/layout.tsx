@@ -9,6 +9,18 @@ import Navbar from '@/components/layout/navbar'
 import { Toaster } from 'sonner'
 
 const ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
+  adm_merch: {
+    'dashboard.view': true,
+    'pos.view': true,
+    'orders.view': true,
+    'deliveries.view': true,
+    'inventory.view': true,
+    'movements.view': true,
+    'products.view': true,
+    'reports.view': true,
+    'close_day.view': true,
+    'categories.view': true,
+  },
   admin: {
     'dashboard.view': true,
     'pos.view': true,
