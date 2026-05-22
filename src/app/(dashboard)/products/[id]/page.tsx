@@ -90,10 +90,16 @@ export default function ProductDetailPage() {
             )
           `)
           .eq('id', productId)
-          .single()
+          .maybeSingle()
 
-        if (productError || !productData) {
+        if (productError) {
           setError(productError?.message ?? 'No se pudo cargar el producto')
+          setLoading(false)
+          return
+        }
+
+        if (!productData) {
+          setError('Producto no encontrado')
           setLoading(false)
           return
         }
