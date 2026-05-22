@@ -155,7 +155,7 @@ function paymentMethodLabel(value?: string | null) {
 }
 
 function buildTrackingTokenFallback(orderNumber: string | number) {
-  return `ARM-${String(orderNumber).padStart(6, '0')}`
+  return `ARM-${String(orderNumber)}`
 }
 
 async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmailData | null> {

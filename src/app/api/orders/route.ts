@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { randomUUID } from 'crypto'
 import { sendTrackingEmail } from '@/lib/tracking-email'
 
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
@@ -10,8 +9,8 @@ import { sendTrackingEmail } from '@/lib/tracking-email'
 // - Smart POS SumUp: crea orden pending, NO descuenta stock y NO envía voucher hasta validar código TX.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function createTrackingToken() {
-  return randomUUID().replace(/-/g, '')
+function createTrackingToken(orderNumber: number) {
+  return `ARM-${orderNumber}`
 }
 
 function getAppUrl(req: NextRequest) {
@@ -185,7 +184,7 @@ export async function POST(req: NextRequest) {
 
     const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup'
     const initialStatus = isDeferredPayment ? 'pending' : 'paid'
-    const trackingToken = createTrackingToken()
+    const trackingToken = createTrackingToken(orderNumber)
     const hasProductionItems = normalizedItems.some(
       (item) => item.fulfillment_type === 'production'
     )

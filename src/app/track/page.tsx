@@ -70,7 +70,7 @@ export default function TrackPage() {
 
                   <input
                     type="text"
-                    placeholder="Ej: ARM-TRACK-123456"
+                    placeholder="Ej: ARM-1021"
                     className="w-full h-16 rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] px-14 text-[#111111] text-lg outline-none focus:ring-4 focus:ring-[#A8B5A2]/20 focus:border-[#A8B5A2] transition-all"
                   />
                 </div>
