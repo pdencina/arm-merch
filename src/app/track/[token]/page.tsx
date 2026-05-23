@@ -323,66 +323,70 @@ export default async function TrackingPage({ params }: PageProps) {
   const progress = config.percent
 
   return (
-    <main className="min-h-screen bg-[#090b10] text-white">
+    <main className="min-h-screen bg-[#F5F4EF] text-[#111111] relative overflow-hidden">
       <TrackingAutoRefresh intervalMs={8000} />
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.14),transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.12),transparent_35%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,181,162,0.22),transparent_42%)]" />
 
-      <section className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+      <section className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8">
         <header className="flex items-center justify-between py-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-400">
-              ARM Merch
-            </p>
-            <h1 className="mt-1 text-lg font-black sm:text-xl">
-              Seguimiento de pedido
-            </h1>
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black shadow-sm">
+              <span className="text-xl font-black text-white">A</span>
+            </div>
+
+            <div>
+              <p className="text-2xl font-black text-[#111111]">ARM Merch</p>
+              <p className="text-sm text-[#7E9078]">Seguimiento de pedidos</p>
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-right">
-            <p className="text-[10px] uppercase tracking-widest text-zinc-500">
-              Código
-            </p>
-            <p className="font-mono text-sm font-black text-white">
-              {order.tracking_token}
-            </p>
-          </div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-2xl border border-[#D8DDD2] bg-white px-5 py-3 text-sm font-black text-[#111111] shadow-sm transition hover:bg-[#F7F8F5]"
+          >
+            <Home size={16} />
+            Inicio
+          </Link>
         </header>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 shadow-2xl backdrop-blur sm:p-7">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.7rem] bg-amber-500 text-black shadow-[0_0_40px_rgba(245,158,11,0.22)]">
-                <CurrentIcon size={42} />
+        <div className="mt-10 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="rounded-[36px] border border-[#D8DDD2] bg-white/80 p-7 shadow-[0_14px_45px_rgba(0,0,0,0.05)] backdrop-blur">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[28px] bg-[#A8B5A2] text-white shadow-sm">
+                <CurrentIcon size={48} />
               </div>
 
               <div className="min-w-0 flex-1">
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${config.badge}`}>
+                <span className="inline-flex rounded-full border border-[#D8DDD2] bg-[#EEF2EA] px-3 py-1 text-xs font-black text-[#52604C]">
                   {config.title}
                 </span>
-                <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+
+                <h2 className="mt-4 text-4xl font-black tracking-tight text-[#111111] sm:text-5xl">
                   {config.title}
                 </h2>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">
+
+                <p className="mt-3 max-w-xl text-base leading-7 text-[#5F5F5F]">
                   {config.subtitle}
                 </p>
               </div>
             </div>
 
-            <div className="mt-7">
-              <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
-                <span>Progreso del pedido</span>
-                <span className="font-bold text-amber-300">{progress}%</span>
+            <div className="mt-8">
+              <div className="mb-2 flex items-center justify-between text-xs text-[#7E9078]">
+                <span className="font-bold">Progreso del pedido</span>
+                <span className="font-black text-[#52604C]">{progress}%</span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-white/10">
+
+              <div className="h-3 overflow-hidden rounded-full bg-[#E7EDE3]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 via-orange-400 to-emerald-400 transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-[#A8B5A2] via-[#8FA28A] to-[#52604C] transition-all"
                   style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
 
-            <div className="mt-8 space-y-0">
+            <div className="mt-9 space-y-0">
               {TIMELINE.map((step, index) => {
                 const Icon = step.icon
                 const isDone = currentStatus !== 'cancelled' && index <= currentIndex
@@ -390,11 +394,11 @@ export default async function TrackingPage({ params }: PageProps) {
                 const historyItem = history.find((h) => h.status === step.key)
 
                 return (
-                  <div key={step.key} className="relative flex gap-4 pb-7 last:pb-0">
+                  <div key={step.key} className="relative flex gap-4 pb-8 last:pb-0">
                     {index !== TIMELINE.length - 1 && (
                       <div
                         className={`absolute left-[22px] top-11 h-[calc(100%-44px)] w-px ${
-                          index < currentIndex ? 'bg-emerald-500/70' : 'bg-white/10'
+                          index < currentIndex ? 'bg-[#8FA28A]' : 'bg-[#D8DDD2]'
                         }`}
                       />
                     )}
@@ -402,28 +406,31 @@ export default async function TrackingPage({ params }: PageProps) {
                     <div
                       className={`relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${
                         isDone
-                          ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-300'
-                          : 'border-white/10 bg-white/[0.04] text-zinc-500'
-                      } ${isActive ? 'ring-4 ring-amber-500/10' : ''}`}
+                          ? 'border-[#A8B5A2] bg-[#EEF2EA] text-[#52604C]'
+                          : 'border-[#D8DDD2] bg-[#FCFCFA] text-[#A8A8A8]'
+                      } ${isActive ? 'ring-4 ring-[#A8B5A2]/15' : ''}`}
                     >
                       <Icon size={21} />
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className={`font-bold ${isDone ? 'text-white' : 'text-zinc-500'}`}>
+                        <h3 className={`font-black ${isDone ? 'text-[#111111]' : 'text-[#A8A8A8]'}`}>
                           {step.title}
                         </h3>
+
                         {isActive && (
-                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-black text-amber-300">
+                          <span className="rounded-full bg-[#EEF2EA] px-2 py-0.5 text-[10px] font-black text-[#52604C]">
                             Actual
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-zinc-500">
+
+                      <p className="mt-1 text-sm text-[#6B6B6B]">
                         {historyItem?.message || step.description}
                       </p>
-                      <p className="mt-1 text-xs text-zinc-600">
+
+                      <p className="mt-1 text-xs text-[#A0A0A0]">
                         {historyItem ? formatDate(historyItem.created_at) : 'Pendiente'}
                       </p>
                     </div>
@@ -433,120 +440,123 @@ export default async function TrackingPage({ params }: PageProps) {
             </div>
           </section>
 
-          <aside className="space-y-5">
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur sm:p-6">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-300">
-                  <Store size={22} />
+          <aside className="space-y-6">
+            <div className="rounded-[32px] border border-[#D8DDD2] bg-white/80 p-6 shadow-[0_12px_35px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF2EA] text-[#52604C]">
+                  <Store size={23} />
                 </div>
+
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                  <p className="text-xs font-black uppercase tracking-[0.25em] text-[#7E9078]">
                     Retiro en campus
                   </p>
-                  <h3 className="mt-1 text-lg font-black">
+                  <h3 className="mt-2 text-xl font-black text-[#111111]">
                     {destinationCampus?.name || 'Campus por confirmar'}
                   </h3>
-                  <p className="mt-1 text-sm text-zinc-500">
+                  <p className="mt-2 text-sm leading-6 text-[#6B6B6B]">
                     Te avisaremos cuando el pedido esté listo para retirar.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-black">Resumen</h3>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-zinc-400">
+            <div className="rounded-[32px] border border-[#D8DDD2] bg-white/80 p-6 shadow-[0_12px_35px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-xl font-black text-[#111111]">Resumen</h3>
+                <span className="rounded-full bg-[#EEF2EA] px-3 py-1 text-xs font-black text-[#52604C]">
                   Orden #{order.order_number}
                 </span>
               </div>
 
               <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-3 rounded-2xl bg-black/20 p-3">
-                  <Sparkles size={18} className="text-amber-300" />
+                <div className="flex items-center gap-3 rounded-2xl bg-[#FCFCFA] p-4">
+                  <Sparkles size={18} className="text-[#7E9078]" />
                   <div>
-                    <p className="text-zinc-500">Cliente</p>
-                    <p className="font-semibold text-white">{customerName}</p>
+                    <p className="text-[#7E9078]">Cliente</p>
+                    <p className="font-black text-[#111111]">{customerName}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl bg-black/20 p-3">
-                  <CalendarDays size={18} className="text-amber-300" />
+                <div className="flex items-center gap-3 rounded-2xl bg-[#FCFCFA] p-4">
+                  <CalendarDays size={18} className="text-[#7E9078]" />
                   <div>
-                    <p className="text-zinc-500">Compra realizada</p>
-                    <p className="font-semibold text-white">{formatDate(order.created_at)}</p>
+                    <p className="text-[#7E9078]">Compra realizada</p>
+                    <p className="font-black text-[#111111]">{formatDate(order.created_at)}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl bg-black/20 p-3">
-                  <Truck size={18} className="text-amber-300" />
+                <div className="flex items-center gap-3 rounded-2xl bg-[#FCFCFA] p-4">
+                  <Truck size={18} className="text-[#7E9078]" />
                   <div>
-                    <p className="text-zinc-500">Estado actual</p>
-                    <p className="font-semibold text-white">{config.title}</p>
+                    <p className="text-[#7E9078]">Estado actual</p>
+                    <p className="font-black text-[#111111]">{config.title}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-5 backdrop-blur sm:p-6">
-              <h3 className="mb-4 text-lg font-black">Productos</h3>
+            <div className="rounded-[32px] border border-[#D8DDD2] bg-white/80 p-6 shadow-[0_12px_35px_rgba(0,0,0,0.04)] backdrop-blur">
+              <h3 className="mb-5 text-xl font-black text-[#111111]">Productos</h3>
 
               <div className="space-y-3">
-                {productionItems.length === 0 ? (
-                  <p className="text-sm text-zinc-500">
-                    Este pedido no tiene productos en producción.
+                {productionItems.length === 0 && immediateItems.length === 0 ? (
+                  <p className="text-sm text-[#6B6B6B]">
+                    Este pedido no tiene productos visibles.
                   </p>
                 ) : (
                   <div className="space-y-5">
-                    <div>
-                      <div className="mb-3 flex items-center gap-2">
-                        <Shirt size={16} className="text-violet-300" />
-                        <p className="text-sm font-black text-violet-300">
-                          Productos en producción
-                        </p>
-                      </div>
+                    {productionItems.length > 0 && (
+                      <div>
+                        <div className="mb-3 flex items-center gap-2">
+                          <Shirt size={16} className="text-[#7E9078]" />
+                          <p className="text-sm font-black text-[#52604C]">
+                            Productos en producción
+                          </p>
+                        </div>
 
-                      <div className="space-y-3">
-                        {productionItems.map((item) => {
-                          const product = getProduct(item)
-                          const lineTotal =
-                            Number(item.quantity ?? 0) *
-                            Number(item.unit_price ?? 0)
+                        <div className="space-y-3">
+                          {productionItems.map((item) => {
+                            const product = getProduct(item)
+                            const lineTotal =
+                              Number(item.quantity ?? 0) *
+                              Number(item.unit_price ?? 0)
 
-                          return (
-                            <div
-                              key={item.id}
-                              className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-3"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="font-bold text-white">
-                                    {product?.name || 'Producto'}
-                                  </p>
-                                  <p className="mt-1 text-xs text-violet-200">
-                                    Pendiente producción
-                                  </p>
-                                  <p className="mt-1 text-xs text-zinc-500">
-                                    {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
-                                    {item.size ? ` · Talla ${item.size}` : ''}
+                            return (
+                              <div
+                                key={item.id}
+                                className="rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] p-4"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-black text-[#111111]">
+                                      {product?.name || 'Producto'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-[#7E9078]">
+                                      Pendiente producción
+                                    </p>
+                                    <p className="mt-1 text-xs text-[#6B6B6B]">
+                                      {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
+                                      {item.size ? ` · Talla ${item.size}` : ''}
+                                    </p>
+                                  </div>
+
+                                  <p className="shrink-0 font-black text-[#52604C]">
+                                    {formatCurrency(lineTotal)}
                                   </p>
                                 </div>
-
-                                <p className="shrink-0 font-black text-violet-300">
-                                  {formatCurrency(lineTotal)}
-                                </p>
                               </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {immediateItems.length > 0 && (
                       <div>
                         <div className="mb-3 flex items-center gap-2">
-                          <CheckCircle2 size={16} className="text-emerald-300" />
-                          <p className="text-sm font-black text-emerald-300">
+                          <CheckCircle2 size={16} className="text-[#7E9078]" />
+                          <p className="text-sm font-black text-[#52604C]">
                             Productos entregados
                           </p>
                         </div>
@@ -561,23 +571,23 @@ export default async function TrackingPage({ params }: PageProps) {
                             return (
                               <div
                                 key={item.id}
-                                className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3"
+                                className="rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] p-4"
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
-                                    <p className="font-bold text-white">
+                                    <p className="font-black text-[#111111]">
                                       {product?.name || 'Producto'}
                                     </p>
-                                    <p className="mt-1 text-xs text-emerald-200">
+                                    <p className="mt-1 text-xs text-[#7E9078]">
                                       Entrega inmediata
                                     </p>
-                                    <p className="mt-1 text-xs text-zinc-500">
+                                    <p className="mt-1 text-xs text-[#6B6B6B]">
                                       {item.quantity} × {formatCurrency(Number(item.unit_price ?? 0))}
                                       {item.size ? ` · Talla ${item.size}` : ''}
                                     </p>
                                   </div>
 
-                                  <p className="shrink-0 font-black text-emerald-300">
+                                  <p className="shrink-0 font-black text-[#52604C]">
                                     {formatCurrency(lineTotal)}
                                   </p>
                                 </div>
@@ -591,9 +601,9 @@ export default async function TrackingPage({ params }: PageProps) {
                 )}
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
-                <span className="font-bold text-zinc-300">Total pagado</span>
-                <span className="text-2xl font-black text-white">
+              <div className="mt-5 flex items-center justify-between border-t border-[#D8DDD2] pt-5">
+                <span className="font-black text-[#52604C]">Total pagado</span>
+                <span className="text-3xl font-black text-[#111111]">
                   {formatCurrency(Number(order.total ?? 0))}
                 </span>
               </div>
@@ -601,7 +611,7 @@ export default async function TrackingPage({ params }: PageProps) {
           </aside>
         </div>
 
-        <footer className="py-8 text-center text-xs text-zinc-600">
+        <footer className="py-8 text-center text-xs text-[#9A9A9A]">
           ARM Merch · Seguimiento generado automáticamente
         </footer>
       </section>
