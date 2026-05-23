@@ -1,48 +1,103 @@
-/* ARM Merch — Final Premium Polish */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-.arm-cart-final-shell {
-  background:
-    radial-gradient(circle at top left, rgba(168,181,162,0.12), transparent 28%),
-    linear-gradient(to bottom, #FAFAF7 0%, #F4F4F1 100%);
+:root {
+  --background: #0f0f0f;
+  --foreground: #f4f4f5;
 }
 
-.arm-cart-final-header {
-  background: rgba(255,255,255,0.88);
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: #0f0f0f;
+  color: #f4f4f5;
+}
+
+/* Scrollbar custom */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Ocultar scrollbar sin perder funcionalidad */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Modo claro */
+html.light-mode {
+  --background: #f8f8f8;
+  --foreground: #18181b;
+}
+
+html.light-mode body {
+  background: #f8f8f8;
+  color: #18181b;
+}
+
+html.light-mode .bg-zinc-950 { background-color: #ffffff !important; }
+html.light-mode .bg-zinc-900 { background-color: #f4f4f5 !important; }
+html.light-mode .bg-zinc-800 { background-color: #e4e4e7 !important; }
+html.light-mode .bg-zinc-800\/30 { background-color: rgba(228,228,231,0.5) !important; }
+html.light-mode .bg-zinc-800\/50 { background-color: rgba(228,228,231,0.7) !important; }
+html.light-mode .bg-zinc-800\/60 { background-color: rgba(228,228,231,0.8) !important; }
+html.light-mode .text-white { color: #18181b !important; }
+html.light-mode .text-zinc-200 { color: #27272a !important; }
+html.light-mode .text-zinc-300 { color: #3f3f46 !important; }
+html.light-mode .text-zinc-400 { color: #52525b !important; }
+html.light-mode .text-zinc-500 { color: #71717a !important; }
+html.light-mode .text-zinc-600 { color: #a1a1aa !important; }
+html.light-mode .border-zinc-800 { border-color: #d4d4d8 !important; }
+html.light-mode .border-zinc-700 { border-color: #d4d4d8 !important; }
+html.light-mode .border-zinc-800\/60 { border-color: rgba(212,212,216,0.8) !important; }
+html.light-mode .border-zinc-700\/40 { border-color: rgba(212,212,216,0.6) !important; }
+html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
+
+
+/* ARM Merch Light Design System */
+:root {
+  --arm-bg: #F5F4EF;
+  --arm-surface: #FFFFFF;
+  --arm-surface-soft: #FCFCFA;
+  --arm-border: #D8DDD2;
+  --arm-primary: #A8B5A2;
+  --arm-primary-strong: #52604C;
+  --arm-text: #111111;
+  --arm-muted: #6B6B6B;
+  --arm-accent: #F5A400;
+  --arm-shadow-soft: 0 14px 45px rgba(0,0,0,0.055);
+}
+.arm-light-shell {
+  background: radial-gradient(circle at top, rgba(168,181,162,0.20), transparent 42%), var(--arm-bg);
+  color: var(--arm-text);
+}
+.arm-card {
+  border: 1px solid var(--arm-border);
+  background: rgba(255,255,255,0.82);
+  box-shadow: var(--arm-shadow-soft);
   backdrop-filter: blur(18px);
-  border-bottom: 1px solid #E8E8E2;
 }
-
-.arm-cart-final-product {
-  margin-top: 18px;
-}
-
-.arm-cart-final-confirm {
-  background: linear-gradient(135deg, #5F8F52 0%, #476F3D 100%);
-  box-shadow: 0 18px 45px rgba(71,111,61,0.28);
-  transition: all .22s ease;
-}
-
-.arm-cart-final-confirm:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 24px 55px rgba(71,111,61,0.34);
-}
-
-.arm-cart-final-total {
-  background: linear-gradient(to bottom, #FFFFFF 0%, #F4F7F1 100%);
-  border: 1px solid #E5E9DF;
-}
-
-.arm-cart-final-pay-active {
-  background: linear-gradient(to bottom, #F4F8F0 0%, #EAF2E4 100%);
-  border: 1px solid #7E9078;
-  color: #35552E;
-}
-
-.arm-cart-final-close {
-  background: #FFFFFF;
-  border: 1px solid #E6E6E0;
-}
-
-.arm-cart-final-close:hover {
-  background: #F4F4F1;
+.arm-focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(168,181,162,0.22);
+  border-color: var(--arm-primary);
 }
