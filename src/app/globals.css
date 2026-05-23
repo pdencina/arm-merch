@@ -103,85 +103,110 @@ html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
 }
 
 
-/* ARM Merch — Proposal 2 Cart UI */
-
-.arm-cart-proposal2 {
+/* ARM Merch — Cart Propuesta 2 REAL */
+.arm-cart-v2-shell {
   background:
-    radial-gradient(circle at top right, rgba(168,181,162,0.18), transparent 38%),
-    linear-gradient(to bottom, #FFFFFF, #F7F7F4);
-  border: 1px solid #E4E5DE;
-  box-shadow: 0 28px 80px rgba(0,0,0,0.12);
+    radial-gradient(circle at top left, rgba(168,181,162,0.20), transparent 32%),
+    linear-gradient(to bottom, #FFFFFF 0%, #F7F7F4 100%);
   color: #111111;
+  border: 1px solid #E4E5DE;
+  box-shadow: 0 28px 90px rgba(0,0,0,0.14);
 }
 
-.arm-cart-header-light {
+.arm-cart-v2-header {
   background: rgba(255,255,255,0.92);
   border-bottom: 1px solid #ECEDE8;
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(18px);
 }
 
-.arm-cart-soft-card {
-  border: 1px solid #ECEDE8;
+.arm-cart-v2-card {
   background: #FFFFFF;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.035);
-  transition: all 220ms ease;
+  border: 1px solid #ECEDE8;
+  border-radius: 28px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.045);
 }
 
-.arm-cart-soft-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.06);
+.arm-cart-v2-soft {
+  background: #F5F8F2;
+  border: 1px solid #E5ECDD;
 }
 
-.arm-cart-input {
-  background: #FCFCFA;
+.arm-cart-v2-input {
+  height: 56px;
+  width: 100%;
+  border-radius: 18px;
   border: 1px solid #E2E5DC;
+  background: #FCFCFA;
+  padding-left: 48px;
+  padding-right: 16px;
   color: #111111;
   transition: all 180ms ease;
 }
 
-.arm-cart-input::placeholder {
-  color: #8B8F87;
+.arm-cart-v2-input::placeholder {
+  color: #8F948B;
 }
 
-.arm-cart-input:focus {
+.arm-cart-v2-input:focus {
   outline: none;
   border-color: #A8B5A2;
   box-shadow: 0 0 0 4px rgba(168,181,162,0.18);
 }
 
-.arm-pay-option {
-  background: white;
+.arm-cart-v2-pay {
+  min-height: 72px;
+  border-radius: 18px;
   border: 1px solid #E2E5DC;
+  background: #FFFFFF;
+  color: #626862;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.035);
   transition: all 180ms ease;
-  color: #666;
 }
 
-.arm-pay-option:hover {
+.arm-cart-v2-pay:hover {
+  transform: translateY(-2px);
   border-color: #A8B5A2;
   background: #F7F8F5;
   color: #111111;
 }
 
-.arm-pay-option-active {
-  background: #F4F7F1;
+.arm-cart-v2-pay-active {
+  min-height: 72px;
+  border-radius: 18px;
   border: 1px solid #7E9078;
-  color: #2D4B2D;
-  box-shadow: 0 8px 24px rgba(126,144,120,0.12);
+  background: #F4F7F1;
+  color: #2F5A2F;
+  box-shadow: 0 10px 26px rgba(126,144,120,0.15);
 }
 
-.arm-confirm-button {
-  background: linear-gradient(to right, #7EAE67, #6A9A54);
+.arm-cart-v2-total {
+  background: linear-gradient(to bottom, #F7F8F5, #EFF4EA);
+  border: 1px solid #E2E5DC;
+  border-radius: 28px;
+}
+
+.arm-cart-v2-confirm {
+  height: 62px;
+  border-radius: 20px;
+  background: linear-gradient(to right, #4F8C45, #3F7638);
   color: white;
-  box-shadow: 0 18px 40px rgba(126,174,103,0.22);
+  font-weight: 900;
+  box-shadow: 0 18px 42px rgba(79,140,69,0.25);
   transition: all 220ms ease;
 }
 
-.arm-confirm-button:hover {
+.arm-cart-v2-confirm:hover {
   transform: translateY(-2px);
-  box-shadow: 0 24px 48px rgba(126,174,103,0.30);
+  box-shadow: 0 24px 52px rgba(79,140,69,0.32);
 }
 
-.arm-total-box {
-  background: linear-gradient(to bottom, #F7F8F5, #F0F4EC);
-  border: 1px solid #E2E5DC;
+.arm-cart-v2-close {
+  border: 1px solid #E5E5E0;
+  background: #FFFFFF;
+  color: #111111;
+  transition: all 180ms ease;
+}
+
+.arm-cart-v2-close:hover {
+  background: #F4F4F1;
 }

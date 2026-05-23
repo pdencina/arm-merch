@@ -67,8 +67,8 @@ const soloStatusCopy: Record<
     title: "Esperando pago en SumUp SOLO",
     subtitle: "Pídele al cliente que acerque, inserte o deslice su tarjeta en la máquina.",
     badge: "Esperando tarjeta",
-    badgeClass: "border-[#D8DDD2] bg-[#FCFCFA]/10 text-[#52604C]",
-    ringClass: "border-[#D8DDD2] bg-[#FCFCFA]/10",
+    badgeClass: "border-[#D8DDD2] bg-white/10 text-[#52604C]",
+    ringClass: "border-[#D8DDD2] bg-white/10",
   },
   processing: {
     icon: "🔄",
@@ -208,16 +208,16 @@ function CartItemRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, x: 30, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="rounded-2xl border border-[#D8DDD2] bg-white p-3 shadow-sm"
+      className="arm-cart-v2-card p-4"
     >
       <div className="flex items-start gap-2">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF2EA] text-xl">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#EEF2EA] text-xl">
           {item.product.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={item.product.image_url}
               alt={item.product.name}
-              className="h-10 w-10 rounded-xl object-cover"
+              className="h-16 w-16 rounded-2xl object-cover"
             />
           ) : (
             "📦"
@@ -225,7 +225,7 @@ function CartItemRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-black leading-tight text-[#111111]">
+          <p className="truncate text-base font-black leading-tight text-[#111111]">
             {item.product.name}
           </p>
           <p className="mt-0.5 text-xs text-[#6B6B6B]">
@@ -249,35 +249,35 @@ function CartItemRow({
         </button>
       </div>
 
-      <div className="mt-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 rounded-xl bg-[#F5F4EF] px-1.5 py-1">
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 rounded-2xl border border-[#E8E8E3] bg-[#FAFAF7] px-2 py-2">
           <button
             onClick={() => onUpdateQty(item.quantity - 1)}
-            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-[#111111] transition hover:bg-[#EEF2EA]"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[#52604C] transition hover:bg-[#EEF2EA]"
           >
             <Minus size={11} />
           </button>
-          <span className="w-7 text-center text-sm font-black text-[#111111]">
+          <span className="w-8 text-center text-base font-black text-[#111111]">
             {item.quantity}
           </span>
           <button
             onClick={() => onUpdateQty(item.quantity + 1)}
             disabled={item.quantity >= item.product.stock}
-            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-[#111111] transition hover:bg-[#EEF2EA] disabled:opacity-30"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[#52604C] transition hover:bg-[#EEF2EA] disabled:opacity-30"
           >
             <Plus size={11} />
           </button>
         </div>
-        <span className="text-sm font-black text-[#111111]">{fmt(lineTotal)}</span>
+        <span className="text-2xl font-black text-[#111111]">{fmt(lineTotal)}</span>
       </div>
 
       <button
         type="button"
         onClick={onToggleProduction}
-        className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
+        className={`mt-5 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-bold transition ${
           isProduction
             ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
-            : "border-[#D8DDD2] bg-[#FCFCFA] text-[#6B6B6B] hover:border-[#A8B5A2] hover:text-[#111111]"
+            : "border-[#E5ECDD] bg-[#F5F8F2] text-[#51684A] hover:border-[#A8B5A2] hover:text-[#111111]"
         }`}
       >
         <span className="flex items-center gap-2">
@@ -317,17 +317,13 @@ function PaymentPill({
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-2.5 text-xs font-semibold transition-all duration-200 ${
-        active
-          ? "border-[#111111] bg-[#FCFCFA] text-[#111111] shadow-[0_12px_30px_rgba(0,0,0,0.12)]"
-          : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5] hover:text-[#111111]"
-      }`}
+      className={`relative flex flex-col items-center justify-center gap-1.5 px-3 py-3 text-xs font-black ${active ? "arm-cart-v2-pay-active" : "arm-cart-v2-pay"}`}
     >
       <Icon size={16} />
       <span className="leading-none">{option.label}</span>
       <span
         className={`absolute right-1.5 top-1.5 text-[9px] font-bold ${
-          active ? "text-[#111111]/80" : "text-[#9A9A9A]"
+          active ? "text-[#2F5A2F]/70" : "text-[#9A9A9A]"
         }`}
       >
         {shortcut}
@@ -1723,7 +1719,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#FCFCFA] text-[9px] font-black text-[#111111]"
+                    className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-black text-white"
                   >
                     {itemCount()}
                   </motion.span>
@@ -1744,7 +1740,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               onClick={() => setSoundEnabled((v) => !v)}
               className={`rounded-lg p-2 text-xs transition ${
                 soundEnabled
-                  ? "text-[#52604C] hover:bg-[#FCFCFA]/10"
+                  ? "text-[#52604C] hover:bg-white/10"
                   : "text-[#9A9A9A] hover:bg-white/5 hover:text-[#6B6B6B]"
               }`}
               title={soundEnabled ? "Sonido activado" : "Sonido desactivado"}
@@ -1756,7 +1752,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               <button
                 onClick={clearCart}
                 disabled={sumupSmartOpen || sumupPolling}
-                className="rounded-lg px-2 py-1 text-xs text-[#7E9078] transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg px-2 py-1 text-xs text-[#6D8C5B] transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Vaciar
               </button>
@@ -1835,7 +1831,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       <p className="text-sm font-black text-[#111111]">
                         #{lastSale.number}
                       </p>
-                      <p className="truncate text-[11px] text-[#7E9078]">
+                      <p className="truncate text-[11px] text-[#6D8C5B]">
                         {lastSale.clientName || "Cliente sin nombre"} ·{" "}
                         {new Date(lastSale.at).toLocaleTimeString("es-CL", {
                           hour: "2-digit",
@@ -1853,7 +1849,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
               {/* DATOS DEL CLIENTE */}
               <div className="space-y-2.5">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#7E9078]">
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#6D8C5B]">
                   Cliente <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
@@ -1882,8 +1878,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   />
 
                   {customerSuggestionsOpen && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-[#D8DDD2] bg-[#15171d] shadow-2xl">
-                      <div className="border-b border-[#D8DDD2] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#7E9078]">
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-[#D8DDD2] bg-[#15171d] shadow-[0_28px_80px_rgba(0,0,0,0.12)]">
+                      <div className="border-b border-[#D8DDD2] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#6D8C5B]">
                         {customerSearchLoading ? "Buscando cliente..." : "Clientes frecuentes"}
                       </div>
 
@@ -1895,7 +1891,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                           onClick={() => selectCustomerSuggestion(customer)}
                           className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#F7F8F5]"
                         >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FCFCFA]/10 text-[#52604C]">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-[#52604C]">
                             <UserRound size={16} />
                           </div>
 
@@ -1903,7 +1899,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                             <p className="truncate text-sm font-bold text-[#111111]">
                               {formatCustomerName(customer.name)}
                             </p>
-                            <p className="truncate text-xs text-[#7E9078]">
+                            <p className="truncate text-xs text-[#6D8C5B]">
                               {customer.email || customer.phone || "Sin correo registrado"}
                             </p>
                           </div>
@@ -1931,7 +1927,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               <div>
                 <button
                   onClick={() => setShowNotes((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs text-[#7E9078] transition hover:text-[#3F3F46]"
+                  className="flex items-center gap-1.5 text-xs text-[#6D8C5B] transition hover:text-[#3F3F46]"
                 >
                   <Receipt size={12} />
                   {showNotes ? "Ocultar notas" : "Agregar nota a la venta"}
@@ -1974,7 +1970,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     {hasProductionItems ? (
                       <Clock size={16} className="text-violet-400" />
                     ) : (
-                      <Package size={16} className="text-[#7E9078]" />
+                      <Package size={16} className="text-[#6D8C5B]" />
                     )}
                   </div>
 
@@ -1995,7 +1991,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
               {/* MÉTODO DE PAGO */}
               <div className="space-y-2">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#7E9078]">
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#6D8C5B]">
                   Método de pago
                 </label>
                 <div className="grid grid-cols-4 gap-1.5">
@@ -2015,10 +2011,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3 arm-cart-input rounded-2xl/5 p-4"
+                  className="space-y-3 rounded-2xl border border-[#D8DDD2] bg-white/5 p-4"
                 >
                   <div>
-                    <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#7E9078]">
+                    <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#6D8C5B]">
                       Tipo de tarjeta SOLO
                     </label>
 
@@ -2043,7 +2039,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         onClick={() => setCardType("credit")}
                         className={`rounded-2xl border px-4 py-3 text-sm font-bold transition ${
                           cardType === "credit"
-                            ? "border-amber-500/40 bg-[#FCFCFA]/15 text-[#52604C]"
+                            ? "border-amber-500/40 bg-white/15 text-[#52604C]"
                             : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5]"
                         }`}
                       >
@@ -2054,7 +2050,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                   {cardType === "credit" && (
                     <div>
-                      <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#7E9078]">
+                      <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#6D8C5B]">
                         Cuotas
                       </label>
 
@@ -2066,7 +2062,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                             onClick={() => setInstallments(q)}
                             className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${
                               installments === q
-                                ? "border-amber-500/40 bg-[#FCFCFA]/20 text-[#52604C]"
+                                ? "border-amber-500/40 bg-white/20 text-[#52604C]"
                                 : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5]"
                             }`}
                           >
@@ -2075,7 +2071,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         ))}
                       </div>
 
-                      <p className="mt-2 text-[10px] leading-relaxed text-[#7E9078]">
+                      <p className="mt-2 text-[10px] leading-relaxed text-[#6D8C5B]">
                         Se enviará a SumUp SOLO el monto total y la cantidad de cuotas.
                         SumUp procesa el resto en el lector.
                       </p>
@@ -2113,7 +2109,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 whileTap={{ scale: canSubmit ? 0.98 : 1 }}
                 onClick={handleConfirmSale}
                 disabled={!canSubmit}
-                className="relative w-full overflow-hidden rounded-3xl py-4 text-[17px] font-black text-[#111111] transition disabled:cursor-not-allowed disabled:opacity-40"
+                className="relative w-full overflow-hidden rounded-3xl py-4 text-[17px] font-black text-white transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
                   background: canSubmit
                     ? isPendingDelivery
@@ -2167,7 +2163,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             initial={{ opacity: 0, y: 18, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-2xl"
+            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-[0_28px_80px_rgba(0,0,0,0.12)]"
           >
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border border-green-500/25 bg-green-500/10 text-5xl">
               💵
@@ -2183,14 +2179,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
             <div className="mb-5 space-y-3 rounded-2xl border border-[#D8DDD2] bg-[#EEF2EA] px-4 py-4 text-left">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[#7E9078]">Total a cobrar</span>
+                <span className="text-[#6D8C5B]">Total a cobrar</span>
                 <span className="text-base font-black text-[#52604C]">
                   {fmt(total())}
                 </span>
               </div>
 
               <div>
-                <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#7E9078]">
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#6D8C5B]">
                   Efectivo recibido
                 </label>
                 <input
@@ -2234,7 +2230,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
               <div className="rounded-2xl border border-[#D8DDD2] bg-black/25 p-4">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#7E9078]">Recibido</span>
+                  <span className="text-[#6D8C5B]">Recibido</span>
                   <span className="font-bold text-[#111111]">
                     {fmt(cashReceivedAmount)}
                   </span>
@@ -2282,7 +2278,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               <button
                 onClick={handleConfirmCashSale}
                 disabled={submitting || cashReceivedAmount < total()}
-                className="rounded-2xl bg-green-500 py-3 text-sm font-black text-[#111111] transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-2xl bg-green-500 py-3 text-sm font-black text-white transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? "Registrando..." : "Confirmar efectivo"}
               </button>
@@ -2298,7 +2294,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             initial={{ opacity: 0, y: 18, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-2xl"
+            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-[0_28px_80px_rgba(0,0,0,0.12)]"
           >
             {(() => {
               const copy = soloStatusCopy[sumupStatus];
@@ -2349,21 +2345,21 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                   <div className="mb-5 space-y-3 rounded-2xl border border-[#D8DDD2] bg-[#EEF2EA] px-4 py-4 text-left">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#7E9078]">Orden</span>
+                      <span className="text-[#6D8C5B]">Orden</span>
                       <span className="font-bold text-[#111111]">
                         #{sumupSmartOrder.number}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#7E9078]">Total enviado</span>
+                      <span className="text-[#6D8C5B]">Total enviado</span>
                       <span className="text-base font-black text-[#52604C]">
                         {fmt(sumupSmartOrder.total)}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#7E9078]">Tarjeta</span>
+                      <span className="text-[#6D8C5B]">Tarjeta</span>
                       <span className="font-bold text-[#111111]">
                         {(sumupSmartOrder.cardType ?? cardType) === "credit"
                           ? "Crédito"
@@ -2373,7 +2369,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                     {(sumupSmartOrder.cardType ?? cardType) === "credit" && (
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#7E9078]">Cuotas</span>
+                        <span className="text-[#6D8C5B]">Cuotas</span>
                         <span className="font-bold text-[#52604C]">
                           {sumupSmartOrder.installments ?? installments} cuotas
                         </span>
@@ -2381,7 +2377,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     )}
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#7E9078]">Estado</span>
+                      <span className="text-[#6D8C5B]">Estado</span>
                       <span
                         className={`font-bold ${
                           sumupStatus === "found"
@@ -2402,14 +2398,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       <>
                         <div className="h-2 overflow-hidden rounded-full bg-black/35">
                           <motion.div
-                            className="h-full rounded-full bg-[#FCFCFA]"
+                            className="h-full rounded-full bg-white"
                             initial={{ width: 0 }}
                             animate={{ width: `${progressPct}%` }}
                             transition={{ duration: 0.25 }}
                           />
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] text-[#7E9078]">
+                        <div className="flex items-center justify-between text-[11px] text-[#6D8C5B]">
                           <span>Tiempo restante</span>
                           <span>{Math.max(0, soloCountdown)}s</span>
                         </div>
@@ -2484,7 +2480,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     <div className="grid grid-cols-1 gap-2">
                       <button
                         onClick={() => startSoloPolling(sumupSmartOrder)}
-                        className="w-full rounded-2xl bg-[#FCFCFA] py-3 text-sm font-black text-[#111111] transition hover:bg-[#1D1D1D]"
+                        className="w-full rounded-2xl bg-white py-3 text-sm font-black text-white transition hover:bg-[#1D1D1D]"
                       >
                         Reintentar monitoreo
                       </button>
@@ -2561,7 +2557,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       {/* Transferencia QR Modal */}
       {showTransferQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-[0_28px_80px_rgba(0,0,0,0.12)]">
             <h2 className="mb-1 text-lg font-bold text-[#111111]">
               Pago por Transferencia
             </h2>
@@ -2585,37 +2581,37 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             {/* Datos bancarios */}
             <div className="mb-5 rounded-2xl border border-[#D8DDD2] bg-[#EEF2EA] p-4 text-left space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-[#7E9078]">Banco</span>
+                <span className="text-[#6D8C5B]">Banco</span>
                 <span className="font-medium text-[#111111]">Banco Estado</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#7E9078]">Tipo</span>
+                <span className="text-[#6D8C5B]">Tipo</span>
                 <span className="font-medium text-[#111111]">Cuenta Corriente</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#7E9078]">Número</span>
+                <span className="text-[#6D8C5B]">Número</span>
                 <span className="font-medium text-[#111111] font-mono">
                   29100078943
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#7E9078]">RUT</span>
+                <span className="text-[#6D8C5B]">RUT</span>
                 <span className="font-medium text-[#111111]">65.108.056-8</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#7E9078]">Titular</span>
+                <span className="text-[#6D8C5B]">Titular</span>
                 <span className="font-medium text-[#111111] text-right max-w-[160px]">
                   Iglesia Cristiana AR Ministries
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-[#7E9078]">Email</span>
+                <span className="text-[#6D8C5B]">Email</span>
                 <span className="font-medium text-[#111111]">
                   donaciones@armglobal.org
                 </span>
               </div>
               <div className="flex justify-between text-xs border-t border-[#D8DDD2] pt-2 mt-2">
-                <span className="text-[#7E9078]">Total a transferir</span>
+                <span className="text-[#6D8C5B]">Total a transferir</span>
                 <span className="font-bold text-[#52604C] text-sm">
                   {new Intl.NumberFormat("es-CL", {
                     style: "currency",
@@ -2686,7 +2682,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 }
                 setSubmitting(false);
               }}
-              className="w-full rounded-2xl bg-[#FCFCFA] py-3 text-sm font-bold text-[#111111] transition hover:bg-[#1D1D1D] mb-3"
+              className="w-full rounded-2xl bg-white py-3 text-sm font-bold text-white transition hover:bg-[#1D1D1D] mb-3"
             >
               ✅ Cliente ya transfirió — Confirmar venta
             </button>
@@ -2707,7 +2703,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       {/* Payment QR Modal */}
       {showPaymentQR && paymentLinkUrl && createdOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-[0_28px_80px_rgba(0,0,0,0.12)]">
             <div className="mb-4 text-5xl">
               {paymentQrStatus === "rejected" ? "❌" : "📲"}
             </div>
@@ -2734,19 +2730,19 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
             <div className="mb-5 rounded-2xl border border-[#D8DDD2] bg-[#EEF2EA] p-4 text-left space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[#7E9078]">Orden</span>
+                <span className="text-[#6D8C5B]">Orden</span>
                 <span className="font-bold text-[#111111]">
                   #{createdOrder.number}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[#7E9078]">Total a pagar</span>
+                <span className="text-[#6D8C5B]">Total a pagar</span>
                 <span className="font-bold text-[#52604C] text-base">
                   {fmt(paymentQrTotal || createdOrder.total)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[#7E9078]">Estado</span>
+                <span className="text-[#6D8C5B]">Estado</span>
                 <span
                   className={`font-semibold ${paymentQrStatus === "rejected" ? "text-red-400" : "text-[#52604C]"}`}
                 >
@@ -2756,7 +2752,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[#7E9078]">Stock descontado</span>
+                <span className="text-[#6D8C5B]">Stock descontado</span>
                 <span className="font-semibold text-[#6B6B6B]">
                   No — se descuenta al pagar
                 </span>
@@ -2828,7 +2824,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 setClientPhone("");
                 clearCart();
               }}
-              className="w-full rounded-2xl bg-[#FCFCFA] py-3 text-sm font-bold text-[#111111] transition hover:bg-[#1D1D1D]"
+              className="w-full rounded-2xl bg-white py-3 text-sm font-bold text-white transition hover:bg-[#1D1D1D]"
             >
               Nueva venta
             </button>
