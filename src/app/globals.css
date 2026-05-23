@@ -71,3 +71,33 @@ html.light-mode .border-zinc-700 { border-color: #d4d4d8 !important; }
 html.light-mode .border-zinc-800\/60 { border-color: rgba(212,212,216,0.8) !important; }
 html.light-mode .border-zinc-700\/40 { border-color: rgba(212,212,216,0.6) !important; }
 html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
+
+
+/* ARM Merch Light Design System */
+:root {
+  --arm-bg: #F5F4EF;
+  --arm-surface: #FFFFFF;
+  --arm-surface-soft: #FCFCFA;
+  --arm-border: #D8DDD2;
+  --arm-primary: #A8B5A2;
+  --arm-primary-strong: #52604C;
+  --arm-text: #111111;
+  --arm-muted: #6B6B6B;
+  --arm-accent: #F5A400;
+  --arm-shadow-soft: 0 14px 45px rgba(0,0,0,0.055);
+}
+.arm-light-shell {
+  background: radial-gradient(circle at top, rgba(168,181,162,0.20), transparent 42%), var(--arm-bg);
+  color: var(--arm-text);
+}
+.arm-card {
+  border: 1px solid var(--arm-border);
+  background: rgba(255,255,255,0.82);
+  box-shadow: var(--arm-shadow-soft);
+  backdrop-filter: blur(18px);
+}
+.arm-focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(168,181,162,0.22);
+  border-color: var(--arm-primary);
+}

@@ -318,12 +318,12 @@ export default function ProductGrid({ products, categories }: Props) {
   return (
     <>
       <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-zinc-800 px-5 py-4">
+      <div className="border-b border-[#D8DDD2] bg-white/65 px-5 py-4 backdrop-blur-xl">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search
               size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E9078]"
             />
 
             <input
@@ -332,14 +332,14 @@ export default function ProductGrid({ products, categories }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Buscar o escanear SKU / código de barra..."
-              className="h-12 w-full rounded-2xl border border-zinc-700 bg-zinc-900 pl-10 pr-4 text-sm text-white outline-none transition focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/5"
+              className="arm-focus-ring h-12 w-full rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] pl-10 pr-4 text-sm text-[#111111] placeholder-[#9A9A9A] outline-none transition"
             />
           </div>
 
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="hidden h-12 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 text-xs font-semibold text-white outline-none transition focus:border-amber-500/50 md:block"
+            className="arm-focus-ring hidden h-12 rounded-2xl border border-[#D8DDD2] bg-white px-4 text-xs font-black text-[#111111] outline-none transition md:block"
           >
             <option value="">Categorías</option>
             {categories.map((cat) => (
@@ -371,7 +371,7 @@ export default function ProductGrid({ products, categories }: Props) {
               key={product.id}
               onClick={() => addProduct(product)}
               disabled={(product.stock ?? 0) <= 0}
-              className="group relative rounded-3xl border border-white/5 bg-zinc-900/80 p-3 text-left shadow-lg transition hover:-translate-y-0.5 hover:border-amber-500/20 hover:bg-zinc-900 hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="group relative rounded-3xl border border-white/5 bg-[#FCFCFA]/80 p-3 text-left shadow-lg transition hover:-translate-y-0.5 hover:border-amber-500/20 hover:bg-[#FCFCFA] hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {product.stock !== null && (
                 <span
@@ -387,7 +387,7 @@ export default function ProductGrid({ products, categories }: Props) {
                 </span>
               )}
 
-              <div className="mb-3 flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-zinc-800 transition group-hover:bg-zinc-800/80">
+              <div className="mb-3 flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-[#EEF2EA] transition group-hover:bg-[#EEF2EA]/80">
                 {product.image_url ? (
                   <Image
                     src={product.image_url}
@@ -401,7 +401,7 @@ export default function ProductGrid({ products, categories }: Props) {
                 )}
               </div>
 
-              <p className="mb-1 line-clamp-2 text-sm font-bold leading-tight text-white">
+              <p className="mb-1 line-clamp-2 text-sm font-bold leading-tight text-[#111111]">
                 {product.name}
               </p>
 
@@ -425,7 +425,7 @@ export default function ProductGrid({ products, categories }: Props) {
         {filtered.length === 0 && (
           <div className="flex h-64 flex-col items-center justify-center text-center">
             <Search size={34} className="mb-3 text-zinc-700" />
-            <p className="text-sm font-semibold text-zinc-400">
+            <p className="text-sm font-semibold text-[#6B6B6B]">
               No encontramos productos
             </p>
             <p className="mt-1 text-xs text-zinc-600">
@@ -435,7 +435,7 @@ export default function ProductGrid({ products, categories }: Props) {
         )}
       </div>
 
-      <div className="hidden border-t border-zinc-800 px-5 py-3 text-center text-[11px] text-zinc-600 md:block">
+      <div className="hidden border-t border-[#D8DDD2] px-5 py-3 text-center text-[11px] text-zinc-600 md:block">
         Escanea un código de barras para agregar rápido al carrito
       </div>
       </div>

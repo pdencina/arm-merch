@@ -42,10 +42,10 @@ const NAV_ITEMS: NavItem[] = [
 const SECTION_ORDER = ['General', 'Ventas', 'Inventario', 'Gestión', 'Configuración', 'Mi cuenta']
 
 const ROLE_CONFIG: Record<Role, { label: string; color: string; description: string }> = {
-  super_admin: { label: 'Super Admin', description: 'Acceso global · Todos los campus', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
-  adm_merch: { label: 'ADM Merch', description: 'Gestión operacional · Multi campus', color: 'bg-[#1B2028] text-[#CDB4FF] border-[#31224D]' },
-  admin: { label: 'Admin Campus', description: 'Pastor · Gestión de sede', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
-  voluntario: { label: 'Voluntario', description: 'Ventas y punto de venta', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
+  super_admin: { label: 'Super Admin', description: 'Acceso global · Todos los campus', color: 'bg-white text-[#52604C] border-[#D8DDD2]' },
+  adm_merch: { label: 'ADM Merch', description: 'Gestión operacional · Multi campus', color: 'bg-white text-[#52604C] border-[#D8DDD2]' },
+  admin: { label: 'Admin Campus', description: 'Pastor · Gestión de sede', color: 'bg-white text-[#52604C] border-[#D8DDD2]' },
+  voluntario: { label: 'Voluntario', description: 'Ventas y punto de venta', color: 'bg-white text-[#52604C] border-[#D8DDD2]' },
 }
 
 export default function Sidebar({
@@ -92,20 +92,20 @@ export default function Sidebar({
   return (
     <aside
       className={clsx(
-        'relative flex h-full shrink-0 flex-col overflow-y-auto border-r border-[#222831] bg-[#0F1216] px-3 py-5 transition-all duration-300',
+        'relative flex h-full shrink-0 flex-col overflow-y-auto border-r border-[#D8DDD2] bg-[#F5F4EF] px-3 py-5 text-[#111111] transition-all duration-300',
         isCollapsed ? 'w-[78px]' : 'w-[280px] lg:w-56'
       )}
     >
       <div className={clsx('mb-5 flex items-center gap-3 px-2', isCollapsed ? 'justify-center' : 'justify-between')}>
         <div className={clsx('flex items-center gap-2.5', isCollapsed && 'justify-center')}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E8EEF8]">
-            <span className="text-xs font-black text-[#111318]">A</span>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black">
+            <span className="text-xs font-black text-white">A</span>
           </div>
 
           {!isCollapsed && (
             <div>
-              <p className="text-sm font-bold leading-none text-[#F3F5F7]">ARM Merch</p>
-              <p className="mt-0.5 text-[10px] text-[#66707F]">Sistema de Merch</p>
+              <p className="text-sm font-bold leading-none text-[#111111]">ARM Merch</p>
+              <p className="mt-0.5 text-[10px] text-[#7E9078]">Sistema de Merch</p>
             </div>
           )}
         </div>
@@ -113,7 +113,7 @@ export default function Sidebar({
         {!isCollapsed && (
           <button
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#161A20] text-[#8D97A5] transition hover:bg-[#1D232B] hover:text-white lg:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#6B6B6B] transition hover:bg-[#EEF2EA] hover:text-[#111111] lg:hidden"
           >
             <X size={16} />
           </button>
@@ -124,8 +124,8 @@ export default function Sidebar({
             onClick={onToggleCollapsed}
             title={isCollapsed ? 'Expandir menú' : 'Contraer menú'}
             className={clsx(
-              'hidden h-9 w-9 items-center justify-center rounded-xl bg-[#161A20] text-[#8D97A5] transition hover:bg-[#1D232B] hover:text-white lg:flex',
-              isCollapsed && 'absolute left-[58px] top-5 z-20 border border-[#222831] shadow-xl'
+              'hidden h-9 w-9 items-center justify-center rounded-xl bg-white text-[#6B6B6B] transition hover:bg-[#EEF2EA] hover:text-[#111111] lg:flex',
+              isCollapsed && 'absolute left-[58px] top-5 z-20 border border-[#D8DDD2] shadow-xl'
             )}
           >
             {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -157,7 +157,7 @@ export default function Sidebar({
           return (
             <div key={section} className="mb-2">
               {!isCollapsed ? (
-                <p className="mb-1 mt-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-[#66707F]">
+                <p className="mb-1 mt-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-[#7E9078]">
                   {section}
                 </p>
               ) : (
@@ -180,14 +180,14 @@ export default function Sidebar({
                       isCollapsed ? 'mx-auto h-11 w-11 justify-center px-0' : 'gap-3 px-3 py-2.5',
                       active
                         ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
-                        : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
+                        : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#111111]'
                     )}
                   >
                     {item.icon}
                     {!isCollapsed && item.label}
 
                     {isCollapsed && (
-                      <span className="pointer-events-none fixed left-[82px] z-[999] hidden whitespace-nowrap rounded-lg border border-[#222831] bg-[#151A22] px-2.5 py-1.5 text-xs font-semibold text-[#F3F5F7] shadow-xl group-hover:block">
+                      <span className="pointer-events-none fixed left-[82px] z-[999] hidden whitespace-nowrap rounded-lg border border-[#D8DDD2] bg-[#151A22] px-2.5 py-1.5 text-xs font-semibold text-[#111111] shadow-xl group-hover:block">
                         {item.label}
                       </span>
                     )}
