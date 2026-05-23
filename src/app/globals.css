@@ -87,7 +87,10 @@ html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
   --arm-shadow-soft: 0 14px 45px rgba(0,0,0,0.055);
 }
 .arm-light-shell {
-  background: radial-gradient(circle at top, rgba(168,181,162,0.20), transparent 42%), var(--arm-bg);
+  background:
+    radial-gradient(circle at top left, rgba(245,164,0,0.10), transparent 28%),
+    radial-gradient(circle at top right, rgba(168,181,162,0.16), transparent 32%),
+    linear-gradient(to bottom, #F7F6F2, #ECEAE3);
   color: var(--arm-text);
 }
 .arm-card {
@@ -100,4 +103,74 @@ html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
   outline: none;
   box-shadow: 0 0 0 4px rgba(168,181,162,0.22);
   border-color: var(--arm-primary);
+}
+
+
+/* ARM Merch UI Polish */
+.arm-pos-card {
+  border: 1px solid #E6E6E1;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.arm-pos-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(168,181,162,0.55);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.10);
+}
+
+.arm-input-premium {
+  border: 1px solid #D8DDD2;
+  background: #FCFCFA;
+  color: #111111;
+  transition: box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.arm-input-premium::placeholder {
+  color: #9A9A9A;
+}
+
+.arm-input-premium:focus {
+  outline: none;
+  border-color: #A8B5A2;
+  box-shadow: 0 0 0 4px rgba(168,181,162,0.20);
+}
+
+.arm-cart-panel {
+  border: 1px solid #D8DDD2;
+  background:
+    radial-gradient(circle at top right, rgba(168,181,162,0.16), transparent 36%),
+    rgba(255,255,255,0.96);
+  color: #111111;
+  box-shadow: 0 28px 90px rgba(0,0,0,0.18);
+}
+
+.arm-cart-header {
+  border-bottom: 1px solid #D8DDD2;
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(18px);
+}
+
+.arm-pay-card {
+  border: 1px solid #D8DDD2;
+  background: #FFFFFF;
+  color: #6B6B6B;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.035);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.arm-pay-card:hover {
+  transform: translateY(-2px);
+  border-color: #A8B5A2;
+  background: #F7F8F5;
+  color: #111111;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.07);
+}
+
+.arm-pay-card-active {
+  border-color: #111111;
+  background: #111111;
+  color: #FFFFFF;
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
 }

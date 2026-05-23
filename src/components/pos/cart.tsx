@@ -208,7 +208,7 @@ function CartItemRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, x: 30, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="rounded-2xl border border-[#D8DDD2] bg-white p-3 shadow-sm"
+      className="rounded-[22px] border border-[#D8DDD2] bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
     >
       <div className="flex items-start gap-2">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF2EA] text-xl">
@@ -250,7 +250,7 @@ function CartItemRow({
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 rounded-xl bg-[#F5F4EF] px-1.5 py-1">
+        <div className="flex items-center gap-1 rounded-xl bg-white px-1.5 py-1">
           <button
             onClick={() => onUpdateQty(item.quantity - 1)}
             className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-[#111111] transition hover:bg-[#EEF2EA]"
@@ -277,7 +277,7 @@ function CartItemRow({
         className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
           isProduction
             ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
-            : "border-[#D8DDD2] bg-[#FCFCFA] text-[#6B6B6B] hover:border-[#A8B5A2] hover:text-[#111111]"
+            : "border-[#D8DDD2] bg-[#FCFCFA] text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5] hover:text-[#111111]"
         }`}
       >
         <span className="flex items-center gap-2">
@@ -319,15 +319,15 @@ function PaymentPill({
       onClick={onClick}
       className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-2.5 text-xs font-semibold transition-all duration-200 ${
         active
-          ? "border-[#111111] bg-[#111111] text-[#111111] shadow-[0_12px_30px_rgba(0,0,0,0.12)]"
-          : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5] hover:text-[#111111]"
+          ? "arm-pay-card-active"
+          : "arm-pay-card"
       }`}
     >
       <Icon size={16} />
       <span className="leading-none">{option.label}</span>
       <span
         className={`absolute right-1.5 top-1.5 text-[9px] font-bold ${
-          active ? "text-[#111111]/80" : "text-[#9A9A9A]"
+          active ? "text-white/70" : "text-[#9A9A9A]"
         }`}
       >
         {shortcut}
@@ -1825,7 +1825,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       <Sparkles size={13} />
                       Última venta
                     </div>
-                    <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-bold text-[#6B6B6B]">
+                    <span className="rounded-full bg-[#111111]/25 px-2 py-0.5 text-[10px] font-bold text-[#6B6B6B]">
                       {lastSale.method}
                     </span>
                   </div>
@@ -1882,7 +1882,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   />
 
                   {customerSuggestionsOpen && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-[#D8DDD2] bg-[#15171d] shadow-2xl">
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-[#D8DDD2] bg-[#15171d] shadow-[0_28px_90px_rgba(0,0,0,0.18)]">
                       <div className="border-b border-[#D8DDD2] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#7E9078]">
                         {customerSearchLoading ? "Buscando cliente..." : "Clientes frecuentes"}
                       </div>
@@ -2162,12 +2162,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* Efectivo — Cálculo de vuelto */}
       {showCashModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-[2px]">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-2xl"
+            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]"
           >
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border border-green-500/25 bg-green-500/10 text-5xl">
               💵
@@ -2210,7 +2210,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     }
                   }}
                   placeholder="0"
-                  className="w-full rounded-2xl border border-[#D8DDD2] bg-black/25 px-4 py-3 text-center text-2xl font-black text-[#111111] placeholder-zinc-700 outline-none transition focus:border-green-500/40"
+                  className="w-full rounded-2xl border border-[#D8DDD2] bg-[#111111]/25 px-4 py-3 text-center text-2xl font-black text-[#111111] placeholder-zinc-700 outline-none transition focus:border-green-500/40"
                 />
 
                 <div className="mt-3 grid grid-cols-4 gap-2">
@@ -2232,7 +2232,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[#D8DDD2] bg-black/25 p-4">
+              <div className="rounded-2xl border border-[#D8DDD2] bg-[#111111]/25 p-4">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-[#7E9078]">Recibido</span>
                   <span className="font-bold text-[#111111]">
@@ -2293,12 +2293,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* SumUp SOLO — Flujo de pago */}
       {sumupSmartOpen && sumupSmartOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-[2px]">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-2xl"
+            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]"
           >
             {(() => {
               const copy = soloStatusCopy[sumupStatus];
@@ -2400,7 +2400,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     {(sumupStatus === "waiting" ||
                       sumupStatus === "processing") && (
                       <>
-                        <div className="h-2 overflow-hidden rounded-full bg-black/35">
+                        <div className="h-2 overflow-hidden rounded-full bg-[#111111]/35">
                           <motion.div
                             className="h-full rounded-full bg-[#111111]"
                             initial={{ width: 0 }}
@@ -2560,8 +2560,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* Transferencia QR Modal */}
       {showTransferQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/80 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]">
             <h2 className="mb-1 text-lg font-bold text-[#111111]">
               Pago por Transferencia
             </h2>
@@ -2706,8 +2706,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* Payment QR Modal */}
       {showPaymentQR && paymentLinkUrl && createdOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/80 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]">
             <div className="mb-4 text-5xl">
               {paymentQrStatus === "rejected" ? "❌" : "📲"}
             </div>

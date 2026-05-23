@@ -332,14 +332,18 @@ export default function ProductGrid({ products, categories }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Buscar o escanear SKU / código de barra..."
-              className="arm-focus-ring h-12 w-full rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] pl-10 pr-4 text-sm text-[#111111] placeholder-[#9A9A9A] outline-none transition"
+              className="arm-input-premium h-12 w-full rounded-2xl pl-10 pr-24 text-sm"
             />
+
+            <div className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded-xl border border-[#D8DDD2] bg-white px-2 py-1 text-[10px] font-black text-[#7E9078] shadow-sm md:flex">
+              ⌘K
+            </div>
           </div>
 
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="arm-focus-ring hidden h-12 rounded-2xl border border-[#D8DDD2] bg-white px-4 text-xs font-black text-[#111111] outline-none transition md:block"
+            className="arm-input-premium hidden h-12 rounded-2xl px-4 text-xs font-black md:block"
           >
             <option value="">Categorías</option>
             {categories.map((cat) => (
@@ -364,14 +368,14 @@ export default function ProductGrid({ products, categories }: Props) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filtered.map((product) => (
             <button
               key={product.id}
               onClick={() => addProduct(product)}
               disabled={(product.stock ?? 0) <= 0}
-              className="group relative rounded-3xl border border-white/5 bg-[#FCFCFA]/80 p-3 text-left shadow-lg transition hover:-translate-y-0.5 hover:border-amber-500/20 hover:bg-[#FCFCFA] hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="arm-pos-card group relative overflow-hidden rounded-[28px] p-3 text-left disabled:cursor-not-allowed disabled:opacity-40"
             >
               {product.stock !== null && (
                 <span
