@@ -1,7 +1,22 @@
+'use client'
+
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { ArrowRight, PackageSearch, Search, Home } from "lucide-react"
 
 export default function TrackPage() {
+  const router = useRouter()
+  const [trackingCode, setTrackingCode] = useState('')
+
+  function handleTrack() {
+    const clean = trackingCode.trim()
+
+    if (!clean) return
+
+    router.push(`/track/${encodeURIComponent(clean)}`)
+  }
+
   return (
     <main className="min-h-screen bg-[#F5F4EF] relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,181,162,0.20),transparent_45%)]" />
@@ -70,13 +85,23 @@ export default function TrackPage() {
 
                   <input
                     type="text"
+                    value={trackingCode}
+                    onChange={(e) => setTrackingCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleTrack()
+                      }
+                    }}
                     placeholder="Ej: ARM-1021"
                     className="w-full h-16 rounded-2xl border border-[#D8DDD2] bg-[#FCFCFA] px-14 text-[#111111] text-lg outline-none focus:ring-4 focus:ring-[#A8B5A2]/20 focus:border-[#A8B5A2] transition-all"
                   />
                 </div>
               </div>
 
-              <button className="w-full h-16 rounded-2xl bg-[#111111] hover:bg-[#1D1D1D] text-white font-black text-lg transition-all flex items-center justify-center gap-3">
+              <button
+                onClick={handleTrack}
+                className="w-full h-16 rounded-2xl bg-[#111111] hover:bg-[#1D1D1D] text-white font-black text-lg transition-all flex items-center justify-center gap-3"
+              >
                 Ver seguimiento
                 <ArrowRight className="w-5 h-5" />
               </button>
