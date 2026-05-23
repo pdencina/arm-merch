@@ -1,212 +1,49 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-:root {
-  --background: #0f0f0f;
-  --foreground: #f4f4f5;
-}
+/* ARM Merch — Final Premium Polish */
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  height: 100%;
-  background: #0f0f0f;
-  color: #f4f4f5;
-}
-
-/* Scrollbar custom */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
-}
-
-/* Ocultar scrollbar sin perder funcionalidad */
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Modo claro */
-html.light-mode {
-  --background: #f8f8f8;
-  --foreground: #18181b;
-}
-
-html.light-mode body {
-  background: #f8f8f8;
-  color: #18181b;
-}
-
-html.light-mode .bg-zinc-950 { background-color: #ffffff !important; }
-html.light-mode .bg-zinc-900 { background-color: #f4f4f5 !important; }
-html.light-mode .bg-zinc-800 { background-color: #e4e4e7 !important; }
-html.light-mode .bg-zinc-800\/30 { background-color: rgba(228,228,231,0.5) !important; }
-html.light-mode .bg-zinc-800\/50 { background-color: rgba(228,228,231,0.7) !important; }
-html.light-mode .bg-zinc-800\/60 { background-color: rgba(228,228,231,0.8) !important; }
-html.light-mode .text-white { color: #18181b !important; }
-html.light-mode .text-zinc-200 { color: #27272a !important; }
-html.light-mode .text-zinc-300 { color: #3f3f46 !important; }
-html.light-mode .text-zinc-400 { color: #52525b !important; }
-html.light-mode .text-zinc-500 { color: #71717a !important; }
-html.light-mode .text-zinc-600 { color: #a1a1aa !important; }
-html.light-mode .border-zinc-800 { border-color: #d4d4d8 !important; }
-html.light-mode .border-zinc-700 { border-color: #d4d4d8 !important; }
-html.light-mode .border-zinc-800\/60 { border-color: rgba(212,212,216,0.8) !important; }
-html.light-mode .border-zinc-700\/40 { border-color: rgba(212,212,216,0.6) !important; }
-html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
-
-
-/* ARM Merch Light Design System */
-:root {
-  --arm-bg: #F5F4EF;
-  --arm-surface: #FFFFFF;
-  --arm-surface-soft: #FCFCFA;
-  --arm-border: #D8DDD2;
-  --arm-primary: #A8B5A2;
-  --arm-primary-strong: #52604C;
-  --arm-text: #111111;
-  --arm-muted: #6B6B6B;
-  --arm-accent: #F5A400;
-  --arm-shadow-soft: 0 14px 45px rgba(0,0,0,0.055);
-}
-.arm-light-shell {
-  background: radial-gradient(circle at top, rgba(168,181,162,0.20), transparent 42%), var(--arm-bg);
-  color: var(--arm-text);
-}
-.arm-card {
-  border: 1px solid var(--arm-border);
-  background: rgba(255,255,255,0.82);
-  box-shadow: var(--arm-shadow-soft);
-  backdrop-filter: blur(18px);
-}
-.arm-focus-ring:focus {
-  outline: none;
-  box-shadow: 0 0 0 4px rgba(168,181,162,0.22);
-  border-color: var(--arm-primary);
-}
-
-
-/* ARM Merch — Cart Propuesta 2 REAL */
-.arm-cart-v2-shell {
+.arm-cart-final-shell {
   background:
-    radial-gradient(circle at top left, rgba(168,181,162,0.20), transparent 32%),
-    linear-gradient(to bottom, #FFFFFF 0%, #F7F7F4 100%);
-  color: #111111;
-  border: 1px solid #E4E5DE;
-  box-shadow: 0 28px 90px rgba(0,0,0,0.14);
+    radial-gradient(circle at top left, rgba(168,181,162,0.12), transparent 28%),
+    linear-gradient(to bottom, #FAFAF7 0%, #F4F4F1 100%);
 }
 
-.arm-cart-v2-header {
-  background: rgba(255,255,255,0.92);
-  border-bottom: 1px solid #ECEDE8;
+.arm-cart-final-header {
+  background: rgba(255,255,255,0.88);
   backdrop-filter: blur(18px);
+  border-bottom: 1px solid #E8E8E2;
 }
 
-.arm-cart-v2-card {
-  background: #FFFFFF;
-  border: 1px solid #ECEDE8;
-  border-radius: 28px;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.045);
+.arm-cart-final-product {
+  margin-top: 18px;
 }
 
-.arm-cart-v2-soft {
-  background: #F5F8F2;
-  border: 1px solid #E5ECDD;
+.arm-cart-final-confirm {
+  background: linear-gradient(135deg, #5F8F52 0%, #476F3D 100%);
+  box-shadow: 0 18px 45px rgba(71,111,61,0.28);
+  transition: all .22s ease;
 }
 
-.arm-cart-v2-input {
-  height: 56px;
-  width: 100%;
-  border-radius: 18px;
-  border: 1px solid #E2E5DC;
-  background: #FCFCFA;
-  padding-left: 48px;
-  padding-right: 16px;
-  color: #111111;
-  transition: all 180ms ease;
-}
-
-.arm-cart-v2-input::placeholder {
-  color: #8F948B;
-}
-
-.arm-cart-v2-input:focus {
-  outline: none;
-  border-color: #A8B5A2;
-  box-shadow: 0 0 0 4px rgba(168,181,162,0.18);
-}
-
-.arm-cart-v2-pay {
-  min-height: 72px;
-  border-radius: 18px;
-  border: 1px solid #E2E5DC;
-  background: #FFFFFF;
-  color: #626862;
-  box-shadow: 0 8px 22px rgba(0,0,0,0.035);
-  transition: all 180ms ease;
-}
-
-.arm-cart-v2-pay:hover {
+.arm-cart-final-confirm:hover {
   transform: translateY(-2px);
-  border-color: #A8B5A2;
-  background: #F7F8F5;
-  color: #111111;
+  box-shadow: 0 24px 55px rgba(71,111,61,0.34);
 }
 
-.arm-cart-v2-pay-active {
-  min-height: 72px;
-  border-radius: 18px;
+.arm-cart-final-total {
+  background: linear-gradient(to bottom, #FFFFFF 0%, #F4F7F1 100%);
+  border: 1px solid #E5E9DF;
+}
+
+.arm-cart-final-pay-active {
+  background: linear-gradient(to bottom, #F4F8F0 0%, #EAF2E4 100%);
   border: 1px solid #7E9078;
-  background: #F4F7F1;
-  color: #2F5A2F;
-  box-shadow: 0 10px 26px rgba(126,144,120,0.15);
+  color: #35552E;
 }
 
-.arm-cart-v2-total {
-  background: linear-gradient(to bottom, #F7F8F5, #EFF4EA);
-  border: 1px solid #E2E5DC;
-  border-radius: 28px;
-}
-
-.arm-cart-v2-confirm {
-  height: 62px;
-  border-radius: 20px;
-  background: linear-gradient(to right, #4F8C45, #3F7638);
-  color: white;
-  font-weight: 900;
-  box-shadow: 0 18px 42px rgba(79,140,69,0.25);
-  transition: all 220ms ease;
-}
-
-.arm-cart-v2-confirm:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 24px 52px rgba(79,140,69,0.32);
-}
-
-.arm-cart-v2-close {
-  border: 1px solid #E5E5E0;
+.arm-cart-final-close {
   background: #FFFFFF;
-  color: #111111;
-  transition: all 180ms ease;
+  border: 1px solid #E6E6E0;
 }
 
-.arm-cart-v2-close:hover {
+.arm-cart-final-close:hover {
   background: #F4F4F1;
 }
