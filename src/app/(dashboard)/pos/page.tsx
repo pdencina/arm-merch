@@ -148,15 +148,15 @@ export default function POSPage() {
   }, [currentItemCount])
 
   return (
-    <div className="relative flex h-[calc(100vh-70px)] flex-col overflow-hidden bg-black">
+    <div className="arm-light-shell relative flex h-[calc(100vh-70px)] flex-col overflow-hidden">
       {campusName && (
-        <div className="shrink-0 border-b border-zinc-800 px-5 py-3">
+        <div className="shrink-0 border-b border-[#D8DDD2] bg-white/60 px-6 py-4 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm">
-              <div className="h-2 w-2 rounded-full bg-green-400 shadow-[0_0_12px_rgba(74,222,128,0.55)]" />
-              <span className="text-zinc-400">Punto de Venta —</span>
-              <span className="font-semibold text-slate-200">{campusName}</span>
-              <span className="text-zinc-600">· {products.length} productos</span>
+              <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_14px_rgba(16,185,129,0.35)]" />
+              <span className="text-[#6B6B6B]">Punto de Venta —</span>
+              <span className="font-semibold text-[#111111]">{campusName}</span>
+              <span className="text-[#9A9A9A]">· {products.length} productos</span>
             </div>
 
             <button
@@ -175,8 +175,8 @@ export default function POSPage() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden p-4">
-        <div className="h-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+      <div className="min-h-0 flex-1 overflow-hidden p-5">
+        <div className="h-full overflow-hidden rounded-[32px] border border-[#D8DDD2] bg-white/80 shadow-[0_14px_45px_rgba(0,0,0,0.055)] backdrop-blur-xl">
           <ProductGrid products={products} categories={categories} />
         </div>
       </div>
