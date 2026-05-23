@@ -87,10 +87,7 @@ html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
   --arm-shadow-soft: 0 14px 45px rgba(0,0,0,0.055);
 }
 .arm-light-shell {
-  background:
-    radial-gradient(circle at top left, rgba(245,164,0,0.10), transparent 28%),
-    radial-gradient(circle at top right, rgba(168,181,162,0.16), transparent 32%),
-    linear-gradient(to bottom, #F7F6F2, #ECEAE3);
+  background: radial-gradient(circle at top, rgba(168,181,162,0.20), transparent 42%), var(--arm-bg);
   color: var(--arm-text);
 }
 .arm-card {
@@ -106,71 +103,85 @@ html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
 }
 
 
-/* ARM Merch UI Polish */
-.arm-pos-card {
-  border: 1px solid #E6E6E1;
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
-}
+/* ARM Merch — Proposal 2 Cart UI */
 
-.arm-pos-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(168,181,162,0.55);
-  box-shadow: 0 24px 60px rgba(0,0,0,0.10);
-}
-
-.arm-input-premium {
-  border: 1px solid #D8DDD2;
-  background: #FCFCFA;
+.arm-cart-proposal2 {
+  background:
+    radial-gradient(circle at top right, rgba(168,181,162,0.18), transparent 38%),
+    linear-gradient(to bottom, #FFFFFF, #F7F7F4);
+  border: 1px solid #E4E5DE;
+  box-shadow: 0 28px 80px rgba(0,0,0,0.12);
   color: #111111;
-  transition: box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
 }
 
-.arm-input-premium::placeholder {
-  color: #9A9A9A;
+.arm-cart-header-light {
+  background: rgba(255,255,255,0.92);
+  border-bottom: 1px solid #ECEDE8;
+  backdrop-filter: blur(16px);
 }
 
-.arm-input-premium:focus {
+.arm-cart-soft-card {
+  border: 1px solid #ECEDE8;
+  background: #FFFFFF;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.035);
+  transition: all 220ms ease;
+}
+
+.arm-cart-soft-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.06);
+}
+
+.arm-cart-input {
+  background: #FCFCFA;
+  border: 1px solid #E2E5DC;
+  color: #111111;
+  transition: all 180ms ease;
+}
+
+.arm-cart-input::placeholder {
+  color: #8B8F87;
+}
+
+.arm-cart-input:focus {
   outline: none;
   border-color: #A8B5A2;
-  box-shadow: 0 0 0 4px rgba(168,181,162,0.20);
+  box-shadow: 0 0 0 4px rgba(168,181,162,0.18);
 }
 
-.arm-cart-panel {
-  border: 1px solid #D8DDD2;
-  background:
-    radial-gradient(circle at top right, rgba(168,181,162,0.16), transparent 36%),
-    rgba(255,255,255,0.96);
-  color: #111111;
-  box-shadow: 0 28px 90px rgba(0,0,0,0.18);
+.arm-pay-option {
+  background: white;
+  border: 1px solid #E2E5DC;
+  transition: all 180ms ease;
+  color: #666;
 }
 
-.arm-cart-header {
-  border-bottom: 1px solid #D8DDD2;
-  background: rgba(255,255,255,0.88);
-  backdrop-filter: blur(18px);
-}
-
-.arm-pay-card {
-  border: 1px solid #D8DDD2;
-  background: #FFFFFF;
-  color: #6B6B6B;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.035);
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
-}
-
-.arm-pay-card:hover {
-  transform: translateY(-2px);
+.arm-pay-option:hover {
   border-color: #A8B5A2;
   background: #F7F8F5;
   color: #111111;
-  box-shadow: 0 14px 32px rgba(0,0,0,0.07);
 }
 
-.arm-pay-card-active {
-  border-color: #111111;
-  background: #111111;
-  color: #FFFFFF;
-  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+.arm-pay-option-active {
+  background: #F4F7F1;
+  border: 1px solid #7E9078;
+  color: #2D4B2D;
+  box-shadow: 0 8px 24px rgba(126,144,120,0.12);
+}
+
+.arm-confirm-button {
+  background: linear-gradient(to right, #7EAE67, #6A9A54);
+  color: white;
+  box-shadow: 0 18px 40px rgba(126,174,103,0.22);
+  transition: all 220ms ease;
+}
+
+.arm-confirm-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 48px rgba(126,174,103,0.30);
+}
+
+.arm-total-box {
+  background: linear-gradient(to bottom, #F7F8F5, #F0F4EC);
+  border: 1px solid #E2E5DC;
 }

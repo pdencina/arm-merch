@@ -67,8 +67,8 @@ const soloStatusCopy: Record<
     title: "Esperando pago en SumUp SOLO",
     subtitle: "Pídele al cliente que acerque, inserte o deslice su tarjeta en la máquina.",
     badge: "Esperando tarjeta",
-    badgeClass: "border-[#D8DDD2] bg-[#111111]/10 text-[#52604C]",
-    ringClass: "border-[#D8DDD2] bg-[#111111]/10",
+    badgeClass: "border-[#D8DDD2] bg-[#FCFCFA]/10 text-[#52604C]",
+    ringClass: "border-[#D8DDD2] bg-[#FCFCFA]/10",
   },
   processing: {
     icon: "🔄",
@@ -208,7 +208,7 @@ function CartItemRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, x: 30, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="rounded-[22px] border border-[#D8DDD2] bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
+      className="rounded-2xl border border-[#D8DDD2] bg-white p-3 shadow-sm"
     >
       <div className="flex items-start gap-2">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EEF2EA] text-xl">
@@ -250,7 +250,7 @@ function CartItemRow({
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 rounded-xl bg-white px-1.5 py-1">
+        <div className="flex items-center gap-1 rounded-xl bg-[#F5F4EF] px-1.5 py-1">
           <button
             onClick={() => onUpdateQty(item.quantity - 1)}
             className="flex h-6 w-6 items-center justify-center rounded-lg bg-white text-[#111111] transition hover:bg-[#EEF2EA]"
@@ -277,7 +277,7 @@ function CartItemRow({
         className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
           isProduction
             ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
-            : "border-[#D8DDD2] bg-[#FCFCFA] text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5] hover:text-[#111111]"
+            : "border-[#D8DDD2] bg-[#FCFCFA] text-[#6B6B6B] hover:border-[#A8B5A2] hover:text-[#111111]"
         }`}
       >
         <span className="flex items-center gap-2">
@@ -319,15 +319,15 @@ function PaymentPill({
       onClick={onClick}
       className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-2.5 text-xs font-semibold transition-all duration-200 ${
         active
-          ? "arm-pay-card-active"
-          : "arm-pay-card"
+          ? "border-[#111111] bg-[#FCFCFA] text-[#111111] shadow-[0_12px_30px_rgba(0,0,0,0.12)]"
+          : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5] hover:text-[#111111]"
       }`}
     >
       <Icon size={16} />
       <span className="leading-none">{option.label}</span>
       <span
         className={`absolute right-1.5 top-1.5 text-[9px] font-bold ${
-          active ? "text-white/70" : "text-[#9A9A9A]"
+          active ? "text-[#111111]/80" : "text-[#9A9A9A]"
         }`}
       >
         {shortcut}
@@ -1723,7 +1723,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#111111] text-[9px] font-black text-white"
+                    className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#FCFCFA] text-[9px] font-black text-[#111111]"
                   >
                     {itemCount()}
                   </motion.span>
@@ -1744,7 +1744,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               onClick={() => setSoundEnabled((v) => !v)}
               className={`rounded-lg p-2 text-xs transition ${
                 soundEnabled
-                  ? "text-[#52604C] hover:bg-[#111111]/10"
+                  ? "text-[#52604C] hover:bg-[#FCFCFA]/10"
                   : "text-[#9A9A9A] hover:bg-white/5 hover:text-[#6B6B6B]"
               }`}
               title={soundEnabled ? "Sonido activado" : "Sonido desactivado"}
@@ -1825,7 +1825,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       <Sparkles size={13} />
                       Última venta
                     </div>
-                    <span className="rounded-full bg-[#111111]/25 px-2 py-0.5 text-[10px] font-bold text-[#6B6B6B]">
+                    <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-bold text-[#6B6B6B]">
                       {lastSale.method}
                     </span>
                   </div>
@@ -1882,7 +1882,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   />
 
                   {customerSuggestionsOpen && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-[#D8DDD2] bg-[#15171d] shadow-[0_28px_90px_rgba(0,0,0,0.18)]">
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[80] overflow-hidden rounded-2xl border border-[#D8DDD2] bg-[#15171d] shadow-2xl">
                       <div className="border-b border-[#D8DDD2] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#7E9078]">
                         {customerSearchLoading ? "Buscando cliente..." : "Clientes frecuentes"}
                       </div>
@@ -1895,7 +1895,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                           onClick={() => selectCustomerSuggestion(customer)}
                           className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#F7F8F5]"
                         >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#111111]/10 text-[#52604C]">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FCFCFA]/10 text-[#52604C]">
                             <UserRound size={16} />
                           </div>
 
@@ -2015,7 +2015,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="space-y-3 rounded-2xl border border-[#D8DDD2] bg-[#111111]/5 p-4"
+                  className="space-y-3 arm-cart-input rounded-2xl/5 p-4"
                 >
                   <div>
                     <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-[#7E9078]">
@@ -2043,7 +2043,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         onClick={() => setCardType("credit")}
                         className={`rounded-2xl border px-4 py-3 text-sm font-bold transition ${
                           cardType === "credit"
-                            ? "border-amber-500/40 bg-[#111111]/15 text-[#52604C]"
+                            ? "border-amber-500/40 bg-[#FCFCFA]/15 text-[#52604C]"
                             : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5]"
                         }`}
                       >
@@ -2066,7 +2066,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                             onClick={() => setInstallments(q)}
                             className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${
                               installments === q
-                                ? "border-amber-500/40 bg-[#111111]/20 text-[#52604C]"
+                                ? "border-amber-500/40 bg-[#FCFCFA]/20 text-[#52604C]"
                                 : "border-[#D8DDD2] bg-white text-[#6B6B6B] hover:border-[#A8B5A2] hover:bg-[#F7F8F5]"
                             }`}
                           >
@@ -2113,7 +2113,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 whileTap={{ scale: canSubmit ? 0.98 : 1 }}
                 onClick={handleConfirmSale}
                 disabled={!canSubmit}
-                className="relative w-full overflow-hidden rounded-3xl py-4 text-[17px] font-black text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                className="relative w-full overflow-hidden rounded-3xl py-4 text-[17px] font-black text-[#111111] transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
                   background: canSubmit
                     ? isPendingDelivery
@@ -2162,12 +2162,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* Efectivo — Cálculo de vuelto */}
       {showCashModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]"
+            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-2xl"
           >
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border border-green-500/25 bg-green-500/10 text-5xl">
               💵
@@ -2210,7 +2210,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     }
                   }}
                   placeholder="0"
-                  className="w-full rounded-2xl border border-[#D8DDD2] bg-[#111111]/25 px-4 py-3 text-center text-2xl font-black text-[#111111] placeholder-zinc-700 outline-none transition focus:border-green-500/40"
+                  className="w-full rounded-2xl border border-[#D8DDD2] bg-black/25 px-4 py-3 text-center text-2xl font-black text-[#111111] placeholder-zinc-700 outline-none transition focus:border-green-500/40"
                 />
 
                 <div className="mt-3 grid grid-cols-4 gap-2">
@@ -2232,7 +2232,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[#D8DDD2] bg-[#111111]/25 p-4">
+              <div className="rounded-2xl border border-[#D8DDD2] bg-black/25 p-4">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-[#7E9078]">Recibido</span>
                   <span className="font-bold text-[#111111]">
@@ -2282,7 +2282,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               <button
                 onClick={handleConfirmCashSale}
                 disabled={submitting || cashReceivedAmount < total()}
-                className="rounded-2xl bg-green-500 py-3 text-sm font-black text-white transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-2xl bg-green-500 py-3 text-sm font-black text-[#111111] transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? "Registrando..." : "Confirmar efectivo"}
               </button>
@@ -2293,12 +2293,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* SumUp SOLO — Flujo de pago */}
       {sumupSmartOpen && sumupSmartOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]"
+            className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-7 text-center shadow-2xl"
           >
             {(() => {
               const copy = soloStatusCopy[sumupStatus];
@@ -2400,9 +2400,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     {(sumupStatus === "waiting" ||
                       sumupStatus === "processing") && (
                       <>
-                        <div className="h-2 overflow-hidden rounded-full bg-[#111111]/35">
+                        <div className="h-2 overflow-hidden rounded-full bg-black/35">
                           <motion.div
-                            className="h-full rounded-full bg-[#111111]"
+                            className="h-full rounded-full bg-[#FCFCFA]"
                             initial={{ width: 0 }}
                             animate={{ width: `${progressPct}%` }}
                             transition={{ duration: 0.25 }}
@@ -2484,7 +2484,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     <div className="grid grid-cols-1 gap-2">
                       <button
                         onClick={() => startSoloPolling(sumupSmartOrder)}
-                        className="w-full rounded-2xl bg-[#111111] py-3 text-sm font-black text-white transition hover:bg-[#1D1D1D]"
+                        className="w-full rounded-2xl bg-[#FCFCFA] py-3 text-sm font-black text-[#111111] transition hover:bg-[#1D1D1D]"
                       >
                         Reintentar monitoreo
                       </button>
@@ -2560,8 +2560,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* Transferencia QR Modal */}
       {showTransferQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-2xl">
             <h2 className="mb-1 text-lg font-bold text-[#111111]">
               Pago por Transferencia
             </h2>
@@ -2686,7 +2686,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 }
                 setSubmitting(false);
               }}
-              className="w-full rounded-2xl bg-[#111111] py-3 text-sm font-bold text-white transition hover:bg-[#1D1D1D] mb-3"
+              className="w-full rounded-2xl bg-[#FCFCFA] py-3 text-sm font-bold text-[#111111] transition hover:bg-[#1D1D1D] mb-3"
             >
               ✅ Cliente ya transfirió — Confirmar venta
             </button>
@@ -2706,8 +2706,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       {/* Payment QR Modal */}
       {showPaymentQR && paymentLinkUrl && createdOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111111]/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-[0_28px_90px_rgba(0,0,0,0.18)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-[#D8DDD2] bg-[#FCFCFA] p-6 text-center shadow-2xl">
             <div className="mb-4 text-5xl">
               {paymentQrStatus === "rejected" ? "❌" : "📲"}
             </div>
@@ -2828,7 +2828,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 setClientPhone("");
                 clearCart();
               }}
-              className="w-full rounded-2xl bg-[#111111] py-3 text-sm font-bold text-white transition hover:bg-[#1D1D1D]"
+              className="w-full rounded-2xl bg-[#FCFCFA] py-3 text-sm font-bold text-[#111111] transition hover:bg-[#1D1D1D]"
             >
               Nueva venta
             </button>
