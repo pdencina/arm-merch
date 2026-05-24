@@ -7,7 +7,7 @@ import {
   Users, ClipboardList, ArrowLeftRight, Receipt,
   ArrowRightLeft, User, Calculator, MapPin, Tags,
   X, Truck, Layers, PanelLeftClose, PanelLeftOpen,
-  BrainCircuit, Sparkles, LineChart, Telescope, ChevronDown,
+  BrainCircuit, Sparkles, LineChart, Telescope, ChevronDown, DollarSign, TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
