@@ -177,6 +177,10 @@ export default function ProductionPage() {
   const [campusId, setCampusId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [collectingId, setCollectingId] = useState<string | null>(null)
+  const [cashModalOrder, setCashModalOrder] = useState<OrderRow | null>(null)
+  const [cashReceived, setCashReceived] = useState('')
+  const [cashError, setCashError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -374,6 +378,70 @@ export default function ProductionPage() {
       readyPickupOrders,
     }
   }, [filtered])
+
+
+  const cashReceivedAmount = useMemo(() => {
+    const digits = cashReceived.replace(/\D/g, '')
+    return Number(digits || 0)
+  }, [cashReceived])
+
+  const pendingBalanceToCollect = Number(cashModalOrder?.balance_due ?? 0)
+  const cashChange = Math.max(0, cashReceivedAmount - pendingBalanceToCollect)
+  const cashMissing = Math.max(0, pendingBalanceToCollect - cashReceivedAmount)
+
+  function openCollectBalanceModal(order: OrderRow) {
+    setCashModalOrder(order)
+    setCashReceived('')
+    setCashError(null)
+  }
+
+  async function collectBalance() {
+    if (!cashModalOrder) return
+
+    const pendingBalance = Number(cashModalOrder.balance_due ?? 0)
+
+    if (pendingBalance <= 0) {
+      setCashError('Esta orden no tiene saldo pendiente.')
+      return
+    }
+
+    if (cashReceivedAmount < pendingBalance) {
+      setCashError(`El efectivo recibido debe cubrir el saldo pendiente (${fmt(pendingBalance)}).`)
+      return
+    }
+
+    setCollectingId(cashModalOrder.id)
+    setCashError(null)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    const res = await fetch(`/api/orders/${cashModalOrder.id}/collect-balance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({
+        payment_method: 'efectivo',
+        amount_received: cashReceivedAmount,
+      }),
+    })
+
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok) {
+      setCashError(data?.error ?? 'No se pudo cobrar el saldo pendiente.')
+      setCollectingId(null)
+      return
+    }
+
+    setCashModalOrder(null)
+    setCashReceived('')
+    setCollectingId(null)
+    await load()
+  }
 
   async function updateStatus(order: OrderRow) {
     const current = String(order.production_status ?? 'pending_production')
@@ -603,6 +671,11 @@ export default function ProductionPage() {
               workflowStatus = 'in_production'
             }
 
+            const deliveryItems =
+              workflowStatus === 'ready_pickup' && productionItems.length === 0
+                ? (order.order_items ?? [])
+                : productionItems
+
             const next = NEXT_STATUS[workflowStatus]
 
             const hasPendingBalance =
@@ -677,7 +750,7 @@ export default function ProductionPage() {
                       />
 
                       <Info
-                        label="Total"
+                        label="Total pedido"
                         value={fmt(Number(order.total ?? 0))}
                         highlight
                       />
@@ -710,21 +783,21 @@ export default function ProductionPage() {
                       <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <p className="text-xs font-black uppercase tracking-widest text-violet-300">
-                            Productos a producir
+                            {workflowStatus === 'ready_pickup' ? 'Productos para entregar' : 'Productos a producir'}
                           </p>
 
                           <span className="rounded-full bg-violet-500/15 px-3 py-1 text-xs font-black text-violet-200">
-                            {productionItems.length} item{productionItems.length === 1 ? '' : 's'}
+                            {deliveryItems.length} item{deliveryItems.length === 1 ? '' : 's'}
                           </span>
                         </div>
 
                         {productionItems.length === 0 ? (
                           <p className="text-sm text-zinc-500">
-                            Esta orden no tiene productos marcados para producción.
+                            {workflowStatus === 'ready_pickup' ? 'No hay productos asociados para entregar.' : 'Esta orden no tiene productos marcados para producción.'}
                           </p>
                         ) : (
                           <div className="space-y-2">
-                            {productionItems.map((item: any, idx: number) => {
+                            {deliveryItems.map((item: any, idx: number) => {
                               const product = Array.isArray(item.products)
                                 ? item.products[0]
                                 : item.products
@@ -823,7 +896,8 @@ export default function ProductionPage() {
                       Number(order.balance_due ?? 0) > 0 && (
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-300"
+                          onClick={() => openCollectBalanceModal(order)}
+                          className="inline-flex items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-300 hover:bg-amber-500/15"
                         >
                           Cobrar saldo pendiente · {fmt(Number(order.balance_due ?? 0))}
                         </button>
@@ -860,6 +934,139 @@ export default function ProductionPage() {
           })
         )}
       </div>
+      {cashModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-7 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-amber-500/25 bg-amber-500/10 text-3xl">
+              💵
+            </div>
+
+            <h2 className="mb-2 text-xl font-black text-white">
+              Cobrar saldo pendiente
+            </h2>
+
+            <p className="mb-5 text-sm leading-relaxed text-zinc-400">
+              Orden #{cashModalOrder.order_number}. El saldo debe quedar pagado antes de entregar.
+            </p>
+
+            <div className="mb-5 space-y-3 rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 text-left">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-500">Saldo a cobrar</span>
+                <span className="text-base font-black text-amber-400">
+                  {fmt(pendingBalanceToCollect)}
+                </span>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  Efectivo recibido
+                </label>
+
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  value={cashReceived ? Number(cashReceived).toLocaleString('es-CL') : '0'}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '')
+                    setCashReceived(digits === '' ? '0' : String(Number(digits)))
+                    setCashError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && cashReceivedAmount >= pendingBalanceToCollect) {
+                      e.preventDefault()
+                      collectBalance()
+                    }
+                  }}
+                  placeholder="0"
+                  className="w-full rounded-2xl border border-white/8 bg-black/25 px-4 py-3 text-center text-2xl font-black text-white placeholder-zinc-700 outline-none transition focus:border-amber-500/40"
+                />
+
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {[
+                    { label: 'Exacto', value: pendingBalanceToCollect },
+                    { label: '+1K', value: pendingBalanceToCollect + 1000 },
+                    { label: '+5K', value: pendingBalanceToCollect + 5000 },
+                    { label: '+10K', value: pendingBalanceToCollect + 10000 },
+                  ].map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => {
+                        setCashReceived(String(option.value))
+                        setCashError(null)
+                      }}
+                      className="rounded-xl border border-white/8 bg-white/[0.04] px-2 py-2 text-xs font-bold text-zinc-300 transition hover:border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-300"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-zinc-500">Recibido</span>
+                  <span className="font-bold text-white">
+                    {fmt(cashReceivedAmount)}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between border-t border-white/6 pt-3">
+                  <span className="text-sm font-bold text-zinc-300">
+                    {cashReceivedAmount >= pendingBalanceToCollect
+                      ? 'Vuelto a entregar'
+                      : 'Falta por recibir'}
+                  </span>
+
+                  <span
+                    className={`text-2xl font-black ${
+                      cashReceivedAmount >= pendingBalanceToCollect
+                        ? 'text-green-400'
+                        : 'text-red-400'
+                    }`}
+                  >
+                    {cashReceivedAmount >= pendingBalanceToCollect
+                      ? fmt(cashChange)
+                      : fmt(cashMissing)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {cashError && (
+              <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {cashError}
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setCashModalOrder(null)
+                  setCashReceived('')
+                  setCashError(null)
+                }}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.08]"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={collectBalance}
+                disabled={
+                  collectingId === cashModalOrder.id ||
+                  cashReceivedAmount < pendingBalanceToCollect
+                }
+                className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {collectingId === cashModalOrder.id ? 'Registrando...' : 'Confirmar saldo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
