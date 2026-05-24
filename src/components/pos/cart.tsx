@@ -2260,7 +2260,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-zinc-500">{hasProductionItems ? 'Abono requerido hoy' : 'Total a cobrar'}</span>
                 <span className="text-base font-black text-amber-400">
-                  {fmt(total())}
+                  {fmt(amountToCharge)}
                 </span>
               </div>
 
@@ -2359,7 +2359,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 disabled={submitting || cashReceivedAmount < total()}
                 className="rounded-2xl bg-green-500 py-3 text-sm font-black text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {submitting ? "Registrando..." : "{hasProductionItems ? 'Confirmar abono' : 'Confirmar efectivo'}"}
+                {submitting ? "Registrando..." : {hasProductionItems ? 'Confirmar abono' : 'Confirmar efectivo'}}
               </button>
             </div>
           </motion.div>
