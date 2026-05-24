@@ -49,20 +49,25 @@ export default function InventoryClient({
   const isSuperAdmin = userRole === 'super_admin'
 
   const filtered = useMemo(() => {
+    const query = (search || '').toLowerCase()
+
     return products.filter((p) => {
       const matchSearch =
-        !search ||
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.sku ?? '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.campus_name ?? '').toLowerCase().includes(search.toLowerCase())
+        !query ||
+        (p.name ?? '').toLowerCase().includes(query) ||
+        (p.sku ?? '').toLowerCase().includes(query) ||
+        (p.campus_name ?? '').toLowerCase().includes(query)
 
-      const matchCat = !filterCategory || p.category_id === filterCategory
+      const matchCat =
+        !filterCategory || p.category_id === filterCategory
+
       const matchStock =
         filterStock === 'all'
           ? true
           : filterStock === 'out'
           ? (p.stock ?? 0) === 0
-          : (p.stock ?? 0) > 0 && (p.stock ?? 0) <= (p.low_stock_alert ?? 5)
+          : (p.stock ?? 0) > 0 &&
+            (p.stock ?? 0) <= (p.low_stock_alert ?? 5)
 
       return matchSearch && matchCat && matchStock
     })
