@@ -7,6 +7,7 @@ import {
   Users, ClipboardList, ArrowLeftRight, Receipt,
   ArrowRightLeft, User, Calculator, MapPin, Tags,
   X, Truck, Layers, PanelLeftClose, PanelLeftOpen,
+  BrainCircuit, Sparkles, LineChart, Telescope,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -31,6 +32,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Transferencias', href: '/transfers', icon: <ArrowRightLeft size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Inventario' },
   { label: 'Productos', href: '/products', permKey: 'products.view', icon: <ClipboardList size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
   { label: 'Reportes', href: '/reports', permKey: 'reports.view', icon: <BarChart3 size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
+
+  { label: 'Executive Center', href: '/intelligence', icon: <BrainCircuit size={16} />, roles: ['super_admin'], section: 'Inteligencia' },
+  { label: 'Analytics', href: '/intelligence/analytics', icon: <LineChart size={16} />, roles: ['super_admin'], section: 'Inteligencia' },
+  { label: 'IA Insights', href: '/intelligence/ai-insights', icon: <Sparkles size={16} />, roles: ['super_admin'], section: 'Inteligencia' },
+  { label: 'Forecast', href: '/intelligence/forecast', icon: <Telescope size={16} />, roles: ['super_admin'], section: 'Inteligencia' },
   { label: 'Cierre de caja', href: '/close-day', permKey: 'close_day.view', icon: <Calculator size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
   { label: 'Usuarios', href: '/settings/users', icon: <Users size={16} />, roles: ['super_admin'], section: 'Configuración' },
   { label: 'Campus', href: '/settings/campus', icon: <MapPin size={16} />, roles: ['super_admin'], section: 'Configuración' },
@@ -39,7 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Mi perfil', href: '/profile', icon: <User size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Mi cuenta' },
 ]
 
-const SECTION_ORDER = ['General', 'Ventas', 'Inventario', 'Gestión', 'Configuración', 'Mi cuenta']
+const SECTION_ORDER = ['General', 'Ventas', 'Inventario', 'Gestión', 'Inteligencia', 'Configuración', 'Mi cuenta']
 
 const ROLE_CONFIG: Record<Role, { label: string; color: string; description: string }> = {
   super_admin: { label: 'Super Admin', description: 'Acceso global · Todos los campus', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
