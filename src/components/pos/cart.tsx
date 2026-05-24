@@ -2279,7 +2279,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     setCashError(null);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && cashReceivedAmount >= total()) {
+                    if (e.key === "Enter" && cashReceivedAmount >= amountToCharge) {
                       e.preventDefault();
                       handleConfirmCashSale();
                     }
@@ -2290,10 +2290,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                 <div className="mt-3 grid grid-cols-4 gap-2">
                   {[
-                    { label: "Exacto", value: total() },
-                    { label: "+1K", value: total() + 1000 },
-                    { label: "+5K", value: total() + 5000 },
-                    { label: "+10K", value: total() + 10000 },
+                    { label: "Exacto", value: amountToCharge },
+                    { label: "+1K", value: amountToCharge + 1000 },
+                    { label: "+5K", value: amountToCharge + 5000 },
+                    { label: "+10K", value: amountToCharge + 10000 },
                   ].map((option) => (
                     <button
                       key={option.label}
@@ -2317,18 +2317,18 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                 <div className="mt-2 flex items-center justify-between border-t border-white/6 pt-3">
                   <span className="text-sm font-bold text-zinc-300">
-                    {cashReceivedAmount >= total()
+                    {cashReceivedAmount >= amountToCharge
                       ? "Vuelto a entregar"
                       : "Falta por recibir"}
                   </span>
                   <span
                     className={`text-2xl font-black ${
-                      cashReceivedAmount >= total()
+                      cashReceivedAmount >= amountToCharge
                         ? "text-green-400"
                         : "text-red-400"
                     }`}
                   >
-                    {cashReceivedAmount >= total()
+                    {cashReceivedAmount >= amountToCharge
                       ? fmt(cashChange)
                       : fmt(cashMissing)}
                   </span>
@@ -2356,10 +2356,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
               <button
                 onClick={handleConfirmCashSale}
-                disabled={submitting || cashReceivedAmount < total()}
+                disabled={submitting || cashReceivedAmount < amountToCharge}
                 className="rounded-2xl bg-green-500 py-3 text-sm font-black text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {submitting ? "Registrando..." : {hasProductionItems ? 'Confirmar abono' : 'Confirmar efectivo'}}
+                {submitting ? "Registrando..." : hasProductionItems ? "Confirmar abono" : "Confirmar efectivo"}
               </button>
             </div>
           </motion.div>
