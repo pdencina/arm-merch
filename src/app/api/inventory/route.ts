@@ -37,7 +37,10 @@ export async function PATCH(req: Request) {
       .eq('id', user.id)
       .single()
 
-    if (!profile || !['super_admin', 'admin'].includes(profile.role)) {
+    if (
+      !profile ||
+      !['super_admin', 'admin', 'adm_merch', 'voluntario'].includes(profile.role)
+    ) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
@@ -54,7 +57,7 @@ export async function PATCH(req: Request) {
 
     // ── Verificar que el inventory_id pertenece al campus del Admin ──
     // Evita que un Admin modifique stock de otro campus
-    if (profile.role !== 'super_admin') {
+    if (!['super_admin', 'adm_merch'].includes(profile.role)) {
       const { data: invRow } = await adminClient
         .from('inventory')
         .select('campus_id')
