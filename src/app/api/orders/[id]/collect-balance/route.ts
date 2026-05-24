@@ -89,15 +89,18 @@ export async function POST(
       return NextResponse.json({ error: 'Esta orden no tiene saldo pendiente' }, { status: 400 })
     }
 
-    if (amountReceived < balanceDue) {
+    const isCash = paymentMethod === 'efectivo'
+
+    if (isCash && amountReceived < balanceDue) {
       return NextResponse.json(
         { error: `El monto recibido debe ser igual o mayor al saldo pendiente` },
         { status: 400 },
       )
     }
 
+    const effectiveAmountReceived = isCash ? amountReceived : balanceDue
     const newAmountPaid = Number(order.total ?? 0)
-    const change = Math.max(0, amountReceived - balanceDue)
+    const change = Math.max(0, effectiveAmountReceived - balanceDue)
 
     const { error: updateError } = await adminClient
       .from('orders')

@@ -181,6 +181,7 @@ export default function ProductionPage() {
   const [cashModalOrder, setCashModalOrder] = useState<OrderRow | null>(null)
   const [cashReceived, setCashReceived] = useState('')
   const [cashError, setCashError] = useState<string | null>(null)
+  const [balancePaymentMethod, setBalancePaymentMethod] = useState('efectivo')
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -346,6 +347,7 @@ export default function ProductionPage() {
     setCashModalOrder(order)
     setCashReceived('')
     setCashError(null)
+    setBalancePaymentMethod('efectivo')
   }
 
   async function collectBalance() {
@@ -358,7 +360,7 @@ export default function ProductionPage() {
       return
     }
 
-    if (cashReceivedAmount < pendingBalance) {
+    if (balancePaymentMethod === 'efectivo' && cashReceivedAmount < pendingBalance) {
       setCashError(`El efectivo recibido debe cubrir el saldo pendiente (${fmt(pendingBalance)}).`)
       return
     }
@@ -377,8 +379,8 @@ export default function ProductionPage() {
         Authorization: `Bearer ${session?.access_token ?? ''}`,
       },
       body: JSON.stringify({
-        payment_method: 'efectivo',
-        amount_received: cashReceivedAmount,
+        payment_method: balancePaymentMethod,
+        amount_received: balancePaymentMethod === 'efectivo' ? cashReceivedAmount : pendingBalance,
       }),
     })
 
@@ -911,6 +913,39 @@ export default function ProductionPage() {
               </div>
 
               <div>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  Medio de pago
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: 'efectivo', label: 'Efectivo' },
+                    { key: 'transferencia', label: 'Transferencia' },
+                    { key: 'sumup', label: 'SumUp SOLO' },
+                    { key: 'link', label: 'Link pago' },
+                  ].map((method) => (
+                    <button
+                      key={method.key}
+                      type="button"
+                      onClick={() => {
+                        setBalancePaymentMethod(method.key)
+                        setCashError(null)
+                      }}
+                      className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                        balancePaymentMethod === method.key
+                          ? 'border-amber-500/60 bg-amber-500/15 text-amber-300'
+                          : 'border-white/8 bg-white/[0.04] text-zinc-300 hover:border-amber-500/30'
+                      }`}
+                    >
+                      {method.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {balancePaymentMethod === 'efectivo' ? (
+                <>
+                  <div>
                 <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                   Efectivo recibido
                 </label>
@@ -986,6 +1021,17 @@ export default function ProductionPage() {
                 </div>
               </div>
             </div>
+                </>
+              ) : (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-left">
+                  <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
+                    Confirmación manual
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">
+                    Confirma este saldo solo después de validar el pago por <span className="font-black text-emerald-300">{balancePaymentMethod === 'transferencia' ? 'Transferencia' : balancePaymentMethod === 'sumup' ? 'SumUp SOLO' : 'Link de pago'}</span>.
+                  </p>
+                </div>
+              )}
 
             {cashError && (
               <p className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
@@ -1009,11 +1055,12 @@ export default function ProductionPage() {
                 onClick={collectBalance}
                 disabled={
                   collectingId === cashModalOrder.id ||
-                  cashReceivedAmount < pendingBalanceToCollect
+                  (balancePaymentMethod === 'efectivo' &&
+                    cashReceivedAmount < pendingBalanceToCollect)
                 }
                 className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {collectingId === cashModalOrder.id ? 'Registrando...' : 'Confirmar saldo'}
+                {collectingId === cashModalOrder.id ? 'Registrando...' : balancePaymentMethod === 'efectivo' ? 'Confirmar efectivo' : 'Confirmar pago'}
               </button>
             </div>
           </div>
