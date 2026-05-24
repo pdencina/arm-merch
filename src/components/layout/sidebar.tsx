@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Package, BarChart3,
   Users, ClipboardList, ArrowLeftRight, Receipt,
@@ -10,7 +10,6 @@ import {
   BrainCircuit, Sparkles, LineChart, Telescope, ChevronDown,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
 
 type Role = 'super_admin' | 'adm_merch' | 'admin' | 'voluntario'
 
@@ -48,8 +47,6 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECTION_ORDER = ['General', 'Ventas', 'Inventario', 'Gestión', 'Inteligencia', 'Configuración', 'Mi cuenta']
 
-const SIDEBAR_SECTIONS_STORAGE_KEY = 'arm_merch_sidebar_open_sections'
-
 const SECTION_META: Record<string, { label: string; icon: React.ReactNode }> = {
   General: { label: 'General', icon: <LayoutDashboard size={14} /> },
   Ventas: { label: 'Ventas', icon: <ShoppingCart size={14} /> },
@@ -85,16 +82,8 @@ export default function Sidebar({
   onToggleCollapsed?: () => void
 }) {
   const pathname = usePathname()
-  const router = useRouter()
   const isMobile = Boolean(mobileOpen)
   const isCollapsed = collapsed && !isMobile
-
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
-
-  function goTo(href: string) {
-    router.push(href)
-    onClose?.()
-  }
 
   const visible = NAV_ITEMS.filter((item) => {
     // SUPER ADMIN VE TODO
@@ -113,53 +102,6 @@ export default function Sidebar({
 
     return permissions[item.permKey] !== false
   })
-
-  const visibleSections = useMemo(() => {
-    return SECTION_ORDER.filter((section) =>
-      visible.some((item) => item.section === section)
-    )
-  }, [visible])
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)
-
-    if (saved) {
-      try {
-        setOpenSections(JSON.parse(saved))
-        return
-      } catch {
-        // fallback
-      }
-    }
-
-    setOpenSections(
-      Object.fromEntries(visibleSections.map((section) => [section, true]))
-    )
-  }, [visibleSections])
-
-  useEffect(() => {
-    const activeSection = visible.find((item) =>
-      pathname === item.href ||
-      (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
-    )?.section
-
-    if (!activeSection) return
-
-    setOpenSections((prev) => {
-      if (prev[activeSection]) return prev
-      const next = { ...prev, [activeSection]: true }
-      window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
-      return next
-    })
-  }, [pathname, visible])
-
-  function toggleSection(section: string) {
-    setOpenSections((prev) => {
-      const next = { ...prev, [section]: !prev[section] }
-      window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
-      return next
-    })
-  }
 
   const config = ROLE_CONFIG[role] ?? ROLE_CONFIG.voluntario
 
@@ -233,7 +175,6 @@ export default function Sidebar({
             pathname === item.href ||
             (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
           )
-          const isOpen = openSections[section] ?? true
 
           if (isCollapsed) {
             return (
@@ -256,14 +197,10 @@ export default function Sidebar({
                     (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
 
                   return (
-                    <button
+                    <Link
                       key={item.href}
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        goTo(item.href)
-                      }}
+                      href={item.href}
+                      onClick={onClose}
                       title={item.label}
                       className={clsx(
                         'group relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-sm transition-all',
@@ -277,7 +214,7 @@ export default function Sidebar({
                       <span className="pointer-events-none fixed left-[82px] z-[999] hidden whitespace-nowrap rounded-lg border border-[#222831] bg-[#151A22] px-2.5 py-1.5 text-xs font-semibold text-[#F3F5F7] shadow-xl group-hover:block">
                         {item.label}
                       </span>
-                    </button>
+                    </Link>
                   )
                 })}
               </div>
@@ -285,12 +222,10 @@ export default function Sidebar({
           }
 
           return (
-            <div key={section} className="mb-2">
-              <button
-                type="button"
-                onClick={() => toggleSection(section)}
+            <details key={section} open className="group mb-2">
+              <summary
                 className={clsx(
-                  'mb-1 mt-2 flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition',
+                  'mb-1 mt-2 flex cursor-pointer list-none items-center justify-between rounded-xl px-2 py-2 text-left transition marker:hidden [&::-webkit-details-marker]:hidden',
                   sectionIsActive
                     ? 'bg-[#111923] text-[#B7C6F9]'
                     : 'text-[#66707F] hover:bg-[#111923] hover:text-[#D8DEE9]'
@@ -303,44 +238,35 @@ export default function Sidebar({
 
                 <ChevronDown
                   size={14}
-                  className={clsx(
-                    'transition-transform duration-200',
-                    isOpen ? 'rotate-180' : 'rotate-0'
-                  )}
+                  className="transition-transform duration-200 group-open:rotate-180"
                 />
-              </button>
+              </summary>
 
-              {isOpen && (
-                <div className="flex flex-col gap-1 pb-1">
-                  {items.map((item) => {
-                    const active =
-                      pathname === item.href ||
-                      (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+              <div className="flex flex-col gap-1 pb-1">
+                {items.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
 
-                    return (
-                      <button
-                        key={item.href}
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          goTo(item.href)
-                        }}
-                        className={clsx(
-                          'group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-all',
-                          active
-                            ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
-                            : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
-                        )}
-                      >
-                        {item.icon}
-                        <span>{item.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      className={clsx(
+                        'group/item relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                        active
+                          ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
+                          : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
+                      )}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            </details>
           )
         })}
       </nav>
