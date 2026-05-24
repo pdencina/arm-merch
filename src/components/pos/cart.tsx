@@ -156,7 +156,7 @@ function PaymentPill({
 
 // ─── componente principal ───────────────────────────────────────────────────
 
-export default function Cart() {
+export default function Cart({ onClose }: { onClose?: () => void }) {
   const supabase = createClient();
   const {
     items,
@@ -715,14 +715,24 @@ export default function Cart() {
             </div>
           </div>
 
-          {items.length > 0 && (
-            <button
-              onClick={clearCart}
-              className="rounded-lg px-2 py-1 text-xs text-zinc-400 transition hover:bg-red-500/10 hover:text-red-400"
-            >
-              Vaciar
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {items.length > 0 && (
+              <button
+                onClick={clearCart}
+                className="rounded-lg px-2 py-1 text-xs text-zinc-400 transition hover:bg-red-500/10 hover:text-red-400"
+              >
+                Vaciar
+              </button>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* SCROLL AREA */}
