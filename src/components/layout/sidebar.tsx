@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Package, BarChart3,
   Users, ClipboardList, ArrowLeftRight, Receipt,
@@ -85,10 +85,16 @@ export default function Sidebar({
   onToggleCollapsed?: () => void
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const isMobile = Boolean(mobileOpen)
   const isCollapsed = collapsed && !isMobile
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+
+  function goTo(href: string) {
+    router.push(href)
+    onClose?.()
+  }
 
   const visible = NAV_ITEMS.filter((item) => {
     // SUPER ADMIN VE TODO
@@ -121,7 +127,9 @@ export default function Sidebar({
       try {
         setOpenSections(JSON.parse(saved))
         return
-      } catch {}
+      } catch {
+        // fallback
+      }
     }
 
     setOpenSections(
@@ -139,7 +147,6 @@ export default function Sidebar({
 
     setOpenSections((prev) => {
       if (prev[activeSection]) return prev
-
       const next = { ...prev, [activeSection]: true }
       window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
       return next
@@ -249,10 +256,14 @@ export default function Sidebar({
                     (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
 
                   return (
-                    <Link
+                    <button
                       key={item.href}
-                      href={item.href}
-                      onClick={() => onClose?.()}
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        goTo(item.href)
+                      }}
                       title={item.label}
                       className={clsx(
                         'group relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-sm transition-all',
@@ -266,7 +277,7 @@ export default function Sidebar({
                       <span className="pointer-events-none fixed left-[82px] z-[999] hidden whitespace-nowrap rounded-lg border border-[#222831] bg-[#151A22] px-2.5 py-1.5 text-xs font-semibold text-[#F3F5F7] shadow-xl group-hover:block">
                         {item.label}
                       </span>
-                    </Link>
+                    </button>
                   )
                 })}
               </div>
@@ -307,20 +318,24 @@ export default function Sidebar({
                       (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
 
                     return (
-                      <Link
+                      <button
                         key={item.href}
-                        href={item.href}
-                        onClick={() => onClose?.()}
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          goTo(item.href)
+                        }}
                         className={clsx(
-                          'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                          'group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-all',
                           active
                             ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
                             : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
                         )}
                       >
                         {item.icon}
-                        {item.label}
-                      </Link>
+                        <span>{item.label}</span>
+                      </button>
                     )
                   })}
                 </div>
