@@ -575,26 +575,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     };
   }, []);
 
-  const cashReceivedAmount = useMemo(() => {
-    const digits = cashReceived.replace(/\D/g, "");
-    return Number(digits || 0);
-  }, [cashReceived]);
-
-  const cashChange = Math.max(0, cashReceivedAmount - amountToCharge);
-  const cashMissing = Math.max(0, amountToCharge - cashReceivedAmount);
-  const cashInputDisplay = cashReceivedAmount === 0
-    ? "0"
-    : cashReceivedAmount.toLocaleString("es-CL");
-
-  const setCashAmount = (value: number) => {
-    const safeValue = Math.max(0, Math.round(Number(value) || 0));
-    setCashReceived(String(safeValue));
-    setCashError(null);
-  };
-
-  const getFulfillmentType = (productId: string) =>
-    productionItems[productId] ? "production" : "immediate";
-
   const hasProductionItems = useMemo(
     () => items.some((item) => productionItems[item.product.id]),
     [items, productionItems],
@@ -643,6 +623,26 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     }),
     [hasProductionItems, amountToCharge, productionBalanceDue],
   );
+
+  const cashReceivedAmount = useMemo(() => {
+    const digits = cashReceived.replace(/\D/g, "");
+    return Number(digits || 0);
+  }, [cashReceived]);
+
+  const cashChange = Math.max(0, cashReceivedAmount - amountToCharge);
+  const cashMissing = Math.max(0, amountToCharge - cashReceivedAmount);
+  const cashInputDisplay = cashReceivedAmount === 0
+    ? "0"
+    : cashReceivedAmount.toLocaleString("es-CL");
+
+  const setCashAmount = (value: number) => {
+    const safeValue = Math.max(0, Math.round(Number(value) || 0));
+    setCashReceived(String(safeValue));
+    setCashError(null);
+  };
+
+  const getFulfillmentType = (productId: string) =>
+    productionItems[productId] ? "production" : "immediate";
 
   const toggleProductionItem = (productId: string) => {
     setProductionItems((current) => ({
@@ -2147,16 +2147,19 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       <span>Total productos producción</span>
                       <span className="font-bold">{fmt(productionSubtotal)}</span>
                     </div>
+
                     {immediateSubtotal > 0 && (
                       <div className="mb-1 flex justify-between text-zinc-400">
                         <span>Entrega inmediata</span>
                         <span className="font-bold">{fmt(immediateSubtotal)}</span>
                       </div>
                     )}
+
                     <div className="flex justify-between text-violet-300">
                       <span>Abono hoy 50%</span>
                       <span className="font-black">{fmt(productionDepositAmount)}</span>
                     </div>
+
                     <div className="mt-1 flex justify-between text-amber-300">
                       <span>Saldo al retiro</span>
                       <span className="font-black">{fmt(productionBalanceDue)}</span>
