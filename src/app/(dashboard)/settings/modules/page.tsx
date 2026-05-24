@@ -8,6 +8,8 @@ import {
   ClipboardList, BarChart3, Calculator, Tags,
   Truck, Users, Settings, Barcode, RefreshCw,
   ChevronDown, ChevronRight,
+  BrainCircuit, Sparkles, LineChart, Telescope,
+  DollarSign, TrendingUp,
 } from 'lucide-react'
 
 // ── Módulos y permisos granulares ──────────────────────────────────────────
@@ -113,6 +115,20 @@ const PERMISSION_GROUPS = [
           { key: 'products.prices',     label: 'Ver y editar precios' },
         ]
       },
+
+      {
+        key: 'pricing_center',
+        label: 'Pricing Center',
+        icon: DollarSign,
+        description: 'Gestión avanzada de precios',
+        permissions: [
+          { key: 'pricing.view', label: 'Ver Pricing Center' },
+          { key: 'pricing.edit', label: 'Editar precios' },
+          { key: 'pricing.history', label: 'Ver historial de precios' },
+          { key: 'pricing.margins', label: 'Ver márgenes' },
+        ]
+      },
+
       {
         key: 'reports',
         label: 'Reportes',
@@ -148,6 +164,50 @@ const PERMISSION_GROUPS = [
       },
     ]
   },
+
+  {
+    section: '🧠 Inteligencia',
+    modules: [
+      {
+        key: 'executive_center',
+        label: 'Executive Center',
+        icon: BrainCircuit,
+        description: 'Panel ejecutivo principal',
+        permissions: [
+          { key: 'executive.view', label: 'Ver Executive Center' },
+        ]
+      },
+      {
+        key: 'analytics',
+        label: 'Analytics',
+        icon: LineChart,
+        description: 'Análisis operacional',
+        permissions: [
+          { key: 'analytics.view', label: 'Ver Analytics' },
+          { key: 'analytics.export', label: 'Exportar Analytics' },
+        ]
+      },
+      {
+        key: 'ai_insights',
+        label: 'IA Insights',
+        icon: Sparkles,
+        description: 'Insights automáticos',
+        permissions: [
+          { key: 'ai_insights.view', label: 'Ver IA Insights' },
+        ]
+      },
+      {
+        key: 'forecast',
+        label: 'Forecast',
+        icon: Telescope,
+        description: 'Proyecciones inteligentes',
+        permissions: [
+          { key: 'forecast.view', label: 'Ver Forecast' },
+        ]
+      },
+    ]
+  },
+
 ]
 
 const ROLES = [
@@ -204,6 +264,17 @@ const DEFAULTS: Record<string, Record<string, boolean>> = {
 
     'categories.view': true,
     'categories.manage': true,
+
+    'pricing.view': true,
+    'pricing.edit': true,
+    'pricing.history': true,
+    'pricing.margins': true,
+
+    'executive.view': true,
+    'analytics.view': true,
+    'analytics.export': true,
+    'ai_insights.view': true,
+    'forecast.view': true,
   },
 
   admin: {
