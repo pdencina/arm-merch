@@ -2169,7 +2169,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                 <div className="border-t border-white/6 pt-2 flex items-end justify-between">
                   <span className="text-zinc-300 text-sm">
-                    {hasProductionItems ? "{hasProductionItems ? 'Abono requerido hoy' : 'Total a cobrar'} hoy" : "{hasProductionItems ? 'Abono requerido hoy' : 'Total a cobrar'}"}
+                    {hasProductionItems ? "Abono requerido hoy" : "Total a cobrar"}
                   </span>
                   <motion.span
                     key={amountToCharge}
@@ -2258,7 +2258,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
             <div className="mb-5 space-y-3 rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-4 text-left">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-500">{hasProductionItems ? 'Abono requerido hoy' : 'Total a cobrar'}</span>
+                <span className="text-zinc-500">{hasProductionItems ? "Abono requerido hoy" : "Total a cobrar"}</span>
                 <span className="text-base font-black text-amber-400">
                   {fmt(amountToCharge)}
                 </span>
