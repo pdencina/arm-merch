@@ -7,9 +7,10 @@ import {
   Users, ClipboardList, ArrowLeftRight, Receipt,
   ArrowRightLeft, User, Calculator, MapPin, Tags,
   X, Truck, Layers, PanelLeftClose, PanelLeftOpen,
-  BrainCircuit, Sparkles, LineChart, Telescope,
+  BrainCircuit, Sparkles, LineChart, Telescope, ChevronDown,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { useEffect, useMemo, useState } from 'react'
 
 type Role = 'super_admin' | 'adm_merch' | 'admin' | 'voluntario'
 
@@ -47,6 +48,18 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECTION_ORDER = ['General', 'Ventas', 'Inventario', 'Gestión', 'Inteligencia', 'Configuración', 'Mi cuenta']
 
+const SIDEBAR_SECTIONS_STORAGE_KEY = 'arm_merch_sidebar_open_sections'
+
+const SECTION_META: Record<string, { label: string; icon: React.ReactNode }> = {
+  General: { label: 'General', icon: <LayoutDashboard size={14} /> },
+  Ventas: { label: 'Ventas', icon: <ShoppingCart size={14} /> },
+  Inventario: { label: 'Inventario', icon: <Package size={14} /> },
+  Gestión: { label: 'Gestión', icon: <ClipboardList size={14} /> },
+  Inteligencia: { label: 'Inteligencia', icon: <BrainCircuit size={14} /> },
+  Configuración: { label: 'Configuración', icon: <Layers size={14} /> },
+  'Mi cuenta': { label: 'Mi cuenta', icon: <User size={14} /> },
+}
+
 const ROLE_CONFIG: Record<Role, { label: string; color: string; description: string }> = {
   super_admin: { label: 'Super Admin', description: 'Acceso global · Todos los campus', color: 'bg-[#1B2028] text-[#B7C6F9] border-[#273041]' },
   adm_merch: { label: 'ADM Merch', description: 'Gestión operacional · Multi campus', color: 'bg-[#1B2028] text-[#CDB4FF] border-[#31224D]' },
@@ -75,6 +88,8 @@ export default function Sidebar({
   const isMobile = Boolean(mobileOpen)
   const isCollapsed = collapsed && !isMobile
 
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+
   const visible = NAV_ITEMS.filter((item) => {
     // SUPER ADMIN VE TODO
     if (role === 'super_admin') return true
@@ -92,6 +107,60 @@ export default function Sidebar({
 
     return permissions[item.permKey] !== false
   })
+
+  const visibleSections = useMemo(() => {
+    return SECTION_ORDER.filter((section) =>
+      visible.some((item) => item.section === section)
+    )
+  }, [visible])
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        setOpenSections(parsed)
+        return
+      } catch {
+        // fallback abajo
+      }
+    }
+
+    const defaults = Object.fromEntries(
+      visibleSections.map((section) => [section, true])
+    )
+
+    setOpenSections(defaults)
+  }, [visibleSections])
+
+  useEffect(() => {
+    const activeSection = visible.find((item) =>
+      pathname === item.href ||
+      (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+    )?.section
+
+    if (!activeSection) return
+
+    setOpenSections((prev) => {
+      if (prev[activeSection]) return prev
+      const next = { ...prev, [activeSection]: true }
+      window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [pathname, visible])
+
+  function toggleSection(section: string) {
+    setOpenSections((prev) => {
+      const next = {
+        ...prev,
+        [section]: !prev[section],
+      }
+
+      window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }
 
   const config = ROLE_CONFIG[role] ?? ROLE_CONFIG.voluntario
 
@@ -160,46 +229,117 @@ export default function Sidebar({
           const items = visible.filter((item) => item.section === section)
           if (items.length === 0) return null
 
-          return (
-            <div key={section} className="mb-2">
-              {!isCollapsed ? (
-                <p className="mb-1 mt-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-[#66707F]">
-                  {section}
-                </p>
-              ) : (
-                <div className="mx-auto my-2 h-px w-8 bg-[#222831]" />
-              )}
+          const meta = SECTION_META[section] ?? { label: section, icon: null }
+          const sectionIsActive = items.some((item) =>
+            pathname === item.href ||
+            (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+          )
+          const isOpen = openSections[section] ?? true
 
-              {items.map((item) => {
-                const active =
-                  pathname === item.href ||
-                  (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+          if (isCollapsed) {
+            return (
+              <div key={section} className="mb-2">
+                <div
+                  title={meta.label}
+                  className={clsx(
+                    'mx-auto my-2 flex h-8 w-8 items-center justify-center rounded-xl border text-[#66707F]',
+                    sectionIsActive
+                      ? 'border-[#273041] bg-[#1A2230] text-[#B7C6F9]'
+                      : 'border-[#222831] bg-[#10151C]'
+                  )}
+                >
+                  {meta.icon}
+                </div>
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    title={isCollapsed ? item.label : undefined}
-                    className={clsx(
-                      'group relative flex items-center rounded-xl text-sm transition-all',
-                      isCollapsed ? 'mx-auto h-11 w-11 justify-center px-0' : 'gap-3 px-3 py-2.5',
-                      active
-                        ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
-                        : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
-                    )}
-                  >
-                    {item.icon}
-                    {!isCollapsed && item.label}
+                {items.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
 
-                    {isCollapsed && (
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      title={item.label}
+                      className={clsx(
+                        'group relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-sm transition-all',
+                        active
+                          ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
+                          : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
+                      )}
+                    >
+                      {item.icon}
+
                       <span className="pointer-events-none fixed left-[82px] z-[999] hidden whitespace-nowrap rounded-lg border border-[#222831] bg-[#151A22] px-2.5 py-1.5 text-xs font-semibold text-[#F3F5F7] shadow-xl group-hover:block">
                         {item.label}
                       </span>
-                    )}
-                  </Link>
-                )
-              })}
+                    </Link>
+                  )
+                })}
+              </div>
+            )
+          }
+
+          return (
+            <div key={section} className="mb-2">
+              <button
+                type="button"
+                onClick={() => toggleSection(section)}
+                className={clsx(
+                  'mb-1 mt-2 flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition',
+                  sectionIsActive
+                    ? 'bg-[#111923] text-[#B7C6F9]'
+                    : 'text-[#66707F] hover:bg-[#111923] hover:text-[#D8DEE9]'
+                )}
+              >
+                <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                  {meta.icon}
+                  {meta.label}
+                </span>
+
+                <ChevronDown
+                  size={14}
+                  className={clsx(
+                    'transition-transform duration-200',
+                    isOpen ? 'rotate-180' : 'rotate-0'
+                  )}
+                />
+              </button>
+
+              <div
+                className={clsx(
+                  'grid transition-all duration-300 ease-in-out',
+                  isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div className="flex flex-col gap-1 pb-1">
+                    {items.map((item) => {
+                      const active =
+                        pathname === item.href ||
+                        (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onClose}
+                          className={clsx(
+                            'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                            active
+                              ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
+                              : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
+                          )}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           )
         })}
