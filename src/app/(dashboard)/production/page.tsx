@@ -198,71 +198,24 @@ export default function ProductionPage() {
       return
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, campus_id')
-      .eq('id', session.user.id)
-      .single()
+    const res = await fetch('/api/production/orders', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
 
-    setRole(profile?.role ?? '')
-    setCampusId(profile?.campus_id ?? null)
+    const data = await res.json().catch(() => null)
 
-    let query = supabase
-      .from('orders')
-      .select(`
-        id,
-        order_number,
-        campus_id,
-        pickup_campus_id,
-        total,
-        amount_paid,
-        balance_due,
-        payment_status,
-        payment_type,
-        created_at,
-        production_status,
-        tracking_token,
-        order_contacts(client_name, client_email, client_phone),
-        order_items(
-          id,
-          quantity,
-          unit_price,
-          size,
-          fulfillment_type,
-          production_started_at,
-          ready_pickup_at,
-          delivered_at,
-          products(name, sku)
-        )
-      `)
-      .in('production_status', [
-        'pending_production',
-        'in_production',
-        'ready_pickup',
-        'delivered',
-      ])
-      .order('created_at', { ascending: false })
-
-    if (profile?.role !== 'super_admin' && profile?.campus_id) {
-      query = query.or(
-        `campus_id.eq.${profile.campus_id},pickup_campus_id.eq.${profile.campus_id}`
-      )
-    }
-
-    const [{ data: orderData, error: orderError }, { data: campusData }] =
-      await Promise.all([
-        query,
-        supabase.from('campus').select('id, name').order('name'),
-      ])
-
-    if (orderError) {
-      setError(orderError.message)
+    if (!res.ok) {
+      setError(data?.error ?? 'No se pudieron cargar los pedidos de producción')
       setLoading(false)
       return
     }
 
-    setOrders((orderData ?? []) as OrderRow[])
-    setCampuses((campusData ?? []) as CampusRow[])
+    setRole(data?.profile?.role ?? '')
+    setCampusId(data?.profile?.campus_id ?? null)
+    setOrders((data?.orders ?? []) as OrderRow[])
+    setCampuses((data?.campuses ?? []) as CampusRow[])
     setLoading(false)
   }
 
@@ -791,9 +744,9 @@ export default function ProductionPage() {
                           </span>
                         </div>
 
-                        {productionItems.length === 0 ? (
+                        {deliveryItems.length === 0 ? (
                           <p className="text-sm text-zinc-500">
-                            {workflowStatus === 'ready_pickup' ? 'No hay productos asociados para entregar.' : 'Esta orden no tiene productos marcados para producción.'}
+                            {workflowStatus === 'ready_pickup' ? 'No hay productos asociados para entregar. Revisa que la orden tenga items guardados.' : 'Esta orden no tiene productos marcados para producción.'}
                           </p>
                         ) : (
                           <div className="space-y-2">
