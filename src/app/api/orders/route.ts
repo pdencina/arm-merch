@@ -67,6 +67,11 @@ export async function POST(req: NextRequest) {
     const clientName: string | null = String(body.client_name ?? '').trim() || null
     const clientEmail: string | null = String(body.client_email ?? '').trim().toLowerCase() || null
     const clientPhone: string | null = String(body.client_phone ?? '').trim() || null
+    const requestedPaymentType: string | null = body.payment_type ?? null
+    const requestedDepositPercentage = Number(body.deposit_percentage ?? 100)
+    const requestedAmountPaid = Number(body.amount_paid ?? NaN)
+    const requestedBalanceDue = Number(body.balance_due ?? NaN)
+    const requestedPaymentStatus: string | null = body.payment_status ?? null
 
     const isSmartPOS = paymentMethod === 'sumup' || String(extraNotes ?? '').includes('Smart POS')
 
@@ -192,6 +197,39 @@ export async function POST(req: NextRequest) {
     const productionStatus = isProductionOrder ? 'pending_production' : 'not_required'
     const pickupCampusId = body.pickup_campus_id || sellingCampusId
 
+    const productionTotal = normalizedItems
+      .filter((item) => item.fulfillment_type === 'production')
+      .reduce((sum, item) => sum + item.unit_price * item.quantity * (1 - item.discount_pct / 100), 0)
+
+    const immediateTotal = Math.max(0, totalCalculado - productionTotal)
+
+    const defaultAmountPaid = isProductionOrder
+      ? immediateTotal + Math.round(productionTotal * 0.5)
+      : totalCalculado
+
+    const amountPaid = Number.isFinite(requestedAmountPaid)
+      ? Math.round(requestedAmountPaid)
+      : Math.round(defaultAmountPaid)
+
+    const balanceDue = Number.isFinite(requestedBalanceDue)
+      ? Math.round(requestedBalanceDue)
+      : Math.max(0, Math.round(totalCalculado - amountPaid))
+
+    const paymentType =
+      requestedPaymentType ||
+      (isProductionOrder && balanceDue > 0 ? 'deposit_50' : 'full_payment')
+
+    const depositPercentage =
+      Number.isFinite(requestedDepositPercentage) && requestedDepositPercentage > 0
+        ? requestedDepositPercentage
+        : paymentType === 'deposit_50'
+          ? 50
+          : 100
+
+    const orderPaymentStatus =
+      requestedPaymentStatus ||
+      (balanceDue > 0 ? 'partial' : initialStatus === 'paid' ? 'paid' : 'pending')
+
     // ── Crear orden ──
     const { data: createdOrder, error: orderError } = await adminClient
       .from('orders')
@@ -202,6 +240,11 @@ export async function POST(req: NextRequest) {
         payment_method: paymentMethod,
         discount,
         total: Math.round(totalCalculado),
+        amount_paid: amountPaid,
+        balance_due: balanceDue,
+        payment_status: orderPaymentStatus,
+        payment_type: paymentType,
+        deposit_percentage: depositPercentage,
         notes: combinedNotes,
         status: initialStatus,
         delivery_status: deliveryStatus,
@@ -210,7 +253,7 @@ export async function POST(req: NextRequest) {
         production_status: productionStatus,
         pickup_campus_id: pickupCampusId,
       })
-      .select('id, order_number, status, created_at, total, discount, payment_method, notes, tracking_token, production_status, pickup_campus_id')
+      .select('id, order_number, status, created_at, total, discount, payment_method, notes, tracking_token, production_status, pickup_campus_id, amount_paid, balance_due, payment_status, payment_type, deposit_percentage')
       .single()
 
     if (orderError || !createdOrder) {
@@ -259,9 +302,11 @@ export async function POST(req: NextRequest) {
       order_id: createdOrder.id,
       status: 'purchase_confirmed',
       title: 'Compra confirmada',
-      message: initialStatus === 'paid'
-        ? 'Tu compra fue confirmada correctamente.'
-        : 'Recibimos tu pedido y estamos esperando confirmación del pago.',
+      message: orderPaymentStatus === 'partial'
+        ? `Recibimos tu abono de $${amountPaid.toLocaleString('es-CL')}. Saldo pendiente al retiro: $${balanceDue.toLocaleString('es-CL')}.`
+        : initialStatus === 'paid'
+          ? 'Tu compra fue confirmada correctamente.'
+          : 'Recibimos tu pedido y estamos esperando confirmación del pago.',
       created_by: profile.id,
     })
 
@@ -326,6 +371,10 @@ export async function POST(req: NextRequest) {
       order_id: createdOrder.id,
       order_number: createdOrder.order_number,
       status: createdOrder.status,
+      payment_status: createdOrder.payment_status,
+      amount_paid: createdOrder.amount_paid,
+      balance_due: createdOrder.balance_due,
+      payment_type: createdOrder.payment_type,
       email_sent: emailSent,
       tracking_token: createdOrder.tracking_token,
       tracking_url: createdOrder.tracking_token ? `${getAppUrl(req)}/track/${createdOrder.tracking_token}` : null,

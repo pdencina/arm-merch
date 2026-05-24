@@ -580,8 +580,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     return Number(digits || 0);
   }, [cashReceived]);
 
-  const cashChange = Math.max(0, cashReceivedAmount - total());
-  const cashMissing = Math.max(0, total() - cashReceivedAmount);
+  const cashChange = Math.max(0, cashReceivedAmount - amountToCharge);
+  const cashMissing = Math.max(0, amountToCharge - cashReceivedAmount);
   const cashInputDisplay = cashReceivedAmount === 0
     ? "0"
     : cashReceivedAmount.toLocaleString("es-CL");
@@ -598,6 +598,50 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const hasProductionItems = useMemo(
     () => items.some((item) => productionItems[item.product.id]),
     [items, productionItems],
+  );
+
+  const productionSubtotal = useMemo(
+    () =>
+      items.reduce((sum, item) => {
+        if (!productionItems[item.product.id]) return sum;
+        return sum + item.unit_price * item.quantity;
+      }, 0),
+    [items, productionItems],
+  );
+
+  const immediateSubtotal = useMemo(
+    () =>
+      items.reduce((sum, item) => {
+        if (productionItems[item.product.id]) return sum;
+        return sum + item.unit_price * item.quantity;
+      }, 0),
+    [items, productionItems],
+  );
+
+  const productionDepositAmount = useMemo(
+    () => Math.round(productionSubtotal * 0.5),
+    [productionSubtotal],
+  );
+
+  const productionBalanceDue = useMemo(
+    () => Math.max(0, productionSubtotal - productionDepositAmount),
+    [productionSubtotal, productionDepositAmount],
+  );
+
+  const amountToCharge = useMemo(
+    () => (hasProductionItems ? immediateSubtotal + productionDepositAmount : total()),
+    [hasProductionItems, immediateSubtotal, productionDepositAmount, total],
+  );
+
+  const paymentPayload = useMemo(
+    () => ({
+      payment_type: hasProductionItems ? "deposit_50" : "full_payment",
+      deposit_percentage: hasProductionItems ? 50 : 100,
+      amount_paid: amountToCharge,
+      balance_due: hasProductionItems ? productionBalanceDue : 0,
+      payment_status: hasProductionItems ? "partial" : "paid",
+    }),
+    [hasProductionItems, amountToCharge, productionBalanceDue],
   );
 
   const toggleProductionItem = (productId: string) => {
@@ -1214,7 +1258,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   }
 
   async function handleConfirmCashSale() {
-    const orderTotal = total();
+    const orderTotal = amountToCharge;
 
     if (cashReceivedAmount < orderTotal) {
       setCashError(
@@ -1275,6 +1319,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           discount: 0,
           notes: cashNotes || null,
           delivery_status: hasProductionItems ? "pending" : null,
+          ...paymentPayload,
         }),
       });
 
@@ -1382,6 +1427,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             client_phone: clientPhone.trim() || null,
             notes: "SumUp SOLO - pago enviado al lector",
             delivery_status: hasProductionItems ? "pending" : null,
+          ...paymentPayload,
           }),
         });
 
@@ -1395,7 +1441,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
         const orderId = orderData.order_id;
         const orderNumber = orderData.order_number ?? orderId;
-        const orderTotal = total();
+        const orderTotal = amountToCharge;
 
         const soloRes = await fetch("/api/sumup/solo-checkout", {
           method: "POST",
@@ -1482,6 +1528,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             client_phone: clientPhone.trim() || null,
             notes: "Smart POS SumUp - pendiente de validación TX",
             delivery_status: hasProductionItems ? "pending" : null,
+          ...paymentPayload,
           }),
         });
 
@@ -1495,7 +1542,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
         const orderId = orderData.order_id;
         const orderNumber = orderData.order_number ?? orderId;
-        const orderTotal = total();
+        const orderTotal = amountToCharge;
 
         setSumupSmartOrder({
           id: orderId,
@@ -1515,7 +1562,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       // ── Si es link de pago, crear checkout en SumUp primero ──
       // ── Si es transferencia, mostrar QR antes de confirmar ──
       if (paymentMethod === "transferencia") {
-        setTransferTotal(total());
+        setTransferTotal(amountToCharge);
         setShowTransferQR(true);
         setSubmitting(false);
         return;
@@ -1534,7 +1581,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             Authorization: `Bearer ${authSession.access_token}`,
           },
           body: JSON.stringify({
-            amount: total(),
+            amount: amountToCharge,
             currency: "CLP",
             description: `Pedido ARM Merch - ${clientName.trim()}`,
             order_id: `arm-${Date.now()}`,
@@ -1553,7 +1600,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         setPaymentLinkUrl(checkoutData.payment_url);
         setPaymentQrCheckoutId(checkoutData.checkout_id);
         setPaymentQrCheckoutRef(checkoutData.checkout_reference);
-        setPaymentQrTotal(total());
+        setPaymentQrTotal(amountToCharge);
         setPaymentQrStatus("pending");
         setPaymentQrMessage("Esperando confirmación automática del pago...");
 
@@ -1604,6 +1651,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               ? `sumup:${(window as any).__sumupCheckoutRef}`
               : notes.trim() || null,
           delivery_status: hasProductionItems ? "pending" : null,
+          ...paymentPayload,
         }),
       });
 
@@ -1611,7 +1659,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       if (!res.ok)
         throw new Error(data?.error || "Error al registrar la venta.");
 
-      const orderTotal = total();
+      const orderTotal = amountToCharge;
 
       setIsPendingDelivery(false);
       setProductionItems({});
@@ -2083,7 +2131,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   )}
                 </motion.div>
               )}
-
               {/* RESUMEN TOTAL */}
               <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-4 space-y-2">
                 <div className="flex justify-between text-sm text-zinc-400">
@@ -2094,15 +2141,40 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   <span>{fmt(subtotal())}</span>
                 </div>
 
+                {hasProductionItems && (
+                  <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3 text-xs">
+                    <div className="mb-1 flex justify-between text-zinc-300">
+                      <span>Total productos producción</span>
+                      <span className="font-bold">{fmt(productionSubtotal)}</span>
+                    </div>
+                    {immediateSubtotal > 0 && (
+                      <div className="mb-1 flex justify-between text-zinc-400">
+                        <span>Entrega inmediata</span>
+                        <span className="font-bold">{fmt(immediateSubtotal)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-violet-300">
+                      <span>Abono hoy 50%</span>
+                      <span className="font-black">{fmt(productionDepositAmount)}</span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-amber-300">
+                      <span>Saldo al retiro</span>
+                      <span className="font-black">{fmt(productionBalanceDue)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="border-t border-white/6 pt-2 flex items-end justify-between">
-                  <span className="text-zinc-300 text-sm">Total a cobrar</span>
+                  <span className="text-zinc-300 text-sm">
+                    {hasProductionItems ? "Total a cobrar hoy" : "Total a cobrar"}
+                  </span>
                   <motion.span
-                    key={total()}
+                    key={amountToCharge}
                     initial={{ scale: 1.08 }}
                     animate={{ scale: 1 }}
                     className="text-[26px] font-black tracking-tight text-white"
                   >
-                    {fmt(total())}
+                    {fmt(amountToCharge)}
                   </motion.span>
                 </div>
               </div>
@@ -2135,17 +2207,17 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 ) : hasProductionItems ? (
                   <span className="flex items-center justify-center gap-2">
                     <Clock size={18} />
-                    Registrar venta · {fmt(total())}
+                    Registrar abono · {fmt(amountToCharge)}
                   </span>
                 ) : paymentMethod === "efectivo" ? (
                   <span className="flex items-center justify-center gap-2">
                     <Banknote size={18} />
-                    Cobrar efectivo · {fmt(total())}
+                    Cobrar efectivo · {fmt(amountToCharge)}
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <CreditCard size={18} />
-                    Confirmar venta · {fmt(total())}
+                    Confirmar venta · {fmt(amountToCharge)}
                   </span>
                 )}
               </motion.button>
@@ -2658,6 +2730,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     notes: notes?.trim() || null,
                     discount: 0,
                     delivery_status: hasProductionItems ? "pending" : null,
+          ...paymentPayload,
                   }),
                 });
                 const data = await res.json();
