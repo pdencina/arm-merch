@@ -119,19 +119,14 @@ export default function Sidebar({
 
     if (saved) {
       try {
-        const parsed = JSON.parse(saved)
-        setOpenSections(parsed)
+        setOpenSections(JSON.parse(saved))
         return
-      } catch {
-        // fallback abajo
-      }
+      } catch {}
     }
 
-    const defaults = Object.fromEntries(
-      visibleSections.map((section) => [section, true])
+    setOpenSections(
+      Object.fromEntries(visibleSections.map((section) => [section, true]))
     )
-
-    setOpenSections(defaults)
   }, [visibleSections])
 
   useEffect(() => {
@@ -144,6 +139,7 @@ export default function Sidebar({
 
     setOpenSections((prev) => {
       if (prev[activeSection]) return prev
+
       const next = { ...prev, [activeSection]: true }
       window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
       return next
@@ -152,11 +148,7 @@ export default function Sidebar({
 
   function toggleSection(section: string) {
     setOpenSections((prev) => {
-      const next = {
-        ...prev,
-        [section]: !prev[section],
-      }
-
+      const next = { ...prev, [section]: !prev[section] }
       window.localStorage.setItem(SIDEBAR_SECTIONS_STORAGE_KEY, JSON.stringify(next))
       return next
     })
@@ -260,7 +252,7 @@ export default function Sidebar({
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={onClose}
+                      onClick={() => onClose?.()}
                       title={item.label}
                       className={clsx(
                         'group relative mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-sm transition-all',
@@ -307,39 +299,32 @@ export default function Sidebar({
                 />
               </button>
 
-              <div
-                className={clsx(
-                  'grid transition-all duration-300 ease-in-out',
-                  isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                )}
-              >
-                <div className="overflow-hidden">
-                  <div className="flex flex-col gap-1 pb-1">
-                    {items.map((item) => {
-                      const active =
-                        pathname === item.href ||
-                        (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+              {isOpen && (
+                <div className="flex flex-col gap-1 pb-1">
+                  {items.map((item) => {
+                    const active =
+                      pathname === item.href ||
+                      (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
 
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={onClose}
-                          className={clsx(
-                            'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
-                            active
-                              ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
-                              : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
-                          )}
-                        >
-                          {item.icon}
-                          {item.label}
-                        </Link>
-                      )
-                    })}
-                  </div>
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => onClose?.()}
+                        className={clsx(
+                          'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                          active
+                            ? 'bg-[#1A2230] font-semibold text-[#B7C6F9]'
+                            : 'text-[#96A0AE] hover:bg-[#161C24] hover:text-[#F3F5F7]'
+                        )}
+                      >
+                        {item.icon}
+                        {item.label}
+                      </Link>
+                    )
+                  })}
                 </div>
-              </div>
+              )}
             </div>
           )
         })}
