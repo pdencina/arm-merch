@@ -1020,7 +1020,6 @@ export default function ProductionPage() {
                   </span>
                 </div>
               </div>
-            </div>
                 </>
               ) : (
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-left">
