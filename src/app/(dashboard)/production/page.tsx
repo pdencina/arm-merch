@@ -22,6 +22,10 @@ type OrderRow = {
   campus_id: string | null
   pickup_campus_id?: string | null
   total: number
+  amount_paid?: number | null
+  balance_due?: number | null
+  payment_status?: string | null
+  payment_type?: string | null
   created_at: string
   production_status?: string | null
   tracking_token?: string | null
@@ -207,6 +211,10 @@ export default function ProductionPage() {
         campus_id,
         pickup_campus_id,
         total,
+        amount_paid,
+        balance_due,
+        payment_status,
+        payment_type,
         created_at,
         production_status,
         tracking_token,
@@ -597,9 +605,20 @@ export default function ProductionPage() {
 
             const next = NEXT_STATUS[workflowStatus]
 
+            const hasPendingBalance =
+              Number(order.balance_due ?? 0) > 0
+
+            const canDeliver =
+              !hasPendingBalance &&
+              (
+                role === 'super_admin' ||
+                campusId === pickupCampus
+              )
+
             const canMove =
-              role === 'super_admin' ||
-              (next === 'delivered' && campusId === pickupCampus)
+              next === 'delivered'
+                ? canDeliver
+                : role === 'super_admin'
 
             const sla = getSlaInfo({
               ...order,
@@ -662,6 +681,29 @@ export default function ProductionPage() {
                         value={fmt(Number(order.total ?? 0))}
                         highlight
                       />
+
+                      {Number(order.amount_paid ?? 0) > 0 && (
+                        <Info
+                          label="Abonado"
+                          value={fmt(Number(order.amount_paid ?? 0))}
+                        />
+                      )}
+
+                      {Number(order.balance_due ?? 0) > 0 && (
+                        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+                          <p className="text-[11px] uppercase tracking-widest text-amber-300">
+                            Saldo pendiente
+                          </p>
+
+                          <p className="mt-1 text-sm font-black text-amber-200">
+                            {fmt(Number(order.balance_due ?? 0))}
+                          </p>
+
+                          <p className="mt-1 text-xs text-zinc-400">
+                            Debe pagarse antes de marcar entregado.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 space-y-4">
@@ -775,6 +817,22 @@ export default function ProductionPage() {
                       >
                         Ver tracking cliente
                       </Link>
+                    )}
+
+                    {workflowStatus === 'ready_pickup' &&
+                      Number(order.balance_due ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-300"
+                        >
+                          Cobrar saldo pendiente · {fmt(Number(order.balance_due ?? 0))}
+                        </button>
+                      )}
+
+                    {next && !canMove && next === 'delivered' && Number(order.balance_due ?? 0) > 0 && (
+                      <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200">
+                        No se puede entregar. Primero debe pagar el saldo pendiente.
+                      </div>
                     )}
 
                     {next && canMove && (
