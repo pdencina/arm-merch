@@ -6,11 +6,13 @@ import InventoryClient from './inventory-client'
 
 type Category = {
   id: string
+  product_id?: string
   name: string
 }
 
 type ProductRow = {
   id: string
+  product_id?: string
   name: string
   description?: string | null
   price: number
@@ -35,6 +37,7 @@ type ProductRow = {
 
 type CampusOption = {
   id: string
+  product_id?: string
   name: string
 }
 
@@ -108,6 +111,7 @@ export default function InventoryPage() {
 
       return {
         id: product.id,
+        product_id: product.id,
         name: product.name,
         description: product.description,
         price: Number(product.price ?? 0),

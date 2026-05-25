@@ -95,7 +95,7 @@ export default function ProductTable({ products, campus, onMovement, onSetZero }
               const campusColor = campusName ? (CAMPUS_COLORS[campusName] ?? 'bg-zinc-700/50 text-zinc-400 border-zinc-600/20') : null
 
               return (
-                <tr key={`${product.id}-${product.campus_id}`}
+                <tr key={product.inventory_id ?? `${product.id}-${product.campus_id}`}
                   className="border-b border-zinc-700/30 hover:bg-zinc-700/20 transition">
                   <td className="px-4 py-3 text-xs text-zinc-600">{idx + 1}</td>
 

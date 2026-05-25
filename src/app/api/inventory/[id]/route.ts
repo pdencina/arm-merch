@@ -52,7 +52,7 @@ export async function PATCH(
       )
     }
 
-    if (!['super_admin', 'admin'].includes(profile.role)) {
+    if (!['super_admin', 'admin', 'adm_merch', 'voluntario'].includes(profile.role)) {
       return NextResponse.json(
         { error: 'No autorizado para editar inventario' },
         { status: 403 }
@@ -89,7 +89,7 @@ export async function PATCH(
       )
     }
 
-    if (profile.role === 'admin') {
+    if (!['super_admin', 'adm_merch'].includes(profile.role)) {
       if (!profile.campus_id || profile.campus_id !== campusId) {
         return NextResponse.json(
           { error: 'No tienes permiso para editar inventario de otro campus' },
