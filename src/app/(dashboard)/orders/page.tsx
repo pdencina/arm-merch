@@ -96,7 +96,7 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('paid')
   const [paymentFilter, setPaymentFilter] = useState('')
 
   useEffect(() => {

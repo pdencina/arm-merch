@@ -165,12 +165,12 @@ export default function DashboardPage() {
       let ordersQ = supabase
         .from('orders')
         .select('id, total, discount, created_at, campus_id, payment_method, seller_id, order_number')
-        .in('status', ['paid', 'pending'])
+        .eq('status', 'paid')
         .order('created_at', { ascending: false })
 
       let itemsQ = supabase
         .from('order_items')
-        .select('quantity, unit_price, product:products(name), order:orders(id, campus_id, created_at)')
+        .select('quantity, unit_price, product:products(name), order:orders(id, campus_id, created_at, status)')
 
       if (currentRole !== 'super_admin' && currentCampusId) {
         ordersQ = ordersQ.eq('campus_id', currentCampusId)
@@ -189,8 +189,9 @@ export default function DashboardPage() {
       ])
 
       const safeItems = (itemsData ?? []).filter((item: any) => {
-        if (currentRole === 'super_admin') return true
         const o = Array.isArray(item.order) ? item.order[0] : item.order
+        if (String(o?.status ?? '').toLowerCase() !== 'paid') return false
+        if (currentRole === 'super_admin') return true
         return o?.campus_id === currentCampusId
       })
 

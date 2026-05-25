@@ -1,31 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-function getEnv() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-    throw new Error('Faltan variables de entorno de Supabase')
-  }
-
-  return { supabaseUrl, supabaseAnonKey, serviceRoleKey }
-}
-
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
     const authHeader = req.headers.get('authorization')
-
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const token = authHeader.replace('Bearer ', '').trim()
-    const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getEnv()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Faltan variables de entorno' }, { status: 500 })
+    }
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
@@ -36,11 +29,7 @@ export async function POST(
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const {
-      data: { user },
-      error: userError,
-    } = await authClient.auth.getUser()
-
+    const { data: { user }, error: userError } = await authClient.auth.getUser()
     if (userError || !user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
@@ -57,7 +46,7 @@ export async function POST(
 
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, status, payment_status, created_by, campus_id')
+      .select('id, status, payment_status, seller_id, campus_id')
       .eq('id', params.id)
       .single()
 
@@ -68,7 +57,7 @@ export async function POST(
     const canCancel =
       profile.role === 'super_admin' ||
       profile.role === 'adm_merch' ||
-      order.created_by === profile.id ||
+      order.seller_id === profile.id ||
       order.campus_id === profile.campus_id
 
     if (!canCancel) {
