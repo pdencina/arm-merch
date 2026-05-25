@@ -5,9 +5,11 @@ function getEnv() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
   if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
     throw new Error('Faltan variables de entorno de Supabase')
   }
+
   return { supabaseUrl, supabaseAnonKey, serviceRoleKey }
 }
 
@@ -17,6 +19,7 @@ export async function POST(
 ) {
   try {
     const authHeader = req.headers.get('authorization')
+
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
@@ -33,7 +36,11 @@ export async function POST(
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { data: { user }, error: userError } = await authClient.auth.getUser()
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser()
+
     if (userError || !user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }

@@ -1776,6 +1776,31 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     }
   }
 
+
+  async function handleExitPaymentLinkFlow(options?: { clear?: boolean }) {
+    const pendingOrderId = createdOrder?.id ?? null;
+
+    await cancelPendingOrder(pendingOrderId);
+
+    setShowPaymentQR(false);
+    setPaymentLinkUrl(null);
+    setPaymentQrCheckoutId(null);
+    setPaymentQrCheckoutRef(null);
+    setPaymentQrStatus("pending");
+    setPaymentQrMessage("Esperando confirmación automática del pago...");
+    setWhatsappLinkStatus("idle");
+    setWhatsappLinkMessage(null);
+    setCreatedOrder(null);
+
+    if (options?.clear) {
+      setClientPhone("");
+      setProductionItems({});
+      clearCart();
+      onClose?.();
+      setTimeout(() => focusSkuSearchInput(), 250);
+    }
+  }
+
   // ─── render ───────────────────────────────────────────────────────────────
   return (
     <>
@@ -1823,7 +1848,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
             {items.length > 0 && (
               <button
-                onClick={clearCart}
+                onClick={() => handleExitPaymentLinkFlow({ clear: true })}
                 disabled={sumupSmartOpen || sumupPolling}
                 className="rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -2890,22 +2915,6 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </button>
 
                 {createdOrder && clientPhone.trim() && (
-                  <button
-                    onClick={() =>
-                      sendPaymentLinkByWhatsApp({
-                        orderId: createdOrder.id,
-                        orderNumber: createdOrder.number,
-                        paymentUrl: paymentLinkUrl,
-                        amount: paymentQrTotal || createdOrder.total,
-                      })
-                    }
-                    disabled={whatsappLinkStatus === "sending"}
-                    className="mb-3 w-full rounded-2xl border border-green-500/30 bg-green-500/10 py-3 text-sm font-bold text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {whatsappLinkStatus === "sending"
-                      ? "Enviando WhatsApp..."
-                      : "Reenviar link por WhatsApp"}
-                  </button>
                 )}
               </>
             )}
