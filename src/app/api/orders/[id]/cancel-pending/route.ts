@@ -57,7 +57,7 @@ export async function POST(
 
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, status, payment_status, payment_method, created_by, campus_id')
+      .select('id, status, payment_status, created_by, campus_id')
       .eq('id', params.id)
       .single()
 
