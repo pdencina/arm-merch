@@ -1755,6 +1755,27 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     );
   }, [items, total]);
 
+
+  async function cancelPendingOrder(orderId?: string | null) {
+    if (!orderId) return
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      await fetch(`/api/orders/${orderId}/cancel-pending`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+      })
+    } catch (error) {
+      console.error('No se pudo cancelar la orden pendiente:', error)
+    }
+  }
+
   // ─── render ───────────────────────────────────────────────────────────────
   return (
     <>
