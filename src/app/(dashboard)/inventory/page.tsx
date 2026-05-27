@@ -87,11 +87,13 @@ export default function InventoryPage() {
       `)
       .order('updated_at', { ascending: false })
 
-    if (role !== 'super_admin' && currentCampusId) {
+    const hasGlobalAccess = role === 'super_admin' || role === 'adm_merch'
+
+    if (!hasGlobalAccess && currentCampusId) {
       inventoryQuery = inventoryQuery.eq('campus_id', currentCampusId)
     }
 
-    if (role !== 'super_admin' && !currentCampusId) {
+    if (!hasGlobalAccess && !currentCampusId) {
       setProducts([])
       setCampuses([])
       return
@@ -178,7 +180,7 @@ export default function InventoryPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('role, campus_id, campus:campus(name)')
+          .select('role, campus_id')
           .eq('id', session.user.id)
           .single()
 
@@ -190,7 +192,21 @@ export default function InventoryPage() {
 
         const role = profile?.role ?? 'voluntario'
         const currentCampusId = profile?.campus_id ?? null
-        const currentCampusName = (profile?.campus as any)?.name ?? null
+        let currentCampusName: string | null = null
+
+        if (currentCampusId) {
+          const { data: campusData } = await supabase
+            .from('campus')
+            .select('name')
+            .eq('id', currentCampusId)
+            .maybeSingle()
+
+          currentCampusName = campusData?.name ?? null
+        }
+
+        if (role === 'super_admin' || role === 'adm_merch') {
+          currentCampusName = 'Todos los campus'
+        }
 
         setUserRole(role)
         setCampusId(currentCampusId)
