@@ -81,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         const { data, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, email, role, active, campus_id, campus:campus(id, name)')
+          .select('id, full_name, email, role, active, campus_id')
           .eq('id', session.user.id)
           .single()
 
@@ -192,8 +192,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     )
   }
 
-  const campusRaw = profile.campus
-  const campusName = Array.isArray(campusRaw) ? campusRaw[0]?.name : campusRaw?.name
+  const campusName =
+    profile.role === 'super_admin' || profile.role === 'adm_merch'
+      ? 'Todos los campus'
+      : null
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
