@@ -158,6 +158,10 @@ export default function DashboardPage() {
 
       const currentRole = profile?.role ?? ''
       const currentCampusId = profile?.campus_id ?? null
+      const hasGlobalAccess =
+        currentRole === 'super_admin' ||
+        currentRole === 'adm_merch'
+
       setRole(currentRole)
       setUserName(profile?.full_name ?? '')
       setUserCampusId(currentCampusId)
@@ -172,7 +176,7 @@ export default function DashboardPage() {
         .from('order_items')
         .select('quantity, unit_price, product:products(name), order:orders(id, campus_id, created_at, status)')
 
-      if (currentRole !== 'super_admin' && currentCampusId) {
+      if (!hasGlobalAccess && currentCampusId) {
         ordersQ = ordersQ.eq('campus_id', currentCampusId)
       }
 
@@ -191,7 +195,7 @@ export default function DashboardPage() {
       const safeItems = (itemsData ?? []).filter((item: any) => {
         const o = Array.isArray(item.order) ? item.order[0] : item.order
         if (String(o?.status ?? '').toLowerCase() !== 'paid') return false
-        if (currentRole === 'super_admin') return true
+        if (currentRole === 'super_admin' || currentRole === 'adm_merch') return true
         return o?.campus_id === currentCampusId
       })
 
@@ -388,7 +392,7 @@ export default function DashboardPage() {
               Dashboard
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              {role === 'super_admin' ? 'Vista global · Todos los campus' : 'Vista de tu campus'}
+              {role === 'super_admin' || role === 'adm_merch' ? 'Vista global · Todos los campus' : 'Vista de tu campus'}
             </p>
           </div>
 
