@@ -104,12 +104,24 @@ export default function POSPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role, campus_id, campus:campus(name)')
+        .select('role, campus_id')
         .eq('id', session.user.id)
         .single()
 
       const campusId = profile?.campus_id ?? null
-      const cName = (profile?.campus as any)?.name ?? null
+
+      let cName: string | null = null
+
+      if (campusId) {
+        const { data: campusData } = await supabase
+          .from('campus')
+          .select('name')
+          .eq('id', campusId)
+          .maybeSingle()
+
+        cName = campusData?.name ?? null
+      }
+
       setCampusName(cName)
 
       let query = supabase
