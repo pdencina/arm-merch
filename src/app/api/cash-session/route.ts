@@ -74,8 +74,9 @@ export async function GET(req: Request) {
 
     const { data: todayOrders, error: todayOrdersError } = await adminClient
       .from('orders')
-      .select('id, total, created_at, payment_method')
+      .select('id, total, created_at, payment_method, status')
       .eq('campus_id', campusId)
+      .eq('status', 'paid')
       .gte('created_at', todayStart.toISOString())
 
     if (todayOrdersError) {
@@ -222,20 +223,27 @@ export async function POST(req: Request) {
 
       const { data: orders, error: ordersError } = await adminClient
         .from('orders')
-        .select('id, total, created_at, campus_id')
+        .select('id, total, created_at, campus_id, payment_method, status')
         .eq('campus_id', profile.campus_id)
+        .eq('status', 'paid')
         .gte('created_at', openSession.opened_at)
 
       if (ordersError) {
         return NextResponse.json({ error: ordersError.message }, { status: 400 })
       }
 
-      const salesTotal = (orders ?? []).reduce(
+      // Caja física = monto inicial + ventas pagadas en efectivo.
+      // SumUp, Link de Pago y Transferencia NO deben sumarse al arqueo físico.
+      const cashOrders = (orders ?? []).filter(
+        (order: any) => String(order.payment_method ?? '').toLowerCase() === 'efectivo'
+      )
+
+      const salesTotal = cashOrders.reduce(
         (sum: number, order: any) => sum + Number(order.total ?? 0),
         0
       )
 
-      const ordersCount = (orders ?? []).length
+      const ordersCount = cashOrders.length
       const expectedCash = Number(openSession.opening_amount ?? 0) + salesTotal
       const difference = closingAmountDeclared - expectedCash
 
