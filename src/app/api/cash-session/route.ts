@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+function isCashPaymentMethod(method: unknown) {
+  const value = String(method ?? '').trim().toLowerCase()
+  return ['efectivo', 'cash'].includes(value)
+}
+
 export async function GET(req: Request) {
   try {
     const authHeader = req.headers.get('authorization')
@@ -88,6 +93,10 @@ export async function GET(req: Request) {
       0
     )
 
+    const todayCashSalesTotal = (todayOrders ?? [])
+      .filter((order: any) => isCashPaymentMethod(order.payment_method))
+      .reduce((sum: number, order: any) => sum + Number(order.total ?? 0), 0)
+
     const todayOrdersCount = (todayOrders ?? []).length
 
     const paymentSummaryMap = new Map<string, number>()
@@ -106,6 +115,7 @@ export async function GET(req: Request) {
       history: history ?? [],
       daily_summary: {
         sales_total: todaySalesTotal,
+        cash_sales_total: todayCashSalesTotal,
         orders_count: todayOrdersCount,
         payment_summary: paymentSummary,
       },
@@ -235,7 +245,7 @@ export async function POST(req: Request) {
       // Caja física = monto inicial + ventas pagadas en efectivo.
       // SumUp, Link de Pago y Transferencia NO deben sumarse al arqueo físico.
       const cashOrders = (orders ?? []).filter(
-        (order: any) => String(order.payment_method ?? '').toLowerCase() === 'efectivo'
+        (order: any) => isCashPaymentMethod(order.payment_method)
       )
 
       const salesTotal = cashOrders.reduce(

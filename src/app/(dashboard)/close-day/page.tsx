@@ -43,8 +43,13 @@ const fmtDate = (v: string) =>
   new Date(v).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 const PM_LABELS: Record<string, string> = {
-  efectivo: 'Efectivo', transferencia: 'Transferencia',
-  debito: 'Débito', credito: 'Crédito',
+  efectivo: 'Efectivo',
+  cash: 'Efectivo',
+  transferencia: 'Transferencia',
+  debito: 'Débito',
+  credito: 'Crédito',
+  solo: 'SumUp SOLO',
+  link: 'Link de pago',
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -230,7 +235,7 @@ function AdminView({
 
   const cashSalesTotal = useMemo(() => {
     return paymentSummary
-      .filter((pm) => String(pm.method ?? '').toLowerCase() === 'efectivo')
+      .filter((pm) => ['efectivo', 'cash'].includes(String(pm.method ?? '').toLowerCase()))
       .reduce((sum, pm) => sum + Number(pm.total ?? 0), 0)
   }, [paymentSummary])
 
@@ -504,6 +509,7 @@ export default function CloseDayPage() {
   const [session, setSession]               = useState<CashSession | null>(null)
   const [history, setHistory]               = useState<CashSession[]>([])
   const [dailySalesTotal, setDailySalesTotal] = useState(0)
+  const [dailyCashSalesTotal, setDailyCashSalesTotal] = useState(0)
   const [dailyOrdersCount, setDailyOrdersCount] = useState(0)
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary[]>([])
 
@@ -574,6 +580,7 @@ export default function CloseDayPage() {
         setSession(data.session ?? null)
         setHistory(data.history ?? [])
         setDailySalesTotal(Number(data.daily_summary?.sales_total ?? 0))
+        setDailyCashSalesTotal(Number(data.daily_summary?.cash_sales_total ?? 0))
         setDailyOrdersCount(Number(data.daily_summary?.orders_count ?? 0))
         setPaymentSummary(data.daily_summary?.payment_summary ?? [])
       } else {
