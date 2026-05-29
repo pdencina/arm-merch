@@ -228,9 +228,15 @@ function AdminView({
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
 
+  const cashSalesTotal = useMemo(() => {
+    return paymentSummary
+      .filter((pm) => String(pm.method ?? '').toLowerCase() === 'efectivo')
+      .reduce((sum, pm) => sum + Number(pm.total ?? 0), 0)
+  }, [paymentSummary])
+
   const expectedCash = useMemo(() =>
-    !session ? 0 : Number(session.opening_amount ?? 0) + dailySalesTotal,
-    [session, dailySalesTotal]
+    !session ? 0 : Number(session.opening_amount ?? 0) + cashSalesTotal,
+    [session, cashSalesTotal]
   )
 
   const projectedDiff = useMemo(() =>
@@ -284,7 +290,7 @@ function AdminView({
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Ventas hoy',   value: fmt(dailySalesTotal),        color: 'text-amber-400',   icon: TrendingUp  },
+          { label: 'Ventas totales hoy', value: fmt(dailySalesTotal), color: 'text-amber-400', icon: TrendingUp },
           { label: 'Órdenes hoy', value: String(dailyOrdersCount),    color: 'text-blue-400',    icon: ShoppingBag },
           { label: 'Estado caja', value: session ? 'Abierta' : 'Cerrada',
             color: session ? 'text-amber-400' : 'text-zinc-400', icon: session ? LockOpen : Lock },
@@ -358,8 +364,8 @@ function AdminView({
                   {[
                     { label: 'Abierta desde', value: fmtDate(session.opened_at) },
                     { label: 'Monto inicial',  value: fmt(session.opening_amount) },
-                    { label: 'Ventas acumuladas', value: fmt(dailySalesTotal) },
-                    { label: 'Caja esperada',  value: fmt(expectedCash) },
+                    { label: 'Ventas efectivo', value: fmt(cashSalesTotal) },
+                    { label: 'Caja esperada efectivo', value: fmt(expectedCash) },
                   ].map(item => (
                     <div key={item.label} className="rounded-xl bg-zinc-800/50 p-3">
                       <p className="text-[10px] uppercase tracking-wider text-zinc-600">{item.label}</p>
@@ -536,7 +542,7 @@ export default function CloseDayPage() {
               .order('opened_at', { ascending: false }).limit(10),
             supabase.from('orders').select('total, payment_method')
               .eq('campus_id', c.id)
-              .in('status', ['paid', 'pending'])
+              .eq('status', 'paid')
               .gte('created_at', todayStart.toISOString()),
           ])
 
