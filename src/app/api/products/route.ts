@@ -1,3 +1,4 @@
+import { hasModulePermission } from '@/lib/permissions/api-products-helper'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -49,7 +50,8 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!['super_admin', 'admin'].includes(profile.role)) {
+    const allowed = await hasModulePermission(token, 'products.create')
+    if (!allowed) {
       return NextResponse.json(
         { error: 'No autorizado para crear productos' },
         { status: 403 }

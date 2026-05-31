@@ -1,3 +1,4 @@
+import { hasModulePermission } from '@/lib/permissions/api-products-helper'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -52,7 +53,8 @@ export async function PATCH(
       )
     }
 
-    if (!['super_admin', 'admin'].includes(profile.role)) {
+    const allowed = await hasModulePermission(token, 'products.edit')
+    if (!allowed) {
       return NextResponse.json(
         { error: 'No autorizado para editar productos' },
         { status: 403 }
