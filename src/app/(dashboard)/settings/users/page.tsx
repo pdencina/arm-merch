@@ -49,6 +49,15 @@ export default function UsersPage() {
   const [showPw, setShowPw]         = useState(false)
   const [savingPw, setSavingPw]     = useState(false)
 
+  // ── Edit user modal ──
+  const [editUser, setEditUser]       = useState<any | null>(null)
+  const [editName, setEditName]       = useState('')
+  const [editEmail, setEditEmail]     = useState('')
+  const [editRole, setEditRole]       = useState<Role>('voluntario')
+  const [editCampus, setEditCampus]   = useState('')
+  const [editActive, setEditActive]   = useState(true)
+  const [savingEdit, setSavingEdit]   = useState(false)
+
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
@@ -99,6 +108,62 @@ export default function UsersPage() {
     setNewName(''); setNewEmail(''); setNewPassword('')
     setNewRole('voluntario'); setNewCampus('')
     setShowCreate(false)
+    loadAll()
+  }
+
+  // ── Edit user ───────────────────────────────────────────────
+  function openEditUser(user: any) {
+    setEditUser(user)
+    setEditName(user.full_name ?? '')
+    setEditEmail(user.email ?? '')
+    setEditRole((user.role ?? 'voluntario') as Role)
+    setEditCampus(user.campus_id ?? '')
+    setEditActive(user.active !== false)
+  }
+
+  async function handleUpdateUser(e?: React.FormEvent) {
+    e?.preventDefault()
+
+    if (!editUser?.id) {
+      error('Error', 'Usuario inválido')
+      return
+    }
+
+    if (!editName.trim() || !editEmail.trim()) {
+      error('Campos requeridos', 'Nombre y correo son obligatorios')
+      return
+    }
+
+    setSavingEdit(true)
+
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editUser.id,
+        full_name: editName.trim(),
+        email: editEmail.trim().toLowerCase(),
+        role: editRole,
+        campus_id: editCampus || null,
+        active: editActive,
+      }),
+    })
+
+    const result = await res.json()
+    setSavingEdit(false)
+
+    if (!res.ok) {
+      error('Error al actualizar usuario', result.error ?? 'No se pudo actualizar el usuario')
+      return
+    }
+
+    success('Usuario actualizado', 'Los datos fueron guardados correctamente', '✅')
+    setEditUser(null)
+    setEditName('')
+    setEditEmail('')
+    setEditRole('voluntario')
+    setEditCampus('')
+    setEditActive(true)
     loadAll()
   }
 
@@ -315,12 +380,21 @@ export default function UsersPage() {
 
                     {/* Actions */}
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => { setPwUser(user); setNewPw(''); setConfirmPw(''); setShowPw(false) }}
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:border-amber-500/40 hover:text-amber-400"
-                      >
-                        <KeyRound size={11} /> Contraseña
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => openEditUser(user)}
+                          className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:border-blue-500/40 hover:text-blue-400"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          onClick={() => { setPwUser(user); setNewPw(''); setConfirmPw(''); setShowPw(false) }}
+                          className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:border-amber-500/40 hover:text-amber-400"
+                        >
+                          <KeyRound size={11} /> Contraseña
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -413,6 +487,124 @@ export default function UsersPage() {
                   className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2">
                   {saving && <Loader2 size={14} className="animate-spin" />}
                   {saving ? 'Creando...' : 'Crear usuario'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit user modal ───────────────────────────────────── */}
+      {editUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={e => { if (e.target === e.currentTarget) setEditUser(null) }}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Editar usuario</h2>
+                <p className="text-[10px] text-zinc-500">{editUser.email}</p>
+              </div>
+              <button onClick={() => setEditUser(null)} className="text-zinc-500 hover:text-white transition">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateUser} className="p-5 flex flex-col gap-4">
+              <div>
+                <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">
+                  Nombre completo *
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">
+                  Correo *
+                </label>
+                <div className="relative">
+                  <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={e => setEditEmail(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition"
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-zinc-500">
+                  Este cambio también actualiza el correo de login en Supabase Auth.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">Rol</label>
+                  <div className="relative">
+                    <Shield size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <select
+                      value={editRole}
+                      onChange={e => setEditRole(e.target.value as Role)}
+                      className="w-full bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition"
+                    >
+                      <option value="voluntario">Voluntario</option>
+                      <option value="admin">Admin</option>
+                      <option value="adm_merch">ADM Merch</option>
+                      <option value="super_admin">Super Admin</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-zinc-500 uppercase tracking-widest mb-1.5">Campus</label>
+                  <div className="relative">
+                    <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <select
+                      value={editCampus}
+                      onChange={e => setEditCampus(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition"
+                    >
+                      <option value="">Sin campus</option>
+                      {campus.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <label className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Usuario activo</p>
+                  <p className="text-[10px] text-zinc-500">Permite acceso operativo al sistema.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editActive}
+                  onChange={e => setEditActive(e.target.checked)}
+                  className="h-4 w-4"
+                />
+              </label>
+
+              <div className="flex gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditUser(null)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl py-2.5 text-sm transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 font-bold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2"
+                >
+                  {savingEdit && <Loader2 size={14} className="animate-spin" />}
+                  {savingEdit ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
             </form>
