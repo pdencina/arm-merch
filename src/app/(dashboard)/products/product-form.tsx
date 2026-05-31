@@ -113,7 +113,7 @@ export default function ProductForm() {
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('role, campus_id, campus:campus(name)')
+        .select('role, campus_id')
         .eq('id', session.user.id)
         .single()
 
