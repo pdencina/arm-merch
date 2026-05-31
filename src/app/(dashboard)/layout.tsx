@@ -7,45 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/sidebar'
 import Navbar from '@/components/layout/navbar'
 import { Toaster } from 'sonner'
-
-const ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
-  adm_merch: {
-    'dashboard.view': true,
-    'pos.view': true,
-    'orders.view': true,
-    'deliveries.view': true,
-    'inventory.view': true,
-    'movements.view': true,
-    'products.view': true,
-    'reports.view': true,
-    'close_day.view': true,
-    'categories.view': true,
-  },
-  admin: {
-    'dashboard.view': true,
-    'pos.view': true,
-    'orders.view': true,
-    'deliveries.view': true,
-    'inventory.view': true,
-    'movements.view': true,
-    'products.view': true,
-    'reports.view': true,
-    'close_day.view': true,
-    'categories.view': true,
-  },
-  voluntario: {
-    'dashboard.view': false,
-    'pos.view': true,
-    'orders.view': true,
-    'deliveries.view': true,
-    'inventory.view': true,
-    'movements.view': false,
-    'products.view': true,
-    'reports.view': false,
-    'close_day.view': false,
-    'categories.view': false,
-  },
-}
+import { mergeRolePermissions } from '@/lib/permissions/module-permissions'
 
 const SIDEBAR_STORAGE_KEY = 'arm_merch_sidebar_collapsed'
 
@@ -94,12 +56,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setProfile(data)
 
         if (data.role === 'super_admin') {
-          setPerms(new Proxy({}, { get: () => true }) as Record<string, boolean>)
+          setPerms(mergeRolePermissions(data.role))
           setReady(true)
           return
         }
 
-        const defaults = ROLE_DEFAULTS[data.role] ?? {}
+        const defaults = mergeRolePermissions(data.role)
 
         const { data: permRows } = await supabase
           .from('module_permissions')

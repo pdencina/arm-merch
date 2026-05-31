@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { NotifyModal, useNotify } from '@/components/ui/notify-modal'
+import { DEFAULT_ROLE_PERMISSION_MAP, permissionRowsFromMap } from '@/lib/permissions/module-permissions'
 import {
   ShoppingCart, Receipt, Package, ArrowLeftRight,
   ClipboardList, BarChart3, Calculator, Tags,
@@ -216,94 +217,7 @@ const ROLES = [
   { key: 'voluntario', label: 'Voluntario', color: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
 ]
 
-// Default permissions per role
-const DEFAULTS: Record<string, Record<string, boolean>> = {
-  adm_merch: {
-    'dashboard.view': true,
-
-    'pos.view': true,
-    'pos.sell': true,
-    'pos.all_payments': true,
-    'pos.discount': true,
-    'pos.smart_pos': true,
-    'pos.link_payment': true,
-    'pos.pending_orders': true,
-
-    'orders.view': true,
-    'orders.export': true,
-    'orders.refund': true,
-
-    'deliveries.view': true,
-    'deliveries.ready': true,
-    'deliveries.deliver': true,
-    'deliveries.whatsapp': true,
-
-    'inventory.view': true,
-    'inventory.movements': true,
-    'inventory.scan': true,
-    'inventory.adjust': true,
-    'inventory.transfer': true,
-
-    'movements.view': true,
-
-    'products.view': true,
-    'products.create': true,
-    'products.edit': true,
-    'products.delete': false,
-    'products.labels': true,
-    'products.prices': true,
-
-    'reports.view': true,
-    'reports.all_campus': true,
-    'reports.export': true,
-
-    'close_day.view': true,
-    'close_day.open': true,
-    'close_day.close': true,
-    'close_day.all': true,
-
-    'categories.view': true,
-    'categories.manage': true,
-
-    'pricing.view': true,
-    'pricing.edit': true,
-    'pricing.history': true,
-    'pricing.margins': true,
-
-    'executive.view': true,
-    'analytics.view': true,
-    'analytics.export': true,
-    'ai_insights.view': true,
-    'forecast.view': true,
-  },
-
-  admin: {
-    'dashboard.view': true,
-    'pos.view': true, 'pos.sell': true, 'pos.all_payments': true, 'pos.discount': false,
-    'pos.smart_pos': true, 'pos.link_payment': true, 'pos.pending_orders': true,
-    'orders.view': true, 'orders.export': true, 'orders.refund': false,
-    'deliveries.view': true, 'deliveries.ready': false, 'deliveries.deliver': true, 'deliveries.whatsapp': true,
-    'inventory.view': true, 'inventory.movements': true, 'inventory.scan': true, 'inventory.adjust': false, 'inventory.transfer': false,
-    'movements.view': true,
-    'products.view': true, 'products.create': false, 'products.edit': false, 'products.delete': false, 'products.labels': true, 'products.prices': true,
-    'reports.view': true, 'reports.all_campus': false, 'reports.export': false,
-    'close_day.view': true, 'close_day.open': true, 'close_day.close': true, 'close_day.all': false,
-    'categories.view': true, 'categories.manage': false,
-  },
-  voluntario: {
-    'dashboard.view': false,
-    'pos.view': true, 'pos.sell': true, 'pos.all_payments': false, 'pos.discount': false,
-    'pos.smart_pos': false, 'pos.link_payment': false, 'pos.pending_orders': false,
-    'orders.view': true, 'orders.export': false, 'orders.refund': false,
-    'deliveries.view': true, 'deliveries.ready': false, 'deliveries.deliver': true, 'deliveries.whatsapp': false,
-    'inventory.view': true, 'inventory.movements': false, 'inventory.scan': false, 'inventory.adjust': false, 'inventory.transfer': false,
-    'movements.view': false,
-    'products.view': true, 'products.create': false, 'products.edit': false, 'products.delete': false, 'products.labels': false, 'products.prices': false,
-    'reports.view': false, 'reports.all_campus': false, 'reports.export': false,
-    'close_day.view': false, 'close_day.open': false, 'close_day.close': false, 'close_day.all': false,
-    'categories.view': false, 'categories.manage': false,
-  },
-}
+const DEFAULTS = DEFAULT_ROLE_PERMISSION_MAP
 
 type PermMap = Record<string, Record<string, boolean>>
 
@@ -359,9 +273,7 @@ export default function ModulePermissionsPage() {
   async function resetRole(role: string) {
     setSaving(`reset:${role}`)
     const defaults = DEFAULTS[role] ?? {}
-    const rows = Object.entries(defaults).map(([module, enabled]) => ({
-      module, role, enabled, updated_at: new Date().toISOString()
-    }))
+    const rows = permissionRowsFromMap(role, defaults)
     await supabase.from('module_permissions').upsert(rows, { onConflict: 'module,role' })
     setPerms(prev => ({ ...prev, [role]: defaults }))
     setSaving(null)

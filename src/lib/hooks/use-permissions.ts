@@ -1,63 +1,89 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { hasPermission } from '@/lib/permissions'
+import { hasPermission, mergeRolePermissions } from '@/lib/permissions/module-permissions'
 
-export function usePermission(permission: string) {
-
-  const [allowed, setAllowed] = useState(false)
+export function usePermissions() {
+  const [role, setRole] = useState<string | null>(null)
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let mounted = true
+    const supabase = createClient()
 
-    const load = async () => {
-
+    async function load() {
       try {
-
-        const supabase = createClient()
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
+        const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
-          setAllowed(false)
-          setLoading(false)
+          if (mounted) {
+            setError('No autenticado')
+            setLoading(false)
+          }
           return
         }
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', session.user.id)
           .single()
 
-        const can = await hasPermission(
-          profile?.role ?? 'voluntario',
-          permission
-        )
+        if (profileError || !profile) {
+          if (mounted) {
+            setError('Perfil no encontrado')
+            setLoading(false)
+          }
+          return
+        }
 
-        setAllowed(can)
+        const currentRole = profile.role
 
-      } catch (err) {
+        if (currentRole === 'super_admin') {
+          if (mounted) {
+            setRole(currentRole)
+            setPermissions(mergeRolePermissions(currentRole))
+            setLoading(false)
+          }
+          return
+        }
 
-        console.error('[usePermission]', err)
-        setAllowed(false)
+        const { data: rows } = await supabase
+          .from('module_permissions')
+          .select('module, enabled')
+          .eq('role', currentRole)
 
-      } finally {
+        const overrides: Record<string, boolean> = {}
+        ;(rows ?? []).forEach((row: any) => {
+          overrides[row.module] = row.enabled
+        })
 
-        setLoading(false)
-
+        if (mounted) {
+          setRole(currentRole)
+          setPermissions(mergeRolePermissions(currentRole, overrides))
+          setLoading(false)
+        }
+      } catch (err: any) {
+        if (mounted) {
+          setError(err?.message ?? 'Error cargando permisos')
+          setLoading(false)
+        }
       }
     }
 
     load()
 
-  }, [permission])
+    return () => {
+      mounted = false
+    }
+  }, [])
 
-  return {
-    allowed,
-    loading,
-  }
+  const can = useMemo(
+    () => (permission: string) => hasPermission(role, permission, permissions),
+    [role, permissions],
+  )
+
+  return { role, permissions, loading, error, can }
 }
