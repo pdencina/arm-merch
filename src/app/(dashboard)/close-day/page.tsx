@@ -36,6 +36,11 @@ type CampusOverview = {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+function numberInputValue(value: number | string | null | undefined) {
+  const n = Number(value ?? 0)
+  return n === 0 ? '' : String(value)
+}
+
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0)
 
@@ -335,8 +340,8 @@ function AdminView({
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto inicial en caja</label>
                   <input
-                    type="number" min={0} value={openingAmount}
-                    onChange={e => setOpeningAmount(Number(e.target.value))}
+                    type="number" min={0} value={numberInputValue(openingAmount)}
+                    onChange={e => setOpeningAmount(e.target.value === '' ? 0 : Number(e.target.value))}
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-500/40"
                   />
                 </div>
@@ -407,8 +412,8 @@ function AdminView({
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto contado al cierre</label>
                     <input
-                      type="number" min={0} value={closingAmount}
-                      onChange={e => setClosingAmount(Number(e.target.value))}
+                      type="number" min={0} value={numberInputValue(closingAmount)}
+                      onChange={e => setClosingAmount(e.target.value === '' ? 0 : Number(e.target.value))}
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/40"
                     />
                   </div>
