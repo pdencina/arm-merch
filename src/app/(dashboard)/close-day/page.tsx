@@ -517,7 +517,7 @@ function AdminView({
               <p className="text-xs text-zinc-600">Sin historial aún.</p>
             ) : (
               <div className="space-y-2">
-                {history.filter(h => h.status === 'closed').slice(0, 5).map(h => (
+                {history.filter(h => h.status === 'closed' && Number(h.difference ?? 0) > -10000).slice(0, 5).map(h => (
                   <div key={h.id} className="rounded-xl border border-zinc-800 bg-zinc-800/30 p-3">
                     <div className="flex items-center justify-between">
                       <div className="text-[11px] text-zinc-400">
