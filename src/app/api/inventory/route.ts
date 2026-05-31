@@ -1,6 +1,28 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+async function userHasPermission(
+  adminClient: any,
+  role: string,
+  permission: string
+) {
+  if (role === 'super_admin') return true
+
+  const { data, error } = await adminClient
+    .from('module_permissions')
+    .select('enabled')
+    .eq('role', role)
+    .eq('module', permission)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Error validando permiso:', error)
+    return false
+  }
+
+  return data?.enabled === true
+}
+
 // ─── PATCH /api/inventory ─────────────────────────────────────────────────────
 // Recibe inventory_id en el body (en lugar de en la URL)
 // Usado por movement-form.tsx para actualizar stock
@@ -37,11 +59,21 @@ export async function PATCH(req: Request) {
       .eq('id', user.id)
       .single()
 
-    if (
-      !profile ||
-      !['super_admin', 'admin', 'adm_merch', 'voluntario'].includes(profile.role)
-    ) {
+    if (!profile) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
+    const canAdjustInventory = await userHasPermission(
+      adminClient,
+      profile.role,
+      'inventory.adjust'
+    )
+
+    if (!canAdjustInventory) {
+      return NextResponse.json(
+        { error: 'No autorizado para ajustar inventario' },
+        { status: 403 }
+      )
     }
 
     const body         = await req.json()
