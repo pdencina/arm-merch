@@ -149,7 +149,7 @@ function SuperAdminView({ campuses }: { campuses: CampusOverview[] }) {
 
                   {/* Caja actual */}
                   {c.session ? (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                       {[
                         { label: 'Apertura', value: fmt(c.session.opening_amount) },
                         { label: 'Ventas sesión', value: fmt(c.session.sales_total) },
@@ -239,6 +239,10 @@ function AdminView({
       .reduce((sum, pm) => sum + Number(pm.total ?? 0), 0)
   }, [paymentSummary])
 
+  const digitalSalesTotal = useMemo(() => {
+    return Math.max(0, Number(dailySalesTotal ?? 0) - cashSalesTotal)
+  }, [dailySalesTotal, cashSalesTotal])
+
   const expectedCash = useMemo(() =>
     !session ? 0 : Number(session.opening_amount ?? 0) + cashSalesTotal,
     [session, cashSalesTotal]
@@ -293,10 +297,11 @@ function AdminView({
       <NotifyModal notify={notify} onClose={close} />
 
       {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
           { label: 'Ventas totales hoy', value: fmt(dailySalesTotal), color: 'text-amber-400', icon: TrendingUp },
-          { label: 'Órdenes hoy', value: String(dailyOrdersCount),    color: 'text-blue-400',    icon: ShoppingBag },
+          { label: 'Ventas efectivo', value: fmt(cashSalesTotal), color: 'text-emerald-400', icon: Banknote },
+          { label: 'Ventas digitales', value: fmt(digitalSalesTotal), color: 'text-blue-400', icon: ShoppingBag },
           { label: 'Estado caja', value: session ? 'Abierta' : 'Cerrada',
             color: session ? 'text-amber-400' : 'text-zinc-400', icon: session ? LockOpen : Lock },
         ].map(s => {
@@ -368,8 +373,10 @@ function AdminView({
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     { label: 'Abierta desde', value: fmtDate(session.opened_at) },
-                    { label: 'Monto inicial',  value: fmt(session.opening_amount) },
+                    { label: 'Monto inicial', value: fmt(session.opening_amount) },
                     { label: 'Ventas efectivo', value: fmt(cashSalesTotal) },
+                    { label: 'Ventas digitales', value: fmt(digitalSalesTotal) },
+                    { label: 'Ventas totales', value: fmt(dailySalesTotal) },
                     { label: 'Caja esperada efectivo', value: fmt(expectedCash) },
                   ].map(item => (
                     <div key={item.label} className="rounded-xl bg-zinc-800/50 p-3">
@@ -377,6 +384,13 @@ function AdminView({
                       <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
                     </div>
                   ))}
+                </div>
+
+                <div className="mt-3 rounded-xl border border-amber-500/15 bg-amber-500/5 px-3 py-2">
+                  <p className="text-[11px] leading-5 text-amber-200/80">
+                    La caja esperada solo considera el dinero físico: monto inicial + ventas en efectivo.
+                    SumUp, Link de Pago y Transferencia se muestran como ventas digitales, pero no se suman al arqueo de caja.
+                  </p>
                 </div>
               </div>
 
@@ -439,7 +453,7 @@ function AdminView({
 
           {/* Payment breakdown */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-            <h3 className="mb-3 text-sm font-semibold text-white">Ventas por método hoy</h3>
+            <h3 className="mb-3 text-sm font-semibold text-white">Desglose por método hoy</h3>
             {paymentSummary.length === 0 ? (
               <p className="text-xs text-zinc-600">Sin ventas hoy.</p>
             ) : (
