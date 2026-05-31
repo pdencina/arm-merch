@@ -39,6 +39,15 @@ type CampusOverview = {
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0)
 
+function getSessionExpectedCash(session: any) {
+  return Number(session?.opening_amount ?? 0) + Number(session?.sales_total ?? 0)
+}
+
+function numberInputValue(value: number | string | null | undefined) {
+  const n = Number(value ?? 0)
+  return n === 0 ? '' : String(value)
+}
+
 function formatSessionDuration(openedAt?: string | null, closedAt?: string | null) {
   if (!openedAt) return '—'
 
@@ -354,10 +363,10 @@ function AdminView({
 
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto inicial en caja</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto inicial físico en caja</label>
                   <input
-                    type="number" min={0} value={openingAmount}
-                    onChange={e => setOpeningAmount(Number(e.target.value))}
+                    type="number" min={0} value={numberInputValue(openingAmount)}
+                    onChange={e => setOpeningAmount(e.target.value === '' ? 0 : Number(e.target.value))}
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-500/40"
                   />
                 </div>
@@ -398,7 +407,7 @@ function AdminView({
                     { label: 'Monto inicial', value: fmt(session.opening_amount) },
                     { label: 'Ventas efectivo de esta sesión', value: fmt(cashSalesTotal) },
                     { label: 'Ventas digitales informativas', value: fmt(digitalSalesTotal) },
-                    { label: 'Caja esperada físico', value: fmt(expectedCash) },
+                    { label: 'Caja esperada físico físico', value: fmt(expectedCash) },
                   ].map(item => (
                     <div key={item.label} className="rounded-xl bg-zinc-800/50 p-3">
                       <p className="text-[10px] uppercase tracking-wider text-zinc-600">{item.label}</p>
@@ -428,15 +437,15 @@ function AdminView({
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto contado al cierre</label>
                     <input
-                      type="number" min={0} value={closingAmount}
-                      onChange={e => setClosingAmount(Number(e.target.value))}
+                      type="number" min={0} value={numberInputValue(closingAmount)}
+                      onChange={e => setClosingAmount(e.target.value === '' ? 0 : Number(e.target.value))}
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/40"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-xl bg-zinc-800/50 p-3">
-                      <p className="text-[10px] uppercase tracking-wider text-zinc-600">Caja esperada</p>
+                      <p className="text-[10px] uppercase tracking-wider text-zinc-600">Caja esperada físico</p>
                       <p className="mt-1 text-sm font-semibold text-white">{fmt(expectedCash)}</p>
                     </div>
                     <div className="rounded-xl bg-zinc-800/50 p-3">
@@ -502,7 +511,7 @@ function AdminView({
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
             <h3 className="mb-1 text-sm font-semibold text-white">Historial de cierres</h3>
             <p className="mb-3 text-[11px] leading-5 text-zinc-500">
-              Cada cierre corresponde a una sesión de caja, no necesariamente a un día calendario.
+              Cada cierre corresponde a una sesión de caja. Puede incluir ventas de más de un día si la caja quedó abierta.
             </p>
             {history.filter(h => h.status === 'closed').length === 0 ? (
               <p className="text-xs text-zinc-600">Sin historial aún.</p>
@@ -511,17 +520,46 @@ function AdminView({
                 {history.filter(h => h.status === 'closed').slice(0, 5).map(h => (
                   <div key={h.id} className="rounded-xl border border-zinc-800 bg-zinc-800/30 p-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-                        <Calendar size={11} />
-                        {fmtDate(h.opened_at)}
+                      <div className="text-[11px] text-zinc-400">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={11} />
+                          <span>Apertura: {fmtDate(h.opened_at)}</span>
+                        </div>
+                        {h.closed_at && (
+                          <p className="mt-0.5 pl-4 text-[10px] text-zinc-600">
+                            Cierre: {fmtDate(h.closed_at)}
+                          </p>
+                        )}
                       </div>
                       <DiffBadge value={h.difference} />
                     </div>
-                    <div className="mt-1.5 flex gap-3 text-[10px] text-zinc-600">
-                      <span>{h.orders_count} órdenes</span>
-                      <span>·</span>
-                      <span>{fmt(h.sales_total)} ventas</span>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-600">Duración sesión</p>
+                        <p className="mt-1 text-xs text-zinc-300">
+                          {formatSessionDuration(h.opened_at, h.closed_at)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-600">Monto inicial</p>
+                        <p className="mt-1 text-xs text-zinc-300">{fmt(h.opening_amount)}</p>
+                      </div>
+
+                      <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-600">Ventas efectivo</p>
+                        <p className="mt-1 text-xs text-emerald-300">{fmt(h.sales_total)}</p>
+                      </div>
+
+                      <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
+                        <p className="text-[9px] uppercase tracking-wider text-zinc-600">Caja esperada</p>
+                        <p className="mt-1 text-xs text-amber-300">{fmt(getSessionExpectedCash(h))}</p>
+                      </div>
                     </div>
+
+                    <p className="mt-2 text-[11px] text-zinc-600">
+                      {h.orders_count ?? 0} órdenes de efectivo consideradas en este cierre
+                    </p>
                   </div>
                 ))}
               </div>
