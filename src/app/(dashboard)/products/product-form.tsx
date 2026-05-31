@@ -29,6 +29,11 @@ function normalizeSku(value: string) {
   return String(value ?? '').trim().toUpperCase()
 }
 
+function numberInputValue(value: number | string | null | undefined) {
+  const n = Number(value ?? 0)
+  return n === 0 ? '' : String(value)
+}
+
 function getBarcodeType(value: string) {
   const clean = normalizeBarcode(value)
 
@@ -108,7 +113,7 @@ export default function ProductForm() {
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('role, campus_id')
+        .select('role, campus_id, campus:campus(name)')
         .eq('id', session.user.id)
         .single()
 
@@ -425,8 +430,8 @@ export default function ProductForm() {
           <input
             type="number"
             placeholder="0"
-            value={price}
-            onChange={(e) => setPrice(Number(e.target.value))}
+            value={numberInputValue(price)}
+            onChange={(e) => setPrice(e.target.value === '' ? 0 : Number(e.target.value))}
             className={fieldClassName}
           />
         </div>
@@ -639,9 +644,9 @@ export default function ProductForm() {
                       <input
                         type="number"
                         placeholder="0"
-                        value={item.stock}
+                        value={numberInputValue(item.stock)}
                         onChange={(e) => {
-                          const val = Number(e.target.value)
+                          const val = e.target.value === '' ? 0 : Number(e.target.value)
                           setCampusStocks((prev) =>
                             prev.map((row, i) =>
                               i === index ? { ...row, stock: val } : row
@@ -662,9 +667,9 @@ export default function ProductForm() {
                       <input
                         type="number"
                         placeholder="5"
-                        value={item.low_stock_alert}
+                        value={numberInputValue(item.low_stock_alert)}
                         onChange={(e) => {
-                          const val = Number(e.target.value)
+                          const val = e.target.value === '' ? 0 : Number(e.target.value)
                           setCampusStocks((prev) =>
                             prev.map((row, i) =>
                               i === index
