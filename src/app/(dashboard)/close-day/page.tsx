@@ -36,13 +36,29 @@ type CampusOverview = {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function numberInputValue(value: number | string | null | undefined) {
-  const n = Number(value ?? 0)
-  return n === 0 ? '' : String(value)
-}
-
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0)
+
+function formatSessionDuration(openedAt?: string | null, closedAt?: string | null) {
+  if (!openedAt) return '—'
+
+  const start = new Date(openedAt).getTime()
+  const end = closedAt ? new Date(closedAt).getTime() : Date.now()
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return '—'
+  }
+
+  const diffMs = end - start
+  const totalMinutes = Math.floor(diffMs / 60000)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
 
 const fmtDate = (v: string) =>
   new Date(v).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -340,8 +356,8 @@ function AdminView({
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto inicial en caja</label>
                   <input
-                    type="number" min={0} value={numberInputValue(openingAmount)}
-                    onChange={e => setOpeningAmount(e.target.value === '' ? 0 : Number(e.target.value))}
+                    type="number" min={0} value={openingAmount}
+                    onChange={e => setOpeningAmount(Number(e.target.value))}
                     className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-amber-500/40"
                   />
                 </div>
@@ -375,14 +391,14 @@ function AdminView({
                   </div>
                   <StatusPill status="open" />
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   {[
-                    { label: 'Abierta desde', value: fmtDate(session.opened_at) },
+                    { label: 'Caja abierta desde', value: fmtDate(session.opened_at) },
+                    { label: 'Duración sesión', value: formatSessionDuration(session.opened_at, session.closed_at ?? null) },
                     { label: 'Monto inicial', value: fmt(session.opening_amount) },
-                    { label: 'Ventas efectivo', value: fmt(cashSalesTotal) },
-                    { label: 'Ventas digitales', value: fmt(digitalSalesTotal) },
-                    { label: 'Ventas totales', value: fmt(dailySalesTotal) },
-                    { label: 'Caja esperada efectivo', value: fmt(expectedCash) },
+                    { label: 'Ventas efectivo de esta sesión', value: fmt(cashSalesTotal) },
+                    { label: 'Ventas digitales informativas', value: fmt(digitalSalesTotal) },
+                    { label: 'Caja esperada físico', value: fmt(expectedCash) },
                   ].map(item => (
                     <div key={item.label} className="rounded-xl bg-zinc-800/50 p-3">
                       <p className="text-[10px] uppercase tracking-wider text-zinc-600">{item.label}</p>
@@ -393,8 +409,8 @@ function AdminView({
 
                 <div className="mt-3 rounded-xl border border-amber-500/15 bg-amber-500/5 px-3 py-2">
                   <p className="text-[11px] leading-5 text-amber-200/80">
-                    La caja esperada solo considera el dinero físico: monto inicial + ventas en efectivo.
-                    SumUp, Link de Pago y Transferencia se muestran como ventas digitales, pero no se suman al arqueo de caja.
+                    Resumen de arqueo: la caja esperada físico se calcula con monto inicial + ventas en efectivo de esta sesión.
+                    SumUp, Link de Pago y Transferencia se muestran como ventas digitales informativas, pero no se suman al dinero físico contado.
                   </p>
                 </div>
               </div>
@@ -412,8 +428,8 @@ function AdminView({
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-zinc-400">Monto contado al cierre</label>
                     <input
-                      type="number" min={0} value={numberInputValue(closingAmount)}
-                      onChange={e => setClosingAmount(e.target.value === '' ? 0 : Number(e.target.value))}
+                      type="number" min={0} value={closingAmount}
+                      onChange={e => setClosingAmount(Number(e.target.value))}
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-500/40"
                     />
                   </div>
@@ -484,7 +500,10 @@ function AdminView({
 
           {/* History */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-            <h3 className="mb-3 text-sm font-semibold text-white">Historial de cierres</h3>
+            <h3 className="mb-1 text-sm font-semibold text-white">Historial de cierres</h3>
+            <p className="mb-3 text-[11px] leading-5 text-zinc-500">
+              Cada cierre corresponde a una sesión de caja, no necesariamente a un día calendario.
+            </p>
             {history.filter(h => h.status === 'closed').length === 0 ? (
               <p className="text-xs text-zinc-600">Sin historial aún.</p>
             ) : (
