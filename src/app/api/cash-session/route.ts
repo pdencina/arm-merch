@@ -6,6 +6,30 @@ function isCashPaymentMethod(method: unknown) {
   return ['efectivo', 'cash'].includes(value)
 }
 
+async function writeAuditLog(
+  adminClient: any,
+  payload: {
+    actor_id?: string | null
+    action: string
+    target_type?: string | null
+    target_id?: string | null
+    metadata?: Record<string, any> | null
+  }
+) {
+  try {
+    await adminClient.from('audit_logs').insert({
+      actor_id: payload.actor_id ?? null,
+      action: payload.action,
+      target_type: payload.target_type ?? null,
+      target_id: payload.target_id ?? null,
+      metadata: payload.metadata ?? null,
+    })
+  } catch (error) {
+    // La auditoría no debe romper apertura/cierre de caja.
+    console.error('[Audit] cash-session:', error)
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const authHeader = req.headers.get('authorization')
@@ -208,6 +232,19 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
+      await writeAuditLog(adminClient, {
+        actor_id: profile.id,
+        action: 'cash.open',
+        target_type: 'cash_session',
+        target_id: data.id,
+        metadata: {
+          campus_id: profile.campus_id,
+          opening_amount: openingAmount,
+          notes,
+          opened_at: data.opened_at,
+        },
+      })
+
       return NextResponse.json({ success: true, session: data })
     }
 
@@ -277,6 +314,25 @@ export async function POST(req: Request) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
+
+      await writeAuditLog(adminClient, {
+        actor_id: profile.id,
+        action: 'cash.close',
+        target_type: 'cash_session',
+        target_id: data.id,
+        metadata: {
+          campus_id: profile.campus_id,
+          opening_amount: Number(openSession.opening_amount ?? 0),
+          cash_sales: salesTotal,
+          expected_cash: expectedCash,
+          counted_cash: closingAmountDeclared,
+          difference,
+          orders_count: ordersCount,
+          opened_at: openSession.opened_at,
+          closed_at: data.closed_at,
+          notes,
+        },
+      })
 
       return NextResponse.json({
         success: true,
