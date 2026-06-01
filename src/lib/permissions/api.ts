@@ -4,9 +4,9 @@ import { createClient } from '@supabase/supabase-js'
 type ApiPermissionResult =
   | {
       ok: true
-      user: any
-      profile: any
-      adminClient: any
+      user?: any
+      profile?: any
+      adminClient?: any
     }
   | {
       ok: false
@@ -106,7 +106,6 @@ export async function hasApiPermission(
 ) {
   if (!role) return false
 
-  // Super Admin mantiene acceso total.
   if (role === 'super_admin') return true
 
   const { data, error } = await adminClient
@@ -124,19 +123,47 @@ export async function hasApiPermission(
   return data?.enabled === true
 }
 
-export async function requireApiPermission(
-  req: NextRequest,
-  permission: string,
-  message = 'No autorizado',
-  adminClient = createAdminClient(),
-): Promise<ApiPermissionResult> {
-  const context = await getApiAuthContext(req, adminClient)
+// Compatible con ambos usos:
+// 1) requireApiPermission(req, 'permiso', 'mensaje')
+// 2) requireApiPermission(adminClient, profile, 'permiso', 'mensaje')
+export async function requireApiPermission(...args: any[]): Promise<ApiPermissionResult> {
+  // Firma nueva: (req, permission, message?, adminClient?)
+  if (args[0] instanceof NextRequest || typeof args[0]?.headers?.get === 'function') {
+    const req = args[0] as NextRequest
+    const permission = args[1] as string
+    const message = (args[2] as string) || 'No autorizado'
+    const adminClient = args[3] || createAdminClient()
 
-  if (!context.ok) return context
+    const context = await getApiAuthContext(req, adminClient)
+
+    if (context.ok === false) return context
+
+    const allowed = await hasApiPermission(
+      adminClient,
+      context.profile?.role,
+      permission,
+    )
+
+    if (!allowed) {
+      return {
+        ok: false as const,
+        response: NextResponse.json({ error: message }, { status: 403 }),
+      }
+    }
+
+    return context
+  }
+
+  // Firma anterior usada por /api/orders:
+  // (adminClient, profile, permission, message?)
+  const adminClient = args[0]
+  const profile = args[1]
+  const permission = args[2] as string
+  const message = (args[3] as string) || 'No autorizado'
 
   const allowed = await hasApiPermission(
     adminClient,
-    context.profile?.role,
+    profile?.role,
     permission,
   )
 
@@ -147,7 +174,11 @@ export async function requireApiPermission(
     }
   }
 
-  return context
+  return {
+    ok: true as const,
+    profile,
+    adminClient,
+  }
 }
 
 export async function auditAction(
@@ -171,7 +202,6 @@ export async function auditAction(
       metadata: payload.metadata ?? null,
     })
   } catch (error) {
-    // Auditoría nunca debe romper el flujo principal.
     console.error('[Audit] Error registrando acción:', error)
   }
 }
