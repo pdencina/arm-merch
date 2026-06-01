@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendTrackingEmail } from '@/lib/tracking-email'
+import { requireApiPermission } from '@/lib/permissions/api'
 
 // ─── POST /api/orders ─────────────────────────────────────────────────────────
 // Reglas importantes:
@@ -91,6 +92,17 @@ export async function POST(req: NextRequest) {
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 })
+    }
+
+    const permission = await requireApiPermission(
+      adminClient,
+      profile,
+      'pos.sell',
+      'No tienes permisos para registrar ventas'
+    )
+
+    if (!permission.ok) {
+      return permission.response
     }
 
     const sellingCampusId =
