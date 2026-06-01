@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const supabase = getAdminClient()
 
     const auth = await getApiAuthContext(req, supabase)
-    if (!auth.ok) return auth.response
+    if (auth.ok === false) return auth.response
 
     const canViewUsers = await hasApiPermission(supabase, auth.profile.role, 'users.view')
     if (!canViewUsers) {
@@ -55,7 +55,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = getAdminClient()
 
     const auth = await getApiAuthContext(req, supabase)
-    if (!auth.ok) return auth.response
+    if (auth.ok === false) return auth.response
 
     const { data: currentProfile, error: currentError } = await supabase
       .from('profiles')

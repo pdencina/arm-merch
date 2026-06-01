@@ -34,7 +34,7 @@ export async function getApiAuthContext(
 
   if (!authHeader?.startsWith('Bearer ')) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: 'No autenticado' }, { status: 401 }),
     }
   }
@@ -46,7 +46,7 @@ export async function getApiAuthContext(
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json(
         { error: 'Faltan variables de entorno de Supabase' },
         { status: 500 },
@@ -66,7 +66,7 @@ export async function getApiAuthContext(
 
   if (userError || !user) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: 'No autenticado' }, { status: 401 }),
     }
   }
@@ -79,20 +79,20 @@ export async function getApiAuthContext(
 
   if (profileError || !profile) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 }),
     }
   }
 
   if (profile.active === false) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }),
     }
   }
 
   return {
-    ok: true,
+    ok: true as const,
     user,
     profile,
     adminClient,
@@ -142,7 +142,7 @@ export async function requireApiPermission(
 
   if (!allowed) {
     return {
-      ok: false,
+      ok: false as const,
       response: NextResponse.json({ error: message }, { status: 403 }),
     }
   }
