@@ -60,10 +60,31 @@ export default function UsersPage() {
 
   useEffect(() => { loadAll() }, [])
 
+  async function authHeaders() {
+    const {
+      data: { session },
+    } = await createClient().auth.getSession()
+
+    return session?.access_token
+      ? {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        }
+      : { 'Content-Type': 'application/json' }
+  }
+
   async function loadAll() {
     setLoading(true)
     try {
-      const res  = await fetch('/api/admin/users')
+      const {
+        data: { session },
+      } = await createClient().auth.getSession()
+
+      const res  = await fetch('/api/admin/users', {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      })
       const data = await res.json()
       if (data.error) { error('Error cargando usuarios', data.error); return }
 
@@ -138,7 +159,7 @@ export default function UsersPage() {
 
     const res = await fetch('/api/admin/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({
         id: editUser.id,
         full_name: editName.trim(),
@@ -171,7 +192,7 @@ export default function UsersPage() {
   async function updateRole(userId: string, role: Role) {
     const res = await fetch('/api/admin/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ id: userId, role }),
     })
     if (!res.ok) { error('Error', 'No se pudo actualizar el rol'); return }
@@ -183,7 +204,7 @@ export default function UsersPage() {
   async function updateCampus(userId: string, campusId: string) {
     const res = await fetch('/api/admin/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ id: userId, campus_id: campusId || null }),
     })
     if (!res.ok) { error('Error', 'No se pudo actualizar el campus'); return }
@@ -196,7 +217,7 @@ export default function UsersPage() {
   async function toggleActive(userId: string, active: boolean) {
     const res = await fetch('/api/admin/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ id: userId, active }),
     })
     if (!res.ok) { error('Error', 'No se pudo actualizar el estado'); return }
@@ -213,7 +234,7 @@ export default function UsersPage() {
     setSavingPw(true)
     const res = await fetch('/api/admin/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ id: pwUser.id, password: newPw }),
     })
     const result = await res.json()

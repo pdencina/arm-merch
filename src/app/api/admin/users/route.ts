@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { auditAction, getApiAuthContext, hasApiPermission } from '@/lib/permissions/api'
 
 function getAdminClient() {
   return createClient(
@@ -9,13 +10,28 @@ function getAdminClient() {
   )
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = getAdminClient()
-    const { data: profiles, error } = await supabase
+
+    const auth = await getApiAuthContext(req, supabase)
+    if (!auth.ok) return auth.response
+
+    const canViewUsers = await hasApiPermission(supabase, auth.profile.role, 'users.view')
+    if (!canViewUsers) {
+      return NextResponse.json({ error: 'No autorizado para ver usuarios' }, { status: 403 })
+    }
+
+    let profilesQuery = supabase
       .from('profiles')
       .select('id, full_name, email, role, active, campus_id, created_at')
       .order('created_at', { ascending: false })
+
+    if (auth.profile.role !== 'super_admin' && auth.profile.role !== 'adm_merch' && auth.profile.campus_id) {
+      profilesQuery = profilesQuery.eq('campus_id', auth.profile.campus_id)
+    }
+
+    const { data: profiles, error } = await profilesQuery
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -38,6 +54,9 @@ export async function PATCH(req: NextRequest) {
 
     const supabase = getAdminClient()
 
+    const auth = await getApiAuthContext(req, supabase)
+    if (!auth.ok) return auth.response
+
     const { data: currentProfile, error: currentError } = await supabase
       .from('profiles')
       .select('id, full_name, email, role, campus_id, active')
@@ -46,6 +65,42 @@ export async function PATCH(req: NextRequest) {
 
     if (currentError || !currentProfile) {
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    }
+
+    const wantsToChangeRole = Object.prototype.hasOwnProperty.call(rawUpdates, 'role')
+    const wantsToEditProfile =
+      Object.prototype.hasOwnProperty.call(rawUpdates, 'full_name') ||
+      Object.prototype.hasOwnProperty.call(rawUpdates, 'email') ||
+      Object.prototype.hasOwnProperty.call(rawUpdates, 'campus_id')
+    const wantsToActivate = Object.prototype.hasOwnProperty.call(rawUpdates, 'active')
+    const wantsToChangePassword = Boolean(password)
+
+    if (wantsToEditProfile) {
+      const allowed = await hasApiPermission(supabase, auth.profile.role, 'users.edit')
+      if (!allowed) {
+        return NextResponse.json({ error: 'No autorizado para editar usuarios' }, { status: 403 })
+      }
+    }
+
+    if (wantsToChangeRole) {
+      const allowed = await hasApiPermission(supabase, auth.profile.role, 'users.roles')
+      if (!allowed) {
+        return NextResponse.json({ error: 'No autorizado para cambiar roles' }, { status: 403 })
+      }
+    }
+
+    if (wantsToActivate) {
+      const allowed = await hasApiPermission(supabase, auth.profile.role, 'users.activate')
+      if (!allowed) {
+        return NextResponse.json({ error: 'No autorizado para activar/desactivar usuarios' }, { status: 403 })
+      }
+    }
+
+    if (wantsToChangePassword) {
+      const allowed = await hasApiPermission(supabase, auth.profile.role, 'users.passwords')
+      if (!allowed) {
+        return NextResponse.json({ error: 'No autorizado para cambiar contraseñas' }, { status: 403 })
+      }
     }
 
     // ── Cambiar contraseña en Supabase Auth ────────────────────
@@ -143,6 +198,26 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
     }
+
+    await auditAction(supabase, {
+      actor_id: auth.profile.id,
+      action: 'users.update',
+      target_type: 'profile',
+      target_id: id,
+      permission: wantsToChangeRole
+        ? 'users.roles'
+        : wantsToChangePassword
+          ? 'users.passwords'
+          : wantsToActivate
+            ? 'users.activate'
+            : wantsToEditProfile
+              ? 'users.edit'
+              : null,
+      metadata: {
+        changed_fields: Object.keys(rawUpdates),
+        password_changed: Boolean(password),
+      },
+    })
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
