@@ -143,8 +143,25 @@ export default function OrdersPage() {
         `)
         .order('created_at', { ascending: false })
 
-      if (profile.role !== 'super_admin' && profile.campus_id) {
+      let canViewAllCampus = profile.role === 'super_admin'
+
+      if (!canViewAllCampus) {
+        const { data: allCampusPermission } = await supabase
+          .from('module_permissions')
+          .select('enabled')
+          .eq('role', profile.role)
+          .eq('module', 'orders.all_campus')
+          .maybeSingle()
+
+        canViewAllCampus = allCampusPermission?.enabled === true
+      }
+
+      if (!canViewAllCampus && profile.campus_id) {
         ordersQuery = ordersQuery.eq('campus_id', profile.campus_id)
+      }
+
+      if (!canViewAllCampus && !profile.campus_id) {
+        ordersQuery = ordersQuery.eq('campus_id', '__none__')
       }
 
       const [
