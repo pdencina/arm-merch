@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       'No tienes permisos para registrar ventas'
     )
 
-    if (!permission.ok) {
+    if (permission.ok === false) {
       return permission.response
     }
 
