@@ -8,6 +8,7 @@ import {
   ArrowRightLeft, User, Calculator, MapPin, Tags,
   X, Truck, Layers, PanelLeftClose, PanelLeftOpen,
   BrainCircuit, Sparkles, LineChart, Telescope, ChevronDown, DollarSign, TrendingUp,
+  ShieldCheck,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -45,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Campus', href: '/settings/campus', icon: <MapPin size={16} />, roles: ['super_admin'], section: 'Configuración' },
   { label: 'Categorías', href: '/settings/categories', permKey: 'categories.view', icon: <Tags size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Configuración' },
   { label: 'Módulos', href: '/settings/modules', icon: <Layers size={16} />, roles: ['super_admin'], section: 'Configuración' },
+  { label: 'Auditoría', href: '/settings/audit', icon: <ShieldCheck size={16} />, roles: ['super_admin'], section: 'Configuración' },
   { label: 'Mi perfil', href: '/profile', icon: <User size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Mi cuenta' },
 ]
 
