@@ -31,6 +31,7 @@ const fmtDate = (d: string) =>
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: 'Super Admin',
+  adm_merch: 'ADM Merch',
   admin: 'Administrador',
   voluntario: 'Voluntario',
 }
@@ -72,8 +73,12 @@ export default function ProfilePage() {
         return
       }
 
-      const [{ data: p }, { data: o }] = await Promise.all([
-        supabase.from('profiles').select('*, campus:campus(name)').eq('id', session.user.id).single(),
+      const [{ data: profileData }, { data: o }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, email, role, campus_id')
+          .eq('id', session.user.id)
+          .single(),
         supabase
           .from('orders')
           .select('id, total, status, created_at, order_number, payment_method, notes')
@@ -81,6 +86,21 @@ export default function ProfilePage() {
           .order('created_at', { ascending: false })
           .limit(50),
       ])
+
+      let p: any = profileData ?? null
+
+      if (p?.campus_id) {
+        const { data: campusData } = await supabase
+          .from('campus')
+          .select('id, name')
+          .eq('id', p.campus_id)
+          .maybeSingle()
+
+        p = {
+          ...p,
+          campus: campusData ?? null,
+        }
+      }
 
       const role = p?.role ?? 'voluntario'
       let permissionMap: PermissionMap = {}
@@ -158,9 +178,9 @@ export default function ProfilePage() {
               <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1 text-xs text-purple-400">
                 {ROLE_LABEL[profile?.role ?? 'voluntario'] ?? profile?.role}
               </span>
-              {profile?.campus?.name && (
+              {(Array.isArray(profile?.campus) ? profile?.campus?.[0]?.name : profile?.campus?.name) && (
                 <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-400">
-                  {profile.campus.name}
+                  {Array.isArray(profile?.campus) ? profile?.campus?.[0]?.name : profile?.campus?.name}
                 </span>
               )}
             </div>
