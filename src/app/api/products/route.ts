@@ -188,9 +188,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: inventoryError.message }, { status: 400 })
     }
 
-      // Stock inicial ya se guarda en inventory.stock.
-      // No crear movimiento automático para evitar duplicar stock.
-    }
+    // No crear movimiento automático de stock inicial.
+// El stock inicial ya queda guardado en inventory.stock.
+// Crear también inventory_movements duplicaba el stock en vistas/reportes.
 
     return NextResponse.json({ success: true, productId: createdProduct.id })
   } catch (error: any) {
