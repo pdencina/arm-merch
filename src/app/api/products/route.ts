@@ -188,25 +188,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: inventoryError.message }, { status: 400 })
     }
 
-    const movementRows = normalizedCampusStocks
-      .filter((item: any) => item.stock > 0)
-      .map((item: any) => ({
-        product_id: createdProduct.id,
-        campus_id: item.campus_id,
-        type: 'entrada',
-        quantity: item.stock,
-        notes: 'Stock inicial al crear producto',
-        created_by: profile.id,
-      }))
-
-    if (movementRows.length > 0) {
-      const { error: movementsError } = await adminClient
-        .from('inventory_movements')
-        .insert(movementRows)
-
-      if (movementsError) {
-        return NextResponse.json({ error: movementsError.message }, { status: 400 })
-      }
+      // Stock inicial ya se guarda en inventory.stock.
+      // No crear movimiento automático para evitar duplicar stock.
     }
 
     return NextResponse.json({ success: true, productId: createdProduct.id })
