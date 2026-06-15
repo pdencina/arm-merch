@@ -1,7 +1,11 @@
 import { Resend } from 'resend'
 import { NextRequest, NextResponse } from 'next/server'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) throw new Error('RESEND_API_KEY no configurada')
+  return new Resend(apiKey)
+}
 
 interface VoucherItem { name: string; quantity: number; price: number }
 
@@ -163,6 +167,7 @@ export async function POST(req: NextRequest) {
 
     const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'no-reply@armerch.com'
 
+    const resend = getResendClient()
     const { data, error } = await resend.emails.send({
       from:    `ARM Merch <${fromEmail}>`,
       to:      [body.to],

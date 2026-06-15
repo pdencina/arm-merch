@@ -15,6 +15,7 @@ import {
   TrendingDown,
   Menu,
 } from 'lucide-react'
+import CampusSelector from '@/components/layout/campus-selector'
 
 const CAMPUS_COLORS: Record<string, string> = {
   'ARM Santiago': 'bg-[#1B2028] text-[#B7C6F9]',
@@ -252,6 +253,8 @@ export default function Navbar({
         </div>
 
         <div className="flex items-center gap-2">
+          <CampusSelector role={user?.role} userCampusId={user?.campus_id} />
+
           <button
             onClick={toggleTheme}
             title={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}

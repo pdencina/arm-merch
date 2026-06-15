@@ -10,7 +10,10 @@ interface UseUserReturn {
   loading: boolean
   isAdmin: boolean
   isSuperAdmin: boolean
+  isAdmMerch: boolean
   isVoluntario: boolean
+  isGlobalRole: boolean
+  campusId: string | null
 }
 
 export function useUser(): UseUserReturn {
@@ -49,7 +52,10 @@ export function useUser(): UseUserReturn {
     role,
     loading,
     isSuperAdmin: role === 'super_admin',
-    isAdmin: role === 'admin' || role === 'super_admin',
+    isAdmMerch: role === 'adm_merch',
+    isAdmin: role === 'admin' || role === 'adm_merch' || role === 'super_admin',
     isVoluntario: role === 'voluntario',
+    isGlobalRole: role === 'super_admin' || role === 'adm_merch',
+    campusId: profile?.campus_id ?? null,
   }
 }

@@ -32,11 +32,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     async function init() {
       try {
         const {
-          data: { session },
+          data: { user },
           error: sessionError,
-        } = await supabase.auth.getSession()
+        } = await supabase.auth.getUser()
 
-        if (sessionError || !session) {
+        if (sessionError || !user) {
           router.replace('/login')
           return
         }
@@ -44,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const { data, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, email, role, active, campus_id')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .single()
 
         if (profileError || !data) {

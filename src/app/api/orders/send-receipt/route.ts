@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY!)
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-CL', {
@@ -170,7 +172,7 @@ export async function POST(req: Request) {
       </div>
     `
 
-    const { error: sendError } = await resend.emails.send({
+    const { error: sendError } = await getResend().emails.send({
       from: 'ARM Merch <no-reply@armerch.com>',
       to: email,
       subject: `Comprobante Orden #${order.order_number}`,

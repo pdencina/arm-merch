@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Pedidos entrega', href: '/production', permKey: 'deliveries.view', icon: <Truck size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
   { label: 'Inventario', href: '/inventory', permKey: 'inventory.view', icon: <Package size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
   { label: 'Movimientos', href: '/inventory/movements', permKey: 'movements.view', icon: <ArrowLeftRight size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
-  { label: 'Transferencias', href: '/transfers', icon: <ArrowRightLeft size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Inventario' },
+  { label: 'Transferencias', href: '/transfers', permKey: 'inventory.transfers.view', icon: <ArrowRightLeft size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
   { label: 'Productos', href: '/products', permKey: 'products.view', icon: <ClipboardList size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
   { label: 'Reportes', href: '/reports', permKey: 'reports.view', icon: <BarChart3 size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Gestión' },
 
