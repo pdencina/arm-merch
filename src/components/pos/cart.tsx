@@ -271,7 +271,7 @@ function CartItemRow({
         <span className="text-sm font-bold text-white">{fmt(lineTotal)}</span>
       </div>
 
-      {(item.product.sale_type === 'encargo' || item.product.sale_type === undefined || item.product.sale_type === null) && (item.variant_type === 'talla' || item.size) && (
+      {(item.product.sale_type === 'encargo' || item.variant_type === 'talla' || Boolean(item.variant_value) || Boolean(item.size)) && (
         <button
           type="button"
           onClick={onToggleProduction}
@@ -650,9 +650,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     // Solo permitir producción para productos con talla (ropa/confección) o tipo 'encargo'
     const item = items.find((i) => i.product.id === productId)
     if (!item) return
-    const isClothing = item.variant_type === 'talla' || Boolean(item.size)
     const isEncargo = item.product.sale_type === 'encargo'
-    if (!isClothing && !isEncargo) return
+    const hasSizeVariant = item.variant_type === 'talla' || Boolean(item.variant_value) || Boolean(item.size)
+    if (!isEncargo && !hasSizeVariant) return
 
     setProductionItems((current) => ({
       ...current,
