@@ -9,6 +9,7 @@ export interface CartProduct {
   stock: number
   sku?: string | null
   category_id?: string | null
+  sale_type?: 'stock' | 'encargo' | null
 }
 
 export interface CartItem {

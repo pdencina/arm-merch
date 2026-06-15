@@ -271,15 +271,16 @@ function CartItemRow({
         <span className="text-sm font-bold text-white">{fmt(lineTotal)}</span>
       </div>
 
-      <button
-        type="button"
-        onClick={onToggleProduction}
-        className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
-          isProduction
-            ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
-            : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-300"
-        }`}
-      >
+      {item.product.sale_type === 'encargo' && (
+        <button
+          type="button"
+          onClick={onToggleProduction}
+          className={`mt-3 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
+            isProduction
+              ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+              : "border-white/8 bg-white/[0.025] text-zinc-500 hover:border-white/15 hover:text-zinc-300"
+          }`}
+        >
         <span className="flex items-center gap-2">
           {isProduction ? <Clock size={13} /> : <Package size={13} />}
           {isProduction ? "Enviar a producción" : "Entrega inmediata"}
@@ -297,6 +298,7 @@ function CartItemRow({
           />
         </span>
       </button>
+      )}
     </motion.div>
   );
 }
@@ -645,6 +647,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     productionItems[productId] ? "production" : "immediate";
 
   const toggleProductionItem = (productId: string) => {
+    // Solo permitir producción para productos tipo 'encargo'
+    const item = items.find((i) => i.product.id === productId)
+    if (item?.product.sale_type !== 'encargo') return
+
     setProductionItems((current) => ({
       ...current,
       [productId]: !current[productId],

@@ -17,6 +17,7 @@ interface Product {
   category_id: string | null
   sku: string | null
   barcode?: string | null
+  sale_type?: 'stock' | 'encargo' | null
 }
 
 interface Props {
@@ -206,6 +207,7 @@ export default function ProductGrid({ products, categories }: Props) {
       stock: product.stock ?? 0,
       sku: product.sku,
       category_id: product.category_id,
+      sale_type: product.sale_type ?? 'stock',
     })
 
     playAddSound()
@@ -462,6 +464,7 @@ export default function ProductGrid({ products, categories }: Props) {
               stock: product.stock ?? 0,
               sku: product.sku,
               category_id: product.category_id,
+              sale_type: product.sale_type ?? 'stock',
             },
             selectedVariantProduct.variantType === 'talla' ? option.value : null,
             selectedVariantProduct.variantType,
