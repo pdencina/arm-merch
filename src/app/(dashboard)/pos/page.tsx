@@ -146,7 +146,25 @@ export default function POSPage() {
           .order('name'),
       ])
 
-      setProducts(p ?? [])
+      // Aplicar precios diferenciados por campus si existen
+      let productsWithPrices = p ?? []
+      if (campusId) {
+        const { data: campusPrices } = await supabase
+          .from('campus_prices')
+          .select('product_id, price')
+          .eq('campus_id', campusId)
+          .eq('active', true)
+
+        if (campusPrices && campusPrices.length > 0) {
+          const priceMap = new Map(campusPrices.map((cp: any) => [cp.product_id, cp.price]))
+          productsWithPrices = productsWithPrices.map((prod: any) => {
+            const campusPrice = priceMap.get(prod.id)
+            return campusPrice !== undefined ? { ...prod, price: campusPrice } : prod
+          })
+        }
+      }
+
+      setProducts(productsWithPrices)
       setCategories(c ?? [])
     }
 
