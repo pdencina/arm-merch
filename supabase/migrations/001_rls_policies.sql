@@ -135,35 +135,24 @@ CREATE POLICY "promotions_manage_global" ON public.promotions
   );
 
 -- ─── PROFILES (lectura) ─────────────────────────────────────────────────────
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- Todos pueden ver su propio perfil
-CREATE POLICY "profiles_select_own" ON public.profiles
-  FOR SELECT USING (id = auth.uid());
-
--- Admin ve perfiles de su campus
-CREATE POLICY "profiles_select_campus" ON public.profiles
-  FOR SELECT USING (
-    campus_id = (SELECT campus_id FROM profiles WHERE id = auth.uid())
-    AND (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
-  );
-
--- Global roles ven todo
-CREATE POLICY "profiles_select_global" ON public.profiles
-  FOR SELECT USING (
-    (SELECT role FROM profiles WHERE id = auth.uid()) IN ('super_admin', 'adm_merch')
-  );
-
--- Solo el propio usuario puede actualizar su perfil (nombre, avatar)
-CREATE POLICY "profiles_update_own" ON public.profiles
-  FOR UPDATE USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
-
--- Super admin puede actualizar cualquier perfil
-CREATE POLICY "profiles_update_global" ON public.profiles
-  FOR UPDATE USING (
-    (SELECT role FROM profiles WHERE id = auth.uid()) = 'super_admin'
-  );
+-- NOTA: NO activamos RLS en profiles porque se consulta desde el browser client
+-- en login y dashboard layout. La protección se hace a nivel de API routes.
+-- Si deseas activar RLS en profiles en el futuro, asegúrate de que el browser
+-- client siempre tenga un token válido antes de consultar esta tabla.
+--
+-- ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+--
+-- Para activar en el futuro, descomentar y ejecutar:
+-- CREATE POLICY "profiles_select_authenticated" ON public.profiles
+--   FOR SELECT USING (auth.role() = 'authenticated');
+-- 
+-- CREATE POLICY "profiles_update_own" ON public.profiles
+--   FOR UPDATE USING (id = auth.uid());
+--
+-- CREATE POLICY "profiles_update_global" ON public.profiles
+--   FOR UPDATE USING (
+--     (SELECT role FROM profiles WHERE id = auth.uid()) = 'super_admin'
+--   );
 
 -- ─── PRODUCTS (globales, todos leen) ────────────────────────────────────────
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
