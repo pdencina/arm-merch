@@ -45,6 +45,9 @@ type ResolvedEmailData = {
   campusName?: string | null
   pickupAddress?: string | null
   total?: number | null
+  amountPaid?: number | null
+  balanceDue?: number | null
+  paymentType?: string | null
   paymentMethod?: string | null
   items?: Array<{
     quantity: number
@@ -205,6 +208,9 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
       order_number,
       tracking_token,
       total,
+      amount_paid,
+      balance_due,
+      payment_type,
       payment_method,
       campus_id,
       pickup_campus_id
@@ -278,6 +284,9 @@ async function resolveEmailData(input: TrackingEmailInput): Promise<ResolvedEmai
     campusName: destinationCampus?.name,
     pickupAddress: destinationCampus?.address,
     total: order.total,
+    amountPaid: order.amount_paid ?? null,
+    balanceDue: order.balance_due ?? null,
+    paymentType: order.payment_type ?? null,
     paymentMethod: order.payment_method || input.paymentMethod || null,
     items: (orderItems || []).map((item: any) => ({
       quantity: Number(item.quantity || 0),
@@ -316,6 +325,10 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
   const methodLabel = paymentMethodLabel(data.paymentMethod)
   const trackingUrl = `${String(appUrl).replace(/\/$/, '')}/track/${encodeURIComponent(data.trackingToken)}`
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'no-reply@armerch.com'
+
+  const isPartialPayment = data.paymentType === 'deposit_50' && Number(data.balanceDue ?? 0) > 0
+  const amountPaidDisplay = Number(data.amountPaid ?? data.total ?? 0)
+  const balanceDueDisplay = Number(data.balanceDue ?? 0)
 
   const productionItems = (data.items || []).filter(
     (item) => item.fulfillment_type === 'production',
@@ -416,8 +429,21 @@ export async function sendTrackingEmail(input: TrackingEmailInput) {
                 </tr>
                 <tr>
                   <td style="padding:18px 20px;">
-                    <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Total</p>
-                    <p style="margin:6px 0 0;color:#18181b;font-size:22px;font-weight:900;">${fmtCLP(data.total)}</p>
+                    ${isPartialPayment ? `
+                      <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Total del pedido</p>
+                      <p style="margin:6px 0 0;color:#71717a;font-size:16px;font-weight:700;text-decoration:line-through;">${fmtCLP(data.total)}</p>
+                      <div style="margin:12px 0 0;padding:12px 16px;background:#16a34a15;border:1px solid #16a34a30;border-radius:12px;">
+                        <p style="margin:0;color:#16a34a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Pagado hoy (50% abono)</p>
+                        <p style="margin:4px 0 0;color:#16a34a;font-size:22px;font-weight:900;">${fmtCLP(amountPaidDisplay)}</p>
+                      </div>
+                      <div style="margin:10px 0 0;padding:12px 16px;background:#f59e0b15;border:1px solid #f59e0b30;border-radius:12px;">
+                        <p style="margin:0;color:#d97706;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Saldo pendiente (pago al retirar)</p>
+                        <p style="margin:4px 0 0;color:#d97706;font-size:18px;font-weight:900;">${fmtCLP(balanceDueDisplay)}</p>
+                      </div>
+                    ` : `
+                      <p style="margin:0;color:#71717a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;">Total</p>
+                      <p style="margin:6px 0 0;color:#18181b;font-size:22px;font-weight:900;">${fmtCLP(data.total)}</p>
+                    `}
                   </td>
                 </tr>
               </table>
