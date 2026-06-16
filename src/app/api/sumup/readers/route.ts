@@ -237,3 +237,88 @@ export async function PATCH(req: Request) {
     )
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const auth = await requireSuperAdmin(req)
+
+    if (auth.errorResponse) return auth.errorResponse
+
+    const { adminClient } = auth
+    const { sumupApiKey, sumupMerchantCode, sumupApiBase } = getEnv()
+
+    const url = new URL(req.url)
+    const id = url.searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'id del reader es requerido' }, { status: 400 })
+    }
+
+    // Obtener el reader de la BD
+    const { data: reader, error: fetchError } = await adminClient
+      .from('sumup_readers')
+      .select('id, reader_id, name')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !reader) {
+      return NextResponse.json({ error: 'Reader no encontrado' }, { status: 404 })
+    }
+
+    // Intentar desvincular de SumUp API
+    let sumupUnpaired = false
+    let sumupError: string | null = null
+
+    if (sumupApiKey && sumupMerchantCode && reader.reader_id) {
+      try {
+        const sumupRes = await fetch(
+          `${sumupApiBase}/v0.1/merchants/${encodeURIComponent(sumupMerchantCode)}/readers/${encodeURIComponent(reader.reader_id)}`,
+          {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${sumupApiKey}`,
+            },
+          }
+        )
+
+        if (sumupRes.ok || sumupRes.status === 204) {
+          sumupUnpaired = true
+        } else {
+          const errData = await sumupRes.json().catch(() => ({}))
+          sumupError = errData?.message ?? errData?.error ?? `HTTP ${sumupRes.status}`
+          // Si SumUp dice 404, el reader ya no existe allá — igualmente lo borramos localmente
+          if (sumupRes.status === 404) {
+            sumupUnpaired = true
+            sumupError = null
+          }
+        }
+      } catch (err: any) {
+        sumupError = err?.message ?? 'Error conectando con SumUp'
+      }
+    }
+
+    // Eliminar de nuestra BD
+    const { error: deleteError } = await adminClient
+      .from('sumup_readers')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 400 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      sumup_unpaired: sumupUnpaired,
+      sumup_error: sumupError,
+      message: sumupUnpaired
+        ? `Reader "${reader.name}" desvinculado de SumUp y eliminado del sistema`
+        : `Reader "${reader.name}" eliminado del sistema (no se pudo desvincular de SumUp: ${sumupError})`,
+    })
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message ?? 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}

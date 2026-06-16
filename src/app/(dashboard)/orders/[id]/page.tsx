@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, RotateCcw } from 'lucide-react'
 import SendReceipt from '@/components/orders/send-receipt'
 import ResendVoucherButton from '@/components/orders/resend-voucher-button'
+import RefundModal from '@/components/orders/refund-modal'
 
 type OrderRow = {
   id: string
@@ -122,6 +123,7 @@ export default function OrderDetailPage() {
   const [items, setItems] = useState<ItemRow[]>([])
   const [confirmingTransfer, setConfirmingTransfer] = useState(false)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [showRefundModal, setShowRefundModal] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -183,6 +185,7 @@ export default function OrderDetailPage() {
             id,
             quantity,
             unit_price,
+            refunded_qty,
             products (
               name,
               sku
@@ -507,6 +510,17 @@ export default function OrderDetailPage() {
 
           <ResendVoucherButton orderId={order.id} />
 
+          {order.status === 'paid' && profile?.role !== 'voluntario' && (
+            <button
+              type="button"
+              onClick={() => setShowRefundModal(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:bg-red-500/20"
+            >
+              <RotateCcw size={14} />
+              Devolución
+            </button>
+          )}
+
           {order.tracking_token && (
             <Link
               href={`/track/${order.tracking_token}`}
@@ -525,6 +539,27 @@ export default function OrderDetailPage() {
           <SendReceipt orderId={order.id} />
         </div>
       </div>
+
+      {/* Refund Modal */}
+      {showRefundModal && (
+        <RefundModal
+          orderId={order.id}
+          orderNumber={order.order_number}
+          items={items.map((item) => {
+            const p = Array.isArray(item.products) ? item.products[0] : item.products
+            return {
+              id: item.id,
+              product_id: '',
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              refunded_qty: (item as any).refunded_qty ?? 0,
+              products: p ?? { name: 'Producto', sku: null, image_url: null },
+            }
+          })}
+          onClose={() => setShowRefundModal(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      )}
     </div>
   )
 }

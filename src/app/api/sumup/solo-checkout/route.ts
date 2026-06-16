@@ -299,10 +299,22 @@ export async function POST(req: NextRequest) {
         {
           error:
             sumupCheckout?.message ??
+            sumupCheckout?.error_message ??
             sumupCheckout?.error ??
             'SumUp rechazó el checkout SOLO',
 
           detail: sumupCheckout,
+          status_code: sumupRes.status,
+          reader_id: reader.reader_id,
+          reader_name: reader.name,
+          campus_id: campusId,
+          hint: sumupRes.status === 404
+            ? 'El reader no fue encontrado en SumUp. Puede que haya expirado o necesite re-parearse.'
+            : sumupRes.status === 409
+              ? 'El reader está ocupado procesando otra transacción.'
+              : sumupRes.status === 403
+                ? 'Sin permisos para este reader. Verifica el API key.'
+                : null,
         },
         { status: 400 },
       )

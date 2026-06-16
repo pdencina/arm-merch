@@ -294,6 +294,27 @@ export async function POST(req: Request) {
       const expectedCash = Number(openSession.opening_amount ?? 0) + salesTotal
       const difference = closingAmountDeclared - expectedCash
 
+      // Calcular desglose por método de pago
+      const allOrders = orders ?? []
+      const paymentBreakdownMap = new Map<string, { total: number; count: number }>()
+      for (const order of allOrders) {
+        const method = order.payment_method || 'otro'
+        const existing = paymentBreakdownMap.get(method) ?? { total: 0, count: 0 }
+        existing.total += Number(order.total ?? 0)
+        existing.count += 1
+        paymentBreakdownMap.set(method, existing)
+      }
+      const paymentBreakdown = Array.from(paymentBreakdownMap.entries()).map(([method, data]) => ({
+        method,
+        total: data.total,
+        count: data.count,
+      }))
+
+      const totalAllSales = allOrders.reduce(
+        (sum: number, order: any) => sum + Number(order.total ?? 0), 0
+      )
+      const digitalSales = totalAllSales - salesTotal
+
       const { data, error } = await adminClient
         .from('cash_sessions')
         .update({
@@ -303,6 +324,9 @@ export async function POST(req: Request) {
           sales_total: salesTotal,
           orders_count: ordersCount,
           difference,
+          payment_breakdown: paymentBreakdown,
+          total_sales: totalAllSales,
+          digital_sales: digitalSales,
           notes,
           status: 'closed',
           updated_at: new Date().toISOString(),
@@ -340,8 +364,11 @@ export async function POST(req: Request) {
         summary: {
           expected_cash: expectedCash,
           sales_total: salesTotal,
+          total_all_sales: totalAllSales,
+          digital_sales: digitalSales,
           orders_count: ordersCount,
           difference,
+          payment_breakdown: paymentBreakdown,
         },
       })
     }

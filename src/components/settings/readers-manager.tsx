@@ -20,6 +20,7 @@ import {
   Globe,
   Clock,
   Signal,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { clsx } from 'clsx'
@@ -261,6 +262,45 @@ export default function ReadersManager() {
       await loadData()
     } catch (error: any) {
       toast.error(error?.message ?? 'Error inesperado al actualizar lector')
+    }
+
+    setUpdatingId(null)
+  }
+
+  async function handleUnpairReader(reader: SumUpReader) {
+    const confirmed = window.confirm(
+      `¿Desvincular "${reader.name}" de SumUp y eliminar del sistema?\n\nEsto eliminará el reader de tu cuenta SumUp. Necesitarás re-parearlo si lo quieres usar de nuevo.`
+    )
+    if (!confirmed) return
+
+    setUpdatingId(reader.id)
+
+    try {
+      const session = await getSession()
+      if (!session?.access_token) {
+        toast.error('No autenticado')
+        setUpdatingId(null)
+        return
+      }
+
+      const res = await fetch(`/api/sumup/readers?id=${reader.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error ?? 'No se pudo desvincular')
+        setUpdatingId(null)
+        return
+      }
+
+      toast.success(data.message ?? 'Reader desvinculado')
+      await loadData()
+      await checkApiStatus()
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Error al desvincular')
     }
 
     setUpdatingId(null)
@@ -642,30 +682,42 @@ export default function ReadersManager() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleToggleReader(reader)}
-                      disabled={updatingId === reader.id}
-                      className={clsx(
-                        'flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition',
-                        reader.active
-                          ? 'bg-red-500/10 text-red-300 hover:bg-red-500/20'
-                          : 'bg-green-500/10 text-green-300 hover:bg-green-500/20',
-                        'disabled:opacity-50'
-                      )}
-                    >
-                      {reader.active ? (
-                        <ToggleRight size={18} className="text-green-400" />
-                      ) : (
-                        <ToggleLeft size={18} className="text-zinc-500" />
-                      )}
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleReader(reader)}
+                        disabled={updatingId === reader.id}
+                        className={clsx(
+                          'flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition',
+                          reader.active
+                            ? 'bg-red-500/10 text-red-300 hover:bg-red-500/20'
+                            : 'bg-green-500/10 text-green-300 hover:bg-green-500/20',
+                          'disabled:opacity-50'
+                        )}
+                      >
+                        {reader.active ? (
+                          <ToggleRight size={18} className="text-green-400" />
+                        ) : (
+                          <ToggleLeft size={18} className="text-zinc-500" />
+                        )}
 
-                      {updatingId === reader.id
-                        ? 'Actualizando...'
-                        : reader.active
-                          ? 'Desactivar'
-                          : 'Activar'}
-                    </button>
+                        {updatingId === reader.id
+                          ? 'Procesando...'
+                          : reader.active
+                            ? 'Desactivar'
+                            : 'Activar'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUnpairReader(reader)}
+                        disabled={updatingId === reader.id}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-red-500/20 px-4 py-2 text-xs font-medium text-red-400/70 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                      >
+                        <X size={12} />
+                        Desvincular
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
