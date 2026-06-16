@@ -77,7 +77,7 @@ export const POST = withAuth(async (
       )
     }
 
-    const orderItem = orderItemsMap.get(order_item_id)
+    const orderItem = orderItemsMap.get(order_item_id) as any
     if (!orderItem) {
       return NextResponse.json(
         { error: `Item ${order_item_id} no pertenece a esta orden` },
@@ -165,7 +165,7 @@ export const POST = withAuth(async (
 
   // 7. Actualizar refunded_qty en order_items
   for (const item of refundItemsToInsert) {
-    const orderItem = orderItemsMap.get(item.order_item_id)
+    const orderItem = orderItemsMap.get(item.order_item_id) as any
     if (orderItem) {
       await adminClient
         .from('order_items')
