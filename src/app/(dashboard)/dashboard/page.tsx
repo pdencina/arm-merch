@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useCampusSelector } from '@/lib/hooks/use-campus-selector'
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -127,6 +128,7 @@ function StatCard({
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const supabase = createClient()
+  const { selectedCampusId } = useCampusSelector()
   const [orders, setOrders] = useState<any[]>([])
   const [orderItems, setOrderItems] = useState<any[]>([])
   const [campuses, setCampuses] = useState<any[]>([])
@@ -136,6 +138,20 @@ export default function DashboardPage() {
   const [userCampusId, setUserCampusId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(new Date())
+
+  // Filtrar órdenes por campus seleccionado (para roles globales)
+  const filteredOrders = useMemo(() => {
+    if (!selectedCampusId) return orders
+    return orders.filter((o: any) => o.campus_id === selectedCampusId)
+  }, [orders, selectedCampusId])
+
+  const filteredOrderItems = useMemo(() => {
+    if (!selectedCampusId) return orderItems
+    return orderItems.filter((item: any) => {
+      const o = Array.isArray(item.order) ? item.order[0] : item.order
+      return o?.campus_id === selectedCampusId
+    })
+  }, [orderItems, selectedCampusId])
 
   // Clock
   useEffect(() => {
@@ -229,14 +245,14 @@ export default function DashboardPage() {
     const lastMonthEnd  = new Date(now.getFullYear(), now.getMonth(), 0)
     const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1)
 
-    const todayOrders     = orders.filter(o => new Date(o.created_at) >= todayStart)
-    const yesterdayOrders = orders.filter(o => {
+    const todayOrders     = filteredOrders.filter(o => new Date(o.created_at) >= todayStart)
+    const yesterdayOrders = filteredOrders.filter(o => {
       const d = new Date(o.created_at)
       return d >= yesterdayStart && d < todayStart
     })
-    const weekOrders      = orders.filter(o => new Date(o.created_at) >= weekAgo)
-    const monthOrders     = orders.filter(o => new Date(o.created_at) >= monthStart)
-    const lastMonthOrders = orders.filter(o => {
+    const weekOrders      = filteredOrders.filter(o => new Date(o.created_at) >= weekAgo)
+    const monthOrders     = filteredOrders.filter(o => new Date(o.created_at) >= monthStart)
+    const lastMonthOrders = filteredOrders.filter(o => {
       const d = new Date(o.created_at)
       return d >= lastMonthStart && d <= lastMonthEnd
     })
@@ -259,7 +275,7 @@ export default function DashboardPage() {
       monthCount: monthOrders.length,
       weekCount: weekOrders.length,
     }
-  }, [orders, now])
+  }, [filteredOrders, now])
 
   // 30-day daily chart
   const dailyChart = useMemo(() => {
