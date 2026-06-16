@@ -51,8 +51,6 @@ export async function POST(req: NextRequest) {
       sumupPayload.merchant_code = merchantCode
     }
 
-    console.log('[SumUp Checkout] Request payload:', sumupPayload)
-
     const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: {
@@ -71,9 +69,6 @@ export async function POST(req: NextRequest) {
     } catch {
       checkoutData = { raw: checkoutText }
     }
-
-    console.log('[SumUp Checkout] Status:', checkoutRes.status)
-    console.log('[SumUp Checkout] Response:', checkoutData)
 
     if (!checkoutRes.ok) {
       return NextResponse.json(

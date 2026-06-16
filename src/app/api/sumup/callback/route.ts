@@ -1,25 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://armerch-poud.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://armerch.com'
 
 export async function GET(req: NextRequest) {
   const code  = req.nextUrl.searchParams.get('code')
   const error = req.nextUrl.searchParams.get('error')
 
-  console.log('[SumUp callback] code:', code, 'error:', error)
+  console.log('[SumUp callback] Recibido, code presente:', Boolean(code))
 
   if (error || !code) {
-    console.error('[SumUp callback] Error recibido:', error)
+    console.error('[SumUp callback] Error:', error)
     return NextResponse.redirect(`${APP_URL}/pos?sumup=error&reason=${error ?? 'no_code'}`)
   }
 
   const clientId     = process.env.SUMUP_CLIENT_ID
   const clientSecret = process.env.SUMUP_CLIENT_SECRET
   const redirectUri  = `${APP_URL}/api/sumup/callback`
-
-  console.log('[SumUp callback] client_id:', clientId)
-  console.log('[SumUp callback] redirect_uri:', redirectUri)
 
   if (!clientId || !clientSecret) {
     console.error('[SumUp callback] Faltan variables de entorno')
@@ -40,14 +37,12 @@ export async function GET(req: NextRequest) {
   })
 
   const tokenText = await tokenRes.text()
-  console.log('[SumUp callback] Token response status:', tokenRes.status)
-  console.log('[SumUp callback] Token response body:', tokenText)
 
   let token: any
   try { token = JSON.parse(tokenText) } catch { token = {} }
 
   if (!token.access_token) {
-    console.error('[SumUp callback] No access_token en respuesta:', token)
+    console.error('[SumUp callback] Token exchange failed, status:', tokenRes.status)
     return NextResponse.redirect(`${APP_URL}/pos?sumup=error&reason=token_failed`)
   }
 
@@ -69,10 +64,9 @@ export async function GET(req: NextRequest) {
   })
 
   if (dbError) {
-    console.error('[SumUp callback] Error guardando token:', dbError)
+    console.error('[SumUp callback] Error guardando token')
     return NextResponse.redirect(`${APP_URL}/pos?sumup=error&reason=db_error`)
   }
 
-  console.log('[SumUp callback] Token guardado exitosamente')
   return NextResponse.redirect(`${APP_URL}/pos?sumup=connected`)
 }

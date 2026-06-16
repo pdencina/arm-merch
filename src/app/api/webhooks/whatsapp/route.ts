@@ -20,13 +20,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    console.log('WhatsApp Webhook:', JSON.stringify(body, null, 2))
-
+    // Procesar el webhook sin logear data sensible
     return NextResponse.json({
       received: true
     })
   } catch (error) {
-    console.error(error)
+    console.error('[WhatsApp Webhook] Error processing')
 
     return NextResponse.json(
       { error: 'Webhook error' },

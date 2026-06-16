@@ -557,7 +557,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         if (!mounted || !profile?.campus_id) return;
 
         const { data: campus } = await supabase
-          .from("campuses")
+          .from("campus")
           .select("name")
           .eq("id", profile.campus_id)
           .maybeSingle();
