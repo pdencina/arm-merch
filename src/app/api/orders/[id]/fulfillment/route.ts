@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendTrackingEmail } from '@/lib/tracking-email'
+import { sendPickupNotification } from '@/lib/whatsapp/send-pickup-notification'
 
 const STATUS_CONFIG: Record<string, { title: string; message: string }> = {
   pending_production: {
@@ -197,11 +198,84 @@ export async function PATCH(
       appUrl: getAppUrl(req),
     })
 
+    // ── WhatsApp: notificar al cliente cuando el pedido está listo ──
+    let whatsappResult: any = null
+
+    if (nextStatus === 'ready_pickup') {
+      try {
+        const { data: contact } = await adminClient
+          .from('order_contacts')
+          .select('client_name, client_phone')
+          .eq('order_id', order.id)
+          .maybeSingle()
+
+        if (contact?.client_phone) {
+          // Obtener campus de retiro
+          const pickupCampusId = order.pickup_campus_id || order.campus_id
+          let campusName = 'ARM Merch'
+
+          if (pickupCampusId) {
+            const { data: campus } = await adminClient
+              .from('campus')
+              .select('name')
+              .eq('id', pickupCampusId)
+              .maybeSingle()
+
+            if (campus?.name) campusName = campus.name
+          }
+
+          // Obtener saldo pendiente
+          const { data: orderFull } = await adminClient
+            .from('orders')
+            .select('balance_due, total')
+            .eq('id', order.id)
+            .maybeSingle()
+
+          // Obtener nombres de productos de producción
+          const { data: productionItems } = await adminClient
+            .from('order_items')
+            .select('quantity, size, products(name)')
+            .eq('order_id', order.id)
+            .eq('fulfillment_type', 'production')
+
+          const productNames = (productionItems ?? []).map((item: any) => {
+            const product = Array.isArray(item.products) ? item.products[0] : item.products
+            const name = product?.name ?? 'Producto'
+            const qty = item.quantity ?? 1
+            const size = item.size ? ` (Talla ${item.size})` : ''
+            return `${name}${size} x${qty}`
+          })
+
+          // Construir URL de tracking
+          const trackingUrl = order.tracking_token
+            ? `${getAppUrl(req)}/track/${order.tracking_token}`
+            : null
+
+          whatsappResult = await sendPickupNotification({
+            phone: contact.client_phone,
+            clientName: contact.client_name || 'Cliente',
+            orderNumber: order.order_number,
+            campusName,
+            balanceDue: Number(orderFull?.balance_due ?? 0),
+            trackingUrl,
+            products: productNames,
+          })
+        } else {
+          whatsappResult = { sent: false, provider: 'skipped', error: 'Sin teléfono registrado' }
+        }
+      } catch (whatsappError: any) {
+        console.error('[Fulfillment] WhatsApp notification error:', whatsappError)
+        whatsappResult = { sent: false, provider: 'skipped', error: whatsappError?.message }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       status: nextStatus,
       email_sent: Boolean((emailResult as any)?.sent),
       email_result: emailResult,
+      whatsapp_sent: Boolean(whatsappResult?.sent),
+      whatsapp_result: whatsappResult,
       item_timestamps_updated: Object.keys(getItemTimestampPayload(nextStatus)).length > 0,
     })
   } catch (error: any) {

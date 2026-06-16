@@ -184,6 +184,7 @@ export default function ProductionPage() {
   const [balancePaymentMethod, setBalancePaymentMethod] = useState('efectivo')
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [whatsappNotice, setWhatsappNotice] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -406,6 +407,7 @@ export default function ProductionPage() {
 
     setUpdatingId(order.id)
     setError(null)
+    setWhatsappNotice(null)
 
     const {
       data: { session },
@@ -424,6 +426,15 @@ export default function ProductionPage() {
 
     if (!res.ok) {
       setError(data?.error ?? 'No se pudo actualizar el estado')
+    } else {
+      // Feedback de WhatsApp cuando se marca listo para retiro
+      if (next === 'ready_pickup' && data?.whatsapp_sent) {
+        setWhatsappNotice(`✅ WhatsApp enviado al cliente (Orden #${order.order_number})`)
+        setTimeout(() => setWhatsappNotice(null), 6000)
+      } else if (next === 'ready_pickup' && data?.whatsapp_result?.error) {
+        setWhatsappNotice(`⚠️ No se pudo enviar WhatsApp: ${data.whatsapp_result.error}`)
+        setTimeout(() => setWhatsappNotice(null), 8000)
+      }
     }
 
     await load()
@@ -572,6 +583,16 @@ export default function ProductionPage() {
       {error && (
         <div className="rounded-2xl border border-red-900/40 bg-red-950/30 p-4 text-sm text-red-200">
           {error}
+        </div>
+      )}
+
+      {whatsappNotice && (
+        <div className={`rounded-2xl border p-4 text-sm font-semibold ${
+          whatsappNotice.startsWith('✅')
+            ? 'border-green-500/30 bg-green-500/10 text-green-300'
+            : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+        }`}>
+          {whatsappNotice}
         </div>
       )}
 
