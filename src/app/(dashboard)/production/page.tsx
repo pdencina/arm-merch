@@ -248,7 +248,7 @@ export default function ProductionPage() {
     )
   }, [orders, statusFilter])
 
-  const canSeeProductionMetrics = role === 'admin' || role === 'super_admin'
+  const canSeeProductionMetrics = role === 'admin' || role === 'super_admin' || role === 'adm_merch'
 
   const metrics = useMemo(() => {
     const today = new Date()
@@ -661,13 +661,14 @@ export default function ProductionPage() {
               !hasPendingBalance &&
               (
                 role === 'super_admin' ||
+                role === 'adm_merch' ||
                 campusId === pickupCampus
               )
 
             const canMove =
               next === 'delivered'
                 ? canDeliver
-                : role === 'super_admin'
+                : role === 'super_admin' || role === 'adm_merch'
 
             const sla = getSlaInfo({
               ...order,

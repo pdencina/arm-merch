@@ -139,10 +139,10 @@ export async function PATCH(
     }
 
     const pickupCampusId = order.pickup_campus_id || order.campus_id
-    const isSuperAdmin = profile.role === 'super_admin'
+    const isGlobalAdmin = profile.role === 'super_admin' || profile.role === 'adm_merch'
     const sameCampus = profile.campus_id === pickupCampusId
 
-    if (!isSuperAdmin && !(nextStatus === 'delivered' && sameCampus)) {
+    if (!isGlobalAdmin && !(nextStatus === 'delivered' && sameCampus)) {
       return NextResponse.json({ error: 'No autorizado para cambiar este estado' }, { status: 403 })
     }
 
