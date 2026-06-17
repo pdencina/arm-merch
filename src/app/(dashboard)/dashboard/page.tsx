@@ -141,17 +141,22 @@ export default function DashboardPage() {
 
   // Filtrar órdenes por campus seleccionado (para roles globales)
   const filteredOrders = useMemo(() => {
+    // Solo aplicar filtro de campus selector para roles globales
+    const isGlobalRole = role === 'super_admin' || role === 'adm_merch'
+    if (!isGlobalRole) return orders
     if (!selectedCampusId) return orders
     return orders.filter((o: any) => o.campus_id === selectedCampusId)
-  }, [orders, selectedCampusId])
+  }, [orders, selectedCampusId, role])
 
   const filteredOrderItems = useMemo(() => {
+    const isGlobalRole = role === 'super_admin' || role === 'adm_merch'
+    if (!isGlobalRole) return orderItems
     if (!selectedCampusId) return orderItems
     return orderItems.filter((item: any) => {
       const o = Array.isArray(item.order) ? item.order[0] : item.order
       return o?.campus_id === selectedCampusId
     })
-  }, [orderItems, selectedCampusId])
+  }, [orderItems, selectedCampusId, role])
 
   // Clock
   useEffect(() => {
@@ -284,7 +289,7 @@ export default function DashboardPage() {
       const d = new Date(); d.setDate(d.getDate() - i)
       const start = startOfDay(d)
       const end   = new Date(start); end.setDate(end.getDate() + 1)
-      const total = orders
+      const total = filteredOrders
         .filter(o => { const x = new Date(o.created_at); return x >= start && x < end })
         .reduce((s, o) => s + Number(o.total ?? 0), 0)
       days.push({
@@ -293,7 +298,7 @@ export default function DashboardPage() {
       })
     }
     return days
-  }, [orders])
+  }, [filteredOrders])
 
   // Sparkline data (last 7 days totals)
   const spark7 = useMemo(() => dailyChart.slice(-7).map(d => d.total), [dailyChart])
@@ -302,7 +307,7 @@ export default function DashboardPage() {
   const hourlyChart = useMemo(() => {
     const todayStart = startOfDay(now)
     const buckets: Record<number, number> = {}
-    orders
+    filteredOrders
       .filter(o => new Date(o.created_at) >= todayStart)
       .forEach(o => {
         const h = new Date(o.created_at).getHours()
@@ -312,12 +317,12 @@ export default function DashboardPage() {
       label: `${h}h`,
       total: buckets[h] || 0,
     }))
-  }, [orders, now])
+  }, [filteredOrders, now])
 
   // Top products
   const topProducts = useMemo(() => {
     const map = new Map<string, { name: string; qty: number; revenue: number }>()
-    orderItems.forEach(item => {
+    filteredOrderItems.forEach(item => {
       const pRaw = Array.isArray(item.product) ? item.product[0] : item.product
       const name = pRaw?.name || 'Producto'
       if (!map.has(name)) map.set(name, { name, qty: 0, revenue: 0 })
@@ -326,12 +331,12 @@ export default function DashboardPage() {
       cur.revenue += Number(item.quantity ?? 0) * Number(item.unit_price ?? 0)
     })
     return Array.from(map.values()).sort((a, b) => b.qty - a.qty).slice(0, 6)
-  }, [orderItems])
+  }, [filteredOrderItems])
 
   // Campus ranking
   const campusSales = useMemo(() => {
     const map = new Map<string, { name: string; total: number; count: number }>()
-    orders.forEach(o => {
+    filteredOrders.forEach(o => {
       const name = campusMap.get(o.campus_id) || 'Sin campus'
       if (!map.has(o.campus_id)) map.set(o.campus_id, { name, total: 0, count: 0 })
       const cur = map.get(o.campus_id)!
@@ -339,12 +344,12 @@ export default function DashboardPage() {
       cur.count += 1
     })
     return Array.from(map.values()).sort((a, b) => b.total - a.total)
-  }, [orders, campusMap])
+  }, [filteredOrders, campusMap])
 
   // Payment methods
   const paymentStats = useMemo(() => {
     const map = new Map<string, number>()
-    orders.forEach(o => {
+    filteredOrders.forEach(o => {
       const m = o.payment_method || 'otro'
       map.set(m, (map.get(m) || 0) + Number(o.total ?? 0))
     })
@@ -352,16 +357,16 @@ export default function DashboardPage() {
     return Array.from(map.entries())
       .map(([name, amount]) => ({ name, amount, pct: total > 0 ? (amount / total) * 100 : 0 }))
       .sort((a, b) => b.amount - a.amount)
-  }, [orders])
+  }, [filteredOrders])
 
   // Recent activity (last 8 orders)
-  const recentOrders = useMemo(() => orders.slice(0, 8), [orders])
+  const recentOrders = useMemo(() => filteredOrders.slice(0, 8), [filteredOrders])
 
   // Top sellers (month)
   const topSellers = useMemo(() => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const map = new Map<string, { name: string; total: number; count: number }>()
-    orders
+    filteredOrders
       .filter(o => new Date(o.created_at) >= monthStart)
       .forEach(o => {
         const name = sellerMap.get(o.seller_id) || 'Desconocido'
@@ -371,7 +376,7 @@ export default function DashboardPage() {
         cur.count += 1
       })
     return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 5)
-  }, [orders, sellerMap, now])
+  }, [filteredOrders, sellerMap, now])
 
   const maxCampus = Math.max(...campusSales.map(c => c.total), 1)
 
