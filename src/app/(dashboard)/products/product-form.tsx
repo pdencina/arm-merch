@@ -16,7 +16,7 @@ type Campus = {
 }
 
 type UserProfile = {
-  role: 'super_admin' | 'admin' | 'voluntario'
+  role: 'super_admin' | 'adm_merch' | 'admin' | 'voluntario'
   campus_id: string | null
   campus?: { name?: string }[] | { name?: string } | null
 }
@@ -385,7 +385,7 @@ export default function ProductForm() {
     )
   }
 
-  const isSuperAdmin = profile?.role === 'super_admin'
+  const isSuperAdmin = profile?.role === 'super_admin' || profile?.role === 'adm_merch'
   const isAdmin = profile?.role === 'admin'
 
   return (
