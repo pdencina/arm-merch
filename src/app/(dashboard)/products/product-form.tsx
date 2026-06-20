@@ -30,8 +30,10 @@ function normalizeSku(value: string) {
 }
 
 function numberInputValue(value: number | string | null | undefined) {
-  const n = Number(value ?? 0)
-  return n === 0 ? '' : String(value)
+  if (value === null || value === undefined) return ''
+  const n = Number(value)
+  if (isNaN(n)) return ''
+  return n === 0 ? '' : String(n)
 }
 
 function getBarcodeType(value: string) {
@@ -643,10 +645,12 @@ export default function ProductForm() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="0"
                         value={numberInputValue(item.stock)}
                         onChange={(e) => {
-                          const val = e.target.value === '' ? 0 : Number(e.target.value)
+                          const raw = e.target.value
+                          const val = raw === '' ? 0 : Math.max(0, Math.round(Number(raw) || 0))
                           setCampusStocks((prev) =>
                             prev.map((row, i) =>
                               i === index ? { ...row, stock: val } : row
@@ -666,10 +670,12 @@ export default function ProductForm() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="5"
                         value={numberInputValue(item.low_stock_alert)}
                         onChange={(e) => {
-                          const val = e.target.value === '' ? 0 : Number(e.target.value)
+                          const raw = e.target.value
+                          const val = raw === '' ? 0 : Math.max(0, Math.round(Number(raw) || 0))
                           setCampusStocks((prev) =>
                             prev.map((row, i) =>
                               i === index
