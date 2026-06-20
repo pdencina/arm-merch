@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useCampusSelector } from '@/lib/hooks/use-campus-selector'
 import InventoryClient from './inventory-client'
 
 type Category = {
@@ -50,6 +51,16 @@ export default function InventoryPage() {
   const [campusName, setCampusName] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const { selectedCampusId } = useCampusSelector()
+
+  // Filtrar productos por campus seleccionado (para roles globales)
+  const filteredProducts = useMemo(() => {
+    const isGlobalRole = userRole === 'super_admin' || userRole === 'adm_merch'
+    if (!isGlobalRole) return products
+    if (!selectedCampusId) return products
+    return products.filter((p) => p.campus_id === selectedCampusId)
+  }, [products, selectedCampusId, userRole])
 
   const loadInventory = useCallback(async (currentCampusId: string | null, role: string) => {
     const supabase = createClient()
@@ -259,7 +270,7 @@ export default function InventoryPage() {
 
   return (
     <InventoryClient
-      initialProducts={products}
+      initialProducts={filteredProducts}
       categories={categories}
       campuses={campuses}
       userRole={userRole}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useCampusSelector } from '@/lib/hooks/use-campus-selector'
 import { Search } from 'lucide-react'
 
 type OrderRow = {
@@ -89,9 +90,11 @@ function getPaymentLabel(payment?: string | null) {
 
 export default function OrdersPage() {
   const supabase = createClient()
+  const { selectedCampusId } = useCampusSelector()
 
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [campuses, setCampuses] = useState<CampusRow[]>([])
+  const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -127,6 +130,8 @@ export default function OrdersPage() {
         return
       }
 
+      setUserRole(profile.role ?? '')
+
       let ordersQuery = supabase
         .from('orders')
         .select(`
@@ -143,7 +148,7 @@ export default function OrdersPage() {
         `)
         .order('created_at', { ascending: false })
 
-      let canViewAllCampus = profile.role === 'super_admin'
+      let canViewAllCampus = profile.role === 'super_admin' || profile.role === 'adm_merch'
 
       if (!canViewAllCampus) {
         const { data: allCampusPermission } = await supabase
@@ -233,7 +238,13 @@ export default function OrdersPage() {
   }, [orders])
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
+    // Filtrar por campus selector para roles globales
+    const isGlobalRole = userRole === 'super_admin' || userRole === 'adm_merch'
+    const campusFiltered = isGlobalRole && selectedCampusId
+      ? orders.filter((o) => o.campus_id === selectedCampusId)
+      : orders
+
+    return campusFiltered.filter((order) => {
       const text = search.toLowerCase().trim()
       const campusName = order.campus_id ? campusMap.get(order.campus_id) ?? '' : ''
 
@@ -252,7 +263,7 @@ export default function OrdersPage() {
 
       return matchesSearch && matchesStatus && matchesPayment
     })
-  }, [orders, search, statusFilter, paymentFilter, campusMap])
+  }, [orders, search, statusFilter, paymentFilter, campusMap, selectedCampusId, userRole])
 
   if (loading) {
     return (
