@@ -195,6 +195,8 @@ export async function POST(req: Request) {
       .eq('id', user.id)
       .single()
 
+    const body = await req.json()
+
     // Para roles globales, permitir operar con campus_id del body
     const isGlobalRole = profile?.role === 'super_admin' || profile?.role === 'adm_merch'
     const campusId = isGlobalRole
