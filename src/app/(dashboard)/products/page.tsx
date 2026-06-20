@@ -80,7 +80,7 @@ export default function ProductsPage() {
       const inventoryRows = (data ?? []) as any[]
 
       const filteredInventory =
-        profile.role === 'super_admin'
+        profile.role === 'super_admin' || profile.role === 'adm_merch'
           ? inventoryRows
           : inventoryRows.filter((row) => row.campus_id === profile.campus_id)
 

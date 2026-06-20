@@ -281,8 +281,8 @@ export async function POST(req: NextRequest) {
         .from('order_contacts')
         .insert({
           order_id: createdOrder.id,
-          client_name: clientName,
-          client_email: clientEmail,
+          client_name: clientName || null,
+          client_email: clientEmail || '',
           client_phone: clientPhone || null,
         })
 
