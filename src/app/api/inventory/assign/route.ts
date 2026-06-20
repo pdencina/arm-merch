@@ -55,9 +55,9 @@ export async function POST(req: Request) {
       )
     }
 
-    if (profile.role !== 'super_admin') {
+    if (profile.role !== 'super_admin' && profile.role !== 'adm_merch') {
       return NextResponse.json(
-        { error: 'Solo el super admin puede asignar productos a otros campus' },
+        { error: 'No autorizado para asignar productos a campus' },
         { status: 403 }
       )
     }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useCart, type CartItem } from "@/lib/hooks/use-cart";
+import { useCampusSelector } from "@/lib/hooks/use-campus-selector";
 import {
   showCustomerCart,
   showCustomerPayment,
@@ -342,6 +343,7 @@ function PaymentPill({
 
 export default function Cart({ onClose }: { onClose?: () => void }) {
   const supabase = createClient();
+  const { selectedCampusId } = useCampusSelector();
   const {
     items,
     paymentMethod,
@@ -359,6 +361,25 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     total,
     itemCount,
   } = useCart();
+
+  /**
+   * Resuelve el campus_id efectivo para la orden.
+   * Para roles globales (adm_merch, super_admin) usa el campus selector.
+   * Para roles locales usa el campus_id del perfil.
+   */
+  async function getEffectiveOrderCampusId(): Promise<string | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, campus_id")
+      .eq("id", session.user.id)
+      .single();
+    if (!profile) return null;
+    const isGlobal = profile.role === "super_admin" || profile.role === "adm_merch";
+    if (isGlobal && selectedCampusId) return selectedCampusId;
+    return profile.campus_id;
+  }
 
   // ── UI state ──
   // Cleanup polling on unmount
@@ -1293,6 +1314,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         .eq("id", session.user.id)
         .single();
 
+      const effectiveCampusId = await getEffectiveOrderCampusId();
+
       const cashNotes = [
         notes.trim() || null,
         `Efectivo recibido: ${fmt(cashReceivedAmount)}`,
@@ -1308,7 +1331,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          campus_id: profile?.campus_id ?? null,
+          campus_id: effectiveCampusId,
           items: items.map((i) => ({
             product_id: i.product.id,
             quantity: i.quantity,
@@ -1394,6 +1417,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         .eq("id", session.user.id)
         .single();
 
+      const effectiveCampusId = await getEffectiveOrderCampusId();
+
       if (paymentMethod === "efectivo") {
         setCashReceived("0");
         setCashError(null);
@@ -1417,7 +1442,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            campus_id: profile?.campus_id ?? null,
+            campus_id: effectiveCampusId,
             payment_method: "sumup",
             items: items.map((i) => ({
               product_id: i.product.id,
@@ -1637,7 +1662,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          campus_id: profile?.campus_id ?? null,
+          campus_id: effectiveCampusId,
           items: items.map((i) => ({
             product_id: i.product.id,
             quantity: i.quantity,

@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     const sellingCampusId =
-      profile.role === 'super_admin'
+      profile.role === 'super_admin' || profile.role === 'adm_merch'
         ? requestedCampusId || profile.campus_id
         : profile.campus_id
 

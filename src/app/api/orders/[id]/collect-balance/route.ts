@@ -73,6 +73,7 @@ export async function POST(
 
     const canCollect =
       profile.role === 'super_admin' ||
+      profile.role === 'adm_merch' ||
       profile.role === 'admin' ||
       profile.campus_id === pickupCampusId
 

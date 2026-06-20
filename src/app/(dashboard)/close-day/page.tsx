@@ -607,7 +607,7 @@ export default function CloseDayPage() {
 
     setRole(profile?.role ?? '')
 
-    if (profile?.role === 'super_admin') {
+    if (profile?.role === 'super_admin' || profile?.role === 'adm_merch') {
       // Load all campuses and their sessions
       const { data: campuses } = await supabase
         .from('campus')
@@ -683,10 +683,10 @@ export default function CloseDayPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-white">
-            {role === 'super_admin' ? 'Arqueo de cajas' : 'Cierre de caja'}
+            {role === 'super_admin' || role === 'adm_merch' ? 'Arqueo de cajas' : 'Cierre de caja'}
           </h1>
           <p className="mt-0.5 text-xs text-zinc-500">
-            {role === 'super_admin'
+            {role === 'super_admin' || role === 'adm_merch'
               ? 'Vista global del estado de caja por campus'
               : 'Apertura, cierre e historial de tu campus'}
           </p>
@@ -700,7 +700,7 @@ export default function CloseDayPage() {
         </button>
       </div>
 
-      {role === 'super_admin' ? (
+      {role === 'super_admin' || role === 'adm_merch' ? (
         <SuperAdminView campuses={campusOverviews} />
       ) : (
         <AdminView

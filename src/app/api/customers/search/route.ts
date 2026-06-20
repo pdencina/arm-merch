@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = (data ?? []).filter((row: any) => {
-      if (profile.role === 'super_admin') return true
+      if (profile.role === 'super_admin' || profile.role === 'adm_merch') return true
 
       const orderCampusId = Array.isArray(row.order)
         ? row.order[0]?.campus_id

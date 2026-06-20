@@ -68,11 +68,16 @@ export async function GET(req: Request) {
       .eq('id', user.id)
       .single()
 
-    if (!profile?.campus_id) {
+    // Para roles globales, permitir consultar por campus_id desde query param
+    const isGlobalRole = profile?.role === 'super_admin' || profile?.role === 'adm_merch'
+    const urlCampusId = new URL(req.url).searchParams.get('campus_id')
+    const campusId = isGlobalRole
+      ? (urlCampusId || profile?.campus_id)
+      : profile?.campus_id
+
+    if (!campusId) {
       return NextResponse.json({ error: 'Campus no encontrado' }, { status: 400 })
     }
-
-    const campusId = profile.campus_id
 
     const { data: openSession, error: openError } = await adminClient
       .from('cash_sessions')
@@ -190,11 +195,16 @@ export async function POST(req: Request) {
       .eq('id', user.id)
       .single()
 
-    if (!profile?.campus_id) {
+    // Para roles globales, permitir operar con campus_id del body
+    const isGlobalRole = profile?.role === 'super_admin' || profile?.role === 'adm_merch'
+    const campusId = isGlobalRole
+      ? (body.campus_id || profile?.campus_id)
+      : profile?.campus_id
+
+    if (!campusId) {
       return NextResponse.json({ error: 'Campus no encontrado' }, { status: 400 })
     }
 
-    const body = await req.json()
     const action = body.action
 
     if (action === 'open') {
@@ -204,7 +214,7 @@ export async function POST(req: Request) {
       const { data: existing } = await adminClient
         .from('cash_sessions')
         .select('id')
-        .eq('campus_id', profile.campus_id)
+        .eq('campus_id', campusId)
         .eq('status', 'open')
         .limit(1)
         .maybeSingle()
@@ -219,7 +229,7 @@ export async function POST(req: Request) {
       const { data, error } = await adminClient
         .from('cash_sessions')
         .insert({
-          campus_id: profile.campus_id,
+          campus_id: campusId,
           opened_by: profile.id,
           opening_amount: openingAmount,
           notes,
@@ -238,7 +248,7 @@ export async function POST(req: Request) {
         target_type: 'cash_session',
         target_id: data.id,
         metadata: {
-          campus_id: profile.campus_id,
+          campus_id: campusId,
           opening_amount: openingAmount,
           notes,
           opened_at: data.opened_at,
@@ -255,7 +265,7 @@ export async function POST(req: Request) {
       const { data: openSession } = await adminClient
         .from('cash_sessions')
         .select('*')
-        .eq('campus_id', profile.campus_id)
+        .eq('campus_id', campusId)
         .eq('status', 'open')
         .order('opened_at', { ascending: false })
         .limit(1)
@@ -271,7 +281,7 @@ export async function POST(req: Request) {
       const { data: orders, error: ordersError } = await adminClient
         .from('orders')
         .select('id, total, created_at, campus_id, payment_method, status')
-        .eq('campus_id', profile.campus_id)
+        .eq('campus_id', campusId)
         .eq('status', 'paid')
         .gte('created_at', openSession.opened_at)
 
@@ -345,7 +355,7 @@ export async function POST(req: Request) {
         target_type: 'cash_session',
         target_id: data.id,
         metadata: {
-          campus_id: profile.campus_id,
+          campus_id: campusId,
           opening_amount: Number(openSession.opening_amount ?? 0),
           cash_sales: salesTotal,
           expected_cash: expectedCash,

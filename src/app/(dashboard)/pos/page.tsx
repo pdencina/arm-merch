@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import ProductGrid from '@/components/pos/product-grid'
 import Cart from '@/components/pos/cart'
 import { useCart } from '@/lib/hooks/use-cart'
+import { useCampusSelector } from '@/lib/hooks/use-campus-selector'
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-CL', {
@@ -23,6 +24,7 @@ export default function POSPage() {
   const [cartOpen, setCartOpen] = useState(false)
 
   const { itemCount, total } = useCart()
+  const { selectedCampusId } = useCampusSelector()
 
   const searchParams = useSearchParams()
   const [sumupResult, setSumupResult] = useState<{
@@ -108,7 +110,11 @@ export default function POSPage() {
         .eq('id', session.user.id)
         .single()
 
-      const campusId = profile?.campus_id ?? null
+      // Para roles globales (super_admin, adm_merch), usar el campus seleccionado
+      const isGlobalRole = profile?.role === 'super_admin' || profile?.role === 'adm_merch'
+      const campusId = isGlobalRole
+        ? (selectedCampusId || profile?.campus_id)
+        : (profile?.campus_id ?? null)
 
       let cName: string | null = null
 
@@ -169,7 +175,7 @@ export default function POSPage() {
     }
 
     load()
-  }, [])
+  }, [selectedCampusId])
 
   useEffect(() => {
     if (currentItemCount === 0) return

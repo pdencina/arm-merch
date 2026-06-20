@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       ])
       .order('created_at', { ascending: false })
 
-    if (profile.role !== 'super_admin' && profile.campus_id) {
+    if (!['super_admin', 'adm_merch'].includes(profile.role) && profile.campus_id) {
       query = query.or(
         `campus_id.eq.${profile.campus_id},pickup_campus_id.eq.${profile.campus_id}`
       )
