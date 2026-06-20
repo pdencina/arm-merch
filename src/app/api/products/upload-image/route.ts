@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!['super_admin', 'admin'].includes(profile.role)) {
+    if (!['super_admin', 'adm_merch', 'admin'].includes(profile.role)) {
       return NextResponse.json(
         { error: 'No autorizado para subir imágenes' },
         { status: 403 }
