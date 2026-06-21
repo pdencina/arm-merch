@@ -16,6 +16,10 @@ type OrderRow = {
   payment_method: string | null
   total: number
   discount?: number | null
+  amount_paid?: number | null
+  balance_due?: number | null
+  payment_type?: string | null
+  payment_status?: string | null
   created_at: string
   status?: string | null
   notes?: string | null
@@ -171,6 +175,10 @@ export default function OrderDetailPage() {
             payment_method,
             total,
             discount,
+            amount_paid,
+            balance_due,
+            payment_type,
+            payment_status,
             created_at,
             status,
             notes,
@@ -216,6 +224,7 @@ export default function OrderDetailPage() {
 
       if (
         profileData.role !== 'super_admin' &&
+        profileData.role !== 'adm_merch' &&
         profileData.campus_id !== orderData.campus_id
       ) {
         setError('No tienes acceso a esta orden')
@@ -465,6 +474,33 @@ export default function OrderDetailPage() {
           <span>Total</span>
           <span>{formatCurrency(total)}</span>
         </div>
+
+        {order.payment_type === 'deposit_50' && (
+          <>
+            <div className="border-t border-zinc-700 pt-3 mt-3 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-green-400 font-semibold">Pagado (50% abono)</span>
+                <span className="text-lg font-bold text-green-400">
+                  {formatCurrency(Number(order.amount_paid ?? 0))}
+                </span>
+              </div>
+              {Number(order.balance_due ?? 0) > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-amber-400 font-semibold">Saldo pendiente</span>
+                  <span className="text-lg font-bold text-amber-400">
+                    {formatCurrency(Number(order.balance_due ?? 0))}
+                  </span>
+                </div>
+              )}
+              {Number(order.balance_due ?? 0) === 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-green-400 font-semibold">Saldo</span>
+                  <span className="text-sm font-bold text-green-400">Completamente pagado ✓</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {order.notes && (
