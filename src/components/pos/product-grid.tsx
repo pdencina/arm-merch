@@ -445,7 +445,11 @@ export default function ProductGrid({ products, categories }: Props) {
               )}
 
               <p className="text-base font-black text-amber-400">
-                {fmt(product.price)}
+                {product.has_variants ? 'Desde ' + fmt(
+                  product.variants?.length
+                    ? Math.min(...product.variants.map(v => v.price))
+                    : product.price
+                ) : fmt(product.price)}
               </p>
             </button>
           ))}
