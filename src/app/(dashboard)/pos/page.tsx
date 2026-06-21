@@ -170,7 +170,31 @@ export default function POSPage() {
         }
       }
 
-      setProducts(productsWithPrices)
+      // Cargar variantes para productos que las tienen
+      const productIds = productsWithPrices.filter((p: any) => p.has_variants).map((p: any) => p.id)
+      let variantsMap: Record<string, any[]> = {}
+
+      if (productIds.length > 0) {
+        const { data: variants } = await supabase
+          .from('product_variants')
+          .select('id, product_id, variant_type, variant_value, price, sku, sort_order')
+          .in('product_id', productIds)
+          .eq('active', true)
+          .order('sort_order')
+
+        ;(variants ?? []).forEach((v: any) => {
+          if (!variantsMap[v.product_id]) variantsMap[v.product_id] = []
+          variantsMap[v.product_id].push(v)
+        })
+      }
+
+      // Adjuntar variantes a los productos
+      const productsWithVariants = productsWithPrices.map((prod: any) => ({
+        ...prod,
+        variants: variantsMap[prod.id] ?? undefined,
+      }))
+
+      setProducts(productsWithVariants)
       setCategories(c ?? [])
     }
 

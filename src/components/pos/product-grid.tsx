@@ -18,6 +18,15 @@ interface Product {
   sku: string | null
   barcode?: string | null
   sale_type?: 'stock' | 'encargo' | null
+  has_variants?: boolean | null
+  variants?: Array<{
+    id: string
+    variant_type: string
+    variant_value: string
+    price: number
+    sku?: string | null
+    sort_order: number
+  }>
 }
 
 interface Props {
@@ -141,6 +150,24 @@ export default function ProductGrid({ products, categories }: Props) {
 
 
   function getProductVariantConfig(product: Product) {
+    // ── Variantes desde BD (cafés con tamaño, etc.) ──
+    if (product.has_variants && product.variants && product.variants.length > 0) {
+      const variantType = product.variants[0]?.variant_type ?? 'tamaño'
+      return {
+        variantType: variantType as 'talla' | 'tamaño',
+        title: variantType === 'talla' ? 'Selecciona la talla' : `Selecciona ${variantType}`,
+        subtitle: `Precio según ${variantType} seleccionado`,
+        options: product.variants
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((v) => ({
+            label: `${v.variant_value} · ${fmt(v.price)}`,
+            value: v.variant_value,
+            price: v.price,
+          })),
+      }
+    }
+
+    // ── Variantes de ropa (tallas hardcoded) ──
     const name = normalizeCode(product.name)
     const sku = normalizeCode(product.sku ?? '')
 
