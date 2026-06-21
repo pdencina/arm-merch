@@ -108,7 +108,9 @@ export default function ReportsPage() {
         .select('*')
         .order('name')
 
-      if (role !== 'super_admin' && campusId) {
+      const hasGlobalAccess = role === 'super_admin' || role === 'adm_merch'
+
+      if (!hasGlobalAccess && campusId) {
         productsQuery = productsQuery.eq('campus_id', campusId)
       }
 
@@ -120,7 +122,7 @@ export default function ReportsPage() {
         .select('id, full_name')
         .eq('active', true)
 
-      if (role !== 'super_admin' && campusId) {
+      if (!hasGlobalAccess && campusId) {
         sellersQuery = sellersQuery.eq('campus_id', campusId)
       }
 
