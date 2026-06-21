@@ -270,6 +270,7 @@ export default function InventoryPage() {
 
   return (
     <InventoryClient
+      key={selectedCampusId ?? 'all'}
       initialProducts={filteredProducts}
       categories={categories}
       campuses={campuses}
