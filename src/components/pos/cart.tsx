@@ -2709,32 +2709,23 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         </div>
       )}
 
-      {/* Transferencia QR Modal */}
+      {/* Transferencia Modal */}
       {showTransferQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-6 text-center shadow-2xl">
-            <h2 className="mb-1 text-lg font-bold text-white">
-              Pago por Transferencia
-            </h2>
-            <p className="mb-4 text-sm text-zinc-400">
-              Muestra este QR al cliente
-            </p>
-
-            {/* QR Code - usando API gratuita */}
-            <div className="mb-4 flex justify-center">
-              <div className="rounded-2xl bg-white p-3">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&bgcolor=ffffff&color=000000&data=${encodeURIComponent("Banco Estado | Cta Corriente\n29100078943\nRUT 65.108.056-8\nAR Ministries\nMonto: " + new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(transferTotal))}`}
-                  alt="QR Transferencia"
-                  width={180}
-                  height={180}
-                  className="rounded-xl"
-                />
-              </div>
+          <div className="w-full max-w-sm rounded-3xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-center gap-2">
+              <Landmark size={20} className="text-blue-400" />
+              <h2 className="text-lg font-bold text-white">
+                Pago por Transferencia
+              </h2>
             </div>
 
+            <p className="mb-4 text-center text-sm text-zinc-400">
+              Comparte estos datos al cliente para que realice la transferencia
+            </p>
+
             {/* Datos bancarios */}
-            <div className="mb-5 rounded-2xl border border-zinc-700 bg-zinc-800 p-4 text-left space-y-2">
+            <div className="mb-4 rounded-2xl border border-zinc-700 bg-zinc-800 p-4 space-y-2.5">
               <div className="flex justify-between text-xs">
                 <span className="text-zinc-500">Banco</span>
                 <span className="font-medium text-white">Banco Estado</span>
@@ -2745,9 +2736,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-zinc-500">Número</span>
-                <span className="font-medium text-white font-mono">
-                  29100078943
-                </span>
+                <span className="font-medium text-white font-mono">29100078943</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-zinc-500">RUT</span>
@@ -2761,28 +2750,42 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-zinc-500">Email</span>
-                <span className="font-medium text-white">
-                  donaciones@armglobal.org
-                </span>
+                <span className="font-medium text-white">donaciones@armglobal.org</span>
               </div>
-              <div className="flex justify-between text-xs border-t border-zinc-700 pt-2 mt-2">
-                <span className="text-zinc-500">Total a transferir</span>
-                <span className="font-bold text-amber-400 text-sm">
-                  {new Intl.NumberFormat("es-CL", {
-                    style: "currency",
-                    currency: "CLP",
-                    maximumFractionDigits: 0,
-                  }).format(transferTotal)}
+              <div className="flex justify-between items-center border-t border-zinc-700 pt-3 mt-3">
+                <span className="text-xs text-zinc-500">Monto a transferir</span>
+                <span className="text-lg font-black text-amber-400">
+                  {fmt(transferTotal)}
                 </span>
               </div>
             </div>
 
+            {/* Campo código de transferencia */}
+            <div className="mb-4">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+                Código de transferencia del cliente
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: 123456789"
+                value={txCode}
+                onChange={(e) => setTxCode(e.target.value)}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
+                autoFocus
+              />
+              <p className="mt-1 text-[11px] text-zinc-600">
+                Ingresa el número de comprobante que muestra la app del cliente
+              </p>
+            </div>
+
             <button
               onClick={async () => {
+                if (!txCode.trim()) {
+                  return; // No confirmar sin código
+                }
                 setShowTransferQR(false);
-                // Proceed with order creation
                 setSubmitting(true);
-                const supabase = createClient();
+                const effectiveCampus = await getEffectiveOrderCampusId();
                 const {
                   data: { session },
                 } = await supabase.auth.getSession();
@@ -2793,23 +2796,24 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     Authorization: `Bearer ${session?.access_token}`,
                   },
                   body: JSON.stringify({
+                    campus_id: effectiveCampus,
                     payment_method: "transferencia",
                     items: items.map((i) => ({
                       product_id: i.product.id,
                       quantity: i.quantity,
-                      unit_price: i.product.price,
+                      unit_price: i.unit_price,
                       size: i.size ?? null,
-            variant_type: i.variant_type ?? null,
-            variant_value: i.variant_value ?? i.size ?? null,
+                      variant_type: i.variant_type ?? null,
+                      variant_value: i.variant_value ?? i.size ?? null,
                       fulfillment_type: getFulfillmentType(i.product.id),
                     })),
                     client_name: clientName.trim(),
                     client_email: clientEmail?.trim() || "",
                     client_phone: clientPhone?.trim() || null,
-                    notes: notes?.trim() || null,
+                    notes: txCode.trim() ? `Transferencia código: ${txCode.trim()}${notes?.trim() ? ` | ${notes.trim()}` : ""}` : notes?.trim() || null,
                     discount: 0,
                     delivery_status: hasProductionItems ? "pending" : null,
-          ...paymentPayload,
+                    ...paymentPayload,
                   }),
                 });
                 const data = await res.json();
@@ -2832,20 +2836,23 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   });
                   setSuccessOpen(true);
                   setClientPhone("");
+                  setTxCode("");
                   setProductionItems({});
                   clearCart();
                   focusSkuSearchInput();
                 }
                 setSubmitting(false);
               }}
-              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 mb-3"
+              disabled={!txCode.trim()}
+              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed mb-3"
             >
-              ✅ Cliente ya transfirió — Confirmar venta
+              Confirmar transferencia recibida
             </button>
 
             <button
               onClick={() => {
                 setShowTransferQR(false);
+                setTxCode("");
                 setSubmitting(false);
               }}
               className="w-full text-xs text-zinc-600 hover:text-zinc-400 transition"
