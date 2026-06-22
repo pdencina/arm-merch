@@ -27,14 +27,18 @@ interface MatchedOrder {
 
 // ─── Obtener Access Token via Refresh Token ────────────────────────────────
 
-async function getAccessToken(): Promise<string | null> {
+async function getAccessToken(): Promise<{ token: string | null; error?: string }> {
   const clientId = process.env.GMAIL_CLIENT_ID
   const clientSecret = process.env.GMAIL_CLIENT_SECRET
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN
 
   if (!clientId || !clientSecret || !refreshToken) {
-    console.error('[Gmail] Faltan credenciales GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET o GMAIL_REFRESH_TOKEN')
-    return null
+    const missing = [
+      !clientId && 'GMAIL_CLIENT_ID',
+      !clientSecret && 'GMAIL_CLIENT_SECRET',
+      !refreshToken && 'GMAIL_REFRESH_TOKEN',
+    ].filter(Boolean).join(', ')
+    return { token: null, error: `Faltan variables: ${missing}` }
   }
 
   try {
@@ -53,17 +57,17 @@ async function getAccessToken(): Promise<string | null> {
 
     if (!res.ok || !data.access_token) {
       console.error('[Gmail] Error obteniendo access token:', data)
-      return null
+      return { token: null, error: `Google respondió ${res.status}: ${data?.error ?? data?.error_description ?? JSON.stringify(data)}` }
     }
 
-    return data.access_token
+    return { token: data.access_token }
   } catch (err: any) {
     console.error('[Gmail] Exception getting token:', err?.message)
-    return null
+    return { token: null, error: `Exception: ${err?.message}` }
   }
 }
 
-// ─── Listar emails recientes de Banco Estado ────────────────────────────────
+// ─── Listar emails recientes de transferencia ────────────────────────────────
 
 async function listRecentTransferEmails(accessToken: string, maxResults = 10): Promise<string[]> {
   // Buscar cualquier email que mencione la cuenta destino o sea de bancos conocidos
@@ -245,9 +249,9 @@ export async function findTransferByAmount(amount: number): Promise<{
   checked: number
   error?: string
 }> {
-  const accessToken = await getAccessToken()
+  const { token: accessToken, error: tokenError } = await getAccessToken()
   if (!accessToken) {
-    return { found: false, checked: 0, error: 'No se pudo obtener access token de Gmail' }
+    return { found: false, checked: 0, error: tokenError || 'No se pudo obtener access token de Gmail' }
   }
 
   const messageIds = await listRecentTransferEmails(accessToken)
@@ -283,9 +287,9 @@ export async function checkGmailTransfers(): Promise<{
   const errors: string[] = []
   const matched: MatchedOrder[] = []
 
-  const accessToken = await getAccessToken()
+  const { token: accessToken, error: tokenError } = await getAccessToken()
   if (!accessToken) {
-    return { checked: 0, matched: [], errors: ['No se pudo obtener access token de Gmail'] }
+    return { checked: 0, matched: [], errors: [tokenError || 'No se pudo obtener access token de Gmail'] }
   }
 
   // Obtener emails recientes
