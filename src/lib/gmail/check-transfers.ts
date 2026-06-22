@@ -66,7 +66,11 @@ async function getAccessToken(): Promise<string | null> {
 // ─── Listar emails recientes de Banco Estado ────────────────────────────────
 
 async function listRecentTransferEmails(accessToken: string, maxResults = 10): Promise<string[]> {
-  const query = encodeURIComponent('from:noreply@correo.bancoestado.cl subject:"Aviso de envío o recepción de dinero" newer_than:1d')
+  // Buscar cualquier email que mencione la cuenta destino o sea de bancos conocidos
+  // Esto captura: Banco Estado, Itaú, Falabella, Santander, BCI, Scotiabank, etc.
+  const query = encodeURIComponent(
+    '(29100078943 OR "transferencia" OR "fondos recibida") newer_than:1d -from:me'
+  )
 
   const res = await fetch(
     `${GMAIL_API_BASE}/messages?q=${query}&maxResults=${maxResults}`,
@@ -133,34 +137,95 @@ function parseTransferEmail(content: string): TransferData | null {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
+    .replace(/&#?\w+;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
-  // Buscar monto: "Monto transferido: $5.000" o "$5.000"
-  const montoMatch = text.match(/Monto\s*transferido[:\s]*\$?([\d.,]+)/i)
-    || text.match(/Monto[:\s]*\$?([\d.,]+)/i)
-  
-  if (!montoMatch) return null
+  // Verificar que sea un email de transferencia (debe mencionar la cuenta o transferencia)
+  const lowerText = text.toLowerCase()
+  const isTransferEmail = 
+    lowerText.includes('29100078943') ||
+    lowerText.includes('transferencia') ||
+    lowerText.includes('fondos')
 
-  const amountStr = montoMatch[1].replace(/\./g, '').replace(',', '.')
-  const amount = Math.round(Number(amountStr))
+  if (!isTransferEmail) return null
+
+  // ── Buscar monto (múltiples formatos) ──
+  // "Monto transferido: $5.000"
+  // "Monto: $100"
+  // "Monto transferencia $15.500"
+  // "$15.500" precedido por "monto"
+  const montoPatterns = [
+    /Monto\s*(?:transferido|transferencia)?[:\s]*\$?([\d.,]+)/i,
+    /monto[:\s]*\$?([\d.,]+)/i,
+    /total[:\s]*\$?([\d.,]+)/i,
+  ]
+
+  let amount = 0
+  for (const pattern of montoPatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      const amountStr = match[1].replace(/\./g, '').replace(',', '.')
+      amount = Math.round(Number(amountStr))
+      if (amount > 0) break
+    }
+  }
 
   if (!amount || amount <= 0) return null
 
-  // Buscar número de operación
-  const opMatch = text.match(/N[°ú]mero\s*de\s*Operaci[oó]n[:\s]*([\d]+)/i)
-    || text.match(/operaci[oó]n[:\s]*([\d]+)/i)
-  
-  const operationNumber = opMatch?.[1] ?? ''
+  // ── Buscar número de operación ──
+  const opPatterns = [
+    /N[°ú]mero\s*de\s*operaci[oó]n[:\s]*([\d]+)/i,
+    /operaci[oó]n[:\s]*([\d]+)/i,
+    /comprobante[:\s]*([\d]+)/i,
+    /N[°ú]mero[:\s]*([\d]{6,})/i,
+  ]
 
-  // Buscar nombre del cliente
-  const clientMatch = text.match(/cliente\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)/i)
-  const clientName = clientMatch?.[1]?.trim() ?? 'Desconocido'
+  let operationNumber = ''
+  for (const pattern of opPatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      operationNumber = match[1]
+      break
+    }
+  }
 
-  // Buscar fecha y hora
-  const dateTimeMatch = text.match(/hoy\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2}:\d{2})/i)
-  const date = dateTimeMatch?.[1] ?? ''
-  const time = dateTimeMatch?.[2] ?? ''
+  // ── Buscar nombre del cliente ──
+  const clientPatterns = [
+    /cliente\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+?)(?:\s*,|\s*ha\s|\s*con)/i,
+    /cliente\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)/i,
+  ]
+
+  let clientName = 'Desconocido'
+  for (const pattern of clientPatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      clientName = match[1].trim()
+      break
+    }
+  }
+
+  // ── Buscar fecha y hora ──
+  const datePatterns = [
+    /(?:hoy|fecha)[,:\s]*(\d{2}[\/-]\d{2}[\/-]\d{4})[\s\-]*(\d{2}[:.]\d{2}(?:[:.]\d{2})?)?/i,
+    /(\d{2}[\/-]\d{2}[\/-]\d{4})[\s\-]*(?:Hora[:\s]*)?(\d{2}[:.]\d{2})?/i,
+  ]
+
+  let date = ''
+  let time = ''
+  for (const pattern of datePatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      date = match[1] ?? ''
+      time = (match[2] ?? '').replace(/\./g, ':')
+      break
+    }
+  }
+
+  // Generar ID de operación si no se encontró
+  if (!operationNumber) {
+    operationNumber = `TEF-${date.replace(/[\/-]/g, '')}-${amount}`
+  }
 
   return {
     date,
