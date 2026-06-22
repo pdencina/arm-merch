@@ -2849,29 +2849,49 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             </button>
 
             <button
-              onClick={async () => {
+              onClick={async (e) => {
+                const btn = e.currentTarget;
+                const originalText = btn.textContent;
+                btn.textContent = "⏳ Consultando Gmail...";
+                btn.disabled = true;
+
                 try {
                   const { data: { session } } = await supabase.auth.getSession();
-                  if (!session?.access_token) return;
+                  if (!session?.access_token) {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    return;
+                  }
 
                   const res = await fetch("/api/transfers/verify-gmail", {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${session.access_token}` },
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({ amount: transferTotal }),
                   });
 
                   const data = await res.json().catch(() => null);
 
-                  if (data?.matched?.length > 0) {
-                    const match = data.matched[0];
-                    setTxCode(match.operationNumber || "Verificado Gmail");
+                  if (data?.found && data?.transfer) {
+                    setTxCode(data.transfer.operationNumber || "Verificado Gmail");
+                    btn.textContent = `✅ ${data.transfer.clientName} · ${data.transfer.operationNumber}`;
                   } else {
-                    alert("No se encontró comprobante en Gmail para este monto. Intenta en unos segundos o ingresa el código manualmente.");
+                    const msg = data?.checked > 0
+                      ? `Se revisaron ${data.checked} emails pero ninguno coincide con ${fmt(transferTotal)}. Intenta en unos segundos.`
+                      : data?.error || "No se encontraron comprobantes recientes en Gmail.";
+                    alert(msg);
+                    btn.textContent = originalText;
+                    btn.disabled = false;
                   }
-                } catch {
-                  alert("Error consultando Gmail. Ingresa el código manualmente.");
+                } catch (err: any) {
+                  alert("Error consultando Gmail: " + (err?.message || "intenta de nuevo"));
+                  btn.textContent = originalText;
+                  btn.disabled = false;
                 }
               }}
-              className="w-full rounded-2xl border border-blue-500/30 bg-blue-500/10 py-3 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20 mb-3"
+              className="w-full rounded-2xl border border-blue-500/30 bg-blue-500/10 py-3 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-50 mb-3"
             >
               🔍 Verificar automático con Gmail
             </button>

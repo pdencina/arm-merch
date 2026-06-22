@@ -43,6 +43,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Ejecutar verificación
+    const body = await req.json().catch(() => ({}))
+    const requestedAmount = Number(body?.amount ?? 0)
+
+    // Si viene un monto, buscar directamente en Gmail sin cruzar con BD
+    if (requestedAmount > 0) {
+      const { findTransferByAmount } = await import('@/lib/gmail/check-transfers')
+      const result = await findTransferByAmount(requestedAmount)
+      return NextResponse.json(result)
+    }
+
+    // Si no viene monto, hacer el cruce completo contra BD
     const result = await checkGmailTransfers()
 
     return NextResponse.json({

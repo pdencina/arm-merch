@@ -237,6 +237,42 @@ function parseTransferEmail(content: string): TransferData | null {
   }
 }
 
+// ─── Buscar transferencia por monto (sin cruzar con BD) ─────────────────────
+
+export async function findTransferByAmount(amount: number): Promise<{
+  found: boolean
+  transfer?: TransferData
+  checked: number
+  error?: string
+}> {
+  const accessToken = await getAccessToken()
+  if (!accessToken) {
+    return { found: false, checked: 0, error: 'No se pudo obtener access token de Gmail' }
+  }
+
+  const messageIds = await listRecentTransferEmails(accessToken)
+
+  if (messageIds.length === 0) {
+    return { found: false, checked: 0, error: 'No se encontraron emails de transferencia recientes' }
+  }
+
+  for (const msgId of messageIds) {
+    try {
+      const content = await getEmailContent(accessToken, msgId)
+      if (!content) continue
+
+      const transfer = parseTransferEmail(content)
+      if (transfer && transfer.amount === amount) {
+        return { found: true, transfer, checked: messageIds.length }
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return { found: false, checked: messageIds.length }
+}
+
 // ─── Función principal: verificar transferencias ────────────────────────────
 
 export async function checkGmailTransfers(): Promise<{
