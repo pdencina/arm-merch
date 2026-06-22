@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCampusSelector } from '@/lib/hooks/use-campus-selector'
+import WeeklyView from '@/components/dashboard/weekly-view'
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -486,6 +487,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ── VISTA SEMANAL ────────────────────────────────────────────────── */}
+      <WeeklyView orders={filteredOrders} campusMap={campusMap} />
 
       {/* ── AREA CHART 30 días ───────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
