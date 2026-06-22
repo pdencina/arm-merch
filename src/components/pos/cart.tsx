@@ -2763,18 +2763,17 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             {/* Campo código de transferencia */}
             <div className="mb-4">
               <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                Código de transferencia del cliente
+                Código de operación <span className="text-zinc-600">(opcional)</span>
               </label>
               <input
                 type="text"
-                placeholder="Ej: 123456789"
+                placeholder="Se completa automático o ingresa manual"
                 value={txCode}
                 onChange={(e) => setTxCode(e.target.value)}
                 className="w-full rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
-                autoFocus
               />
               <p className="mt-1 text-[11px] text-zinc-600">
-                Ingresa el número de comprobante que muestra la app del cliente
+                Usa "Verificar con Gmail" o déjalo vacío si hay urgencia
               </p>
             </div>
 
@@ -2843,10 +2842,38 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 }
                 setSubmitting(false);
               }}
-              disabled={!txCode.trim()}
-              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed mb-3"
+              disabled={false}
+              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 mb-3"
             >
-              Confirmar transferencia recibida
+              Confirmar venta por transferencia
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (!session?.access_token) return;
+
+                  const res = await fetch("/api/transfers/verify-gmail", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                  });
+
+                  const data = await res.json().catch(() => null);
+
+                  if (data?.matched?.length > 0) {
+                    const match = data.matched[0];
+                    setTxCode(match.operationNumber || "Verificado Gmail");
+                  } else {
+                    alert("No se encontró comprobante en Gmail para este monto. Intenta en unos segundos o ingresa el código manualmente.");
+                  }
+                } catch {
+                  alert("Error consultando Gmail. Ingresa el código manualmente.");
+                }
+              }}
+              className="w-full rounded-2xl border border-blue-500/30 bg-blue-500/10 py-3 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20 mb-3"
+            >
+              🔍 Verificar automático con Gmail
             </button>
 
             <button
