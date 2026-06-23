@@ -457,6 +457,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>([]);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [customerSuggestionsOpen, setCustomerSuggestionsOpen] = useState(false);
+  const [customerSelected, setCustomerSelected] = useState(false);
 
 
   const registerLastSale = (sale: LastSale) => {
@@ -494,7 +495,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   useEffect(() => {
     const query = clientName.trim();
 
-    if (query.length < 2) {
+    if (query.length < 2 || customerSelected) {
       setCustomerSuggestions([]);
       setCustomerSuggestionsOpen(false);
       return;
@@ -544,6 +545,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   }, [clientName, supabase]);
 
   function selectCustomerSuggestion(customer: CustomerSuggestion) {
+    setCustomerSelected(true);
     setClientName(formatCustomerName(customer.name));
 
     if (customer.email) {
@@ -1987,10 +1989,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     onChange={(e) => {
                       const formatted = formatCustomerName(e.target.value)
                       setClientName(formatted)
+                      setCustomerSelected(false)
                       setCustomerSuggestionsOpen(true)
                     }}
                     onFocus={() => {
-                      if (customerSuggestions.length > 0) {
+                      if (customerSuggestions.length > 0 && !customerSelected) {
                         setCustomerSuggestionsOpen(true)
                       }
                     }}
