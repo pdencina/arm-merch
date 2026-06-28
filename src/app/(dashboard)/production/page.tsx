@@ -373,6 +373,35 @@ export default function ProductionPage() {
       data: { session },
     } = await supabase.auth.getSession()
 
+    // Si es SumUp SOLO, primero enviar cobro al dispositivo
+    if (balancePaymentMethod === 'sumup') {
+      try {
+        const soloRes = await fetch('/api/sumup/solo-checkout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token ?? ''}`,
+          },
+          body: JSON.stringify({
+            amount: pendingBalance,
+            description: `Saldo orden #${cashModalOrder.order_number}`,
+          }),
+        })
+
+        const soloData = await soloRes.json().catch(() => null)
+
+        if (!soloRes.ok) {
+          setCashError(soloData?.error ?? 'Error enviando cobro al SumUp SOLO')
+          setCollectingId(null)
+          return
+        }
+      } catch (err: any) {
+        setCashError('Error conectando con SumUp SOLO: ' + (err?.message || ''))
+        setCollectingId(null)
+        return
+      }
+    }
+
     const res = await fetch(`/api/orders/${cashModalOrder.id}/collect-balance`, {
       method: 'POST',
       headers: {
@@ -1043,13 +1072,39 @@ export default function ProductionPage() {
                 </div>
               </div>
                 </>
+              ) : balancePaymentMethod === 'sumup' ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-left">
+                    <p className="text-xs font-black uppercase tracking-widest text-violet-300">
+                      Cobro por SumUp SOLO
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-300">
+                      Se enviará el cobro de <span className="font-black text-amber-300">{fmt(pendingBalanceToCollect)}</span> al dispositivo SumUp SOLO del campus.
+                    </p>
+                  </div>
+                </div>
+              ) : balancePaymentMethod === 'transferencia' ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 text-left">
+                    <p className="text-xs font-black uppercase tracking-widest text-blue-300">
+                      Transferencia bancaria
+                    </p>
+                    <div className="mt-2 space-y-1 text-xs text-zinc-300">
+                      <div className="flex justify-between"><span className="text-zinc-500">Banco</span><span>Banco Estado</span></div>
+                      <div className="flex justify-between"><span className="text-zinc-500">Cuenta</span><span className="font-mono">29100078943</span></div>
+                      <div className="flex justify-between"><span className="text-zinc-500">RUT</span><span>65.108.056-8</span></div>
+                      <div className="flex justify-between"><span className="text-zinc-500">Titular</span><span>Iglesia Cristiana AR Ministries</span></div>
+                      <div className="flex justify-between border-t border-zinc-700 pt-1 mt-1"><span className="text-zinc-500">Monto</span><span className="font-black text-amber-300">{fmt(pendingBalanceToCollect)}</span></div>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-left">
                   <p className="text-xs font-black uppercase tracking-widest text-emerald-300">
-                    Confirmación manual
+                    Link de pago
                   </p>
                   <p className="mt-2 text-sm leading-6 text-zinc-300">
-                    Confirma este saldo solo después de validar el pago por <span className="font-black text-emerald-300">{balancePaymentMethod === 'transferencia' ? 'Transferencia' : balancePaymentMethod === 'sumup' ? 'SumUp SOLO' : 'Link de pago'}</span>.
+                    Confirma este saldo solo después de validar el pago por <span className="font-black text-emerald-300">Link de pago</span>.
                   </p>
                 </div>
               )}
