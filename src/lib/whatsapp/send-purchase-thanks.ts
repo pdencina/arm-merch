@@ -58,23 +58,28 @@ export async function sendPurchaseThanks(
   }
 
   const firstName = clientName.split(' ')[0] || 'Cliente'
+  const templateName = process.env.WHATSAPP_TEMPLATE_AGRADECIMIENTO || 'agradecimiento_compra'
+  const templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'es_CL'
 
-  const message = [
-    `¡Hola ${firstName}! 👋`,
-    '',
-    `Gracias por tu compra en ${campusName || 'ARM Merch'} 🙏`,
-    '',
-    `📋 Orden #${orderNumber}`,
-    `💰 Total: ${formatCurrency(total)}`,
-    '',
-    `Te esperamos pronto. ¡Bendiciones! ❤️`,
-  ].join('\n')
-
+  // Usar template si está configurado
   const payload = {
     messaging_product: 'whatsapp',
     to: phone,
-    type: 'text',
-    text: { body: message },
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: templateLanguage },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: firstName },
+            { type: 'text', text: String(orderNumber) },
+            { type: 'text', text: formatCurrency(total) },
+          ],
+        },
+      ],
+    },
   }
 
   try {
@@ -94,6 +99,7 @@ export async function sendPurchaseThanks(
     const data = await res.json().catch(() => null)
 
     if (!res.ok) {
+      console.error('[WhatsApp Thanks] Error:', data?.error?.message)
       return { sent: false, provider: 'whatsapp_text', error: data?.error?.message || `Meta ${res.status}` }
     }
 
