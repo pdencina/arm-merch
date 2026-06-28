@@ -378,6 +378,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── WhatsApp: mensaje de agradecimiento post-compra ──
+    if (clientPhone && createdOrder.status === 'paid') {
+      try {
+        const { sendPurchaseThanks } = await import('@/lib/whatsapp/send-purchase-thanks')
+        await sendPurchaseThanks({
+          phone: clientPhone,
+          clientName: clientName || 'Cliente',
+          orderNumber: createdOrder.order_number,
+          total: Number(createdOrder.total ?? 0),
+          campusName: undefined, // se resuelve por campus_id si se necesita
+          paymentMethod: createdOrder.payment_method,
+        })
+      } catch (e) {
+        // No bloquear la venta si falla WhatsApp
+        console.error('[WhatsApp Thanks] Error:', e)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       order_id: createdOrder.id,
