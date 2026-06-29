@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, User, Calculator, MapPin, Tags,
   X, Truck, Layers, PanelLeftClose, PanelLeftOpen,
   BrainCircuit, Sparkles, LineChart, Telescope, ChevronDown, DollarSign, TrendingUp,
-  ShieldCheck,
+  ShieldCheck, Monitor, MonitorSmartphone,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -28,6 +28,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Punto de Venta', href: '/pos', permKey: 'pos.view', icon: <ShoppingCart size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
   { label: 'Órdenes', href: '/orders', permKey: 'orders.view', icon: <Receipt size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
   { label: 'Pedidos entrega', href: '/production', permKey: 'deliveries.view', icon: <Truck size={16} />, roles: ['voluntario', 'admin', 'adm_merch', 'super_admin'], section: 'Ventas' },
+  { label: 'Pantalla Producción', href: '/production/tv', icon: <Monitor size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Ventas' },
+  { label: 'Pantalla Cliente', href: '/customer-display', icon: <MonitorSmartphone size={16} />, roles: ['adm_merch', 'super_admin'], section: 'Ventas' },
   { label: 'Inventario', href: '/inventory', permKey: 'inventory.view', icon: <Package size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
   { label: 'Movimientos', href: '/inventory/movements', permKey: 'movements.view', icon: <ArrowLeftRight size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
   { label: 'Transferencias', href: '/transfers', permKey: 'inventory.transfers.view', icon: <ArrowRightLeft size={16} />, roles: ['admin', 'adm_merch', 'super_admin'], section: 'Inventario' },
