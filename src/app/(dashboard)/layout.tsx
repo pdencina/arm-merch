@@ -202,31 +202,74 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 
       {showWelcome && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in duration-300">
-          <div className="relative w-full max-w-md overflow-hidden rounded-[32px] border border-white/10 bg-[#111418] shadow-2xl">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-md px-4">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-[36px] border border-white/10 bg-[#0c0e14] shadow-[0_30px_80px_rgba(0,0,0,0.8)]">
 
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.12),transparent_45%)]" />
+            {/* Decorative glows */}
+            <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-amber-500/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl" />
 
-            <div className="relative p-8">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1A2230] border border-[#2A3445] shadow-lg">
-                <span className="text-2xl">👋</span>
+            <div className="relative p-10 text-center">
+              {/* Animated emoji */}
+              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500/20 to-violet-500/10 border border-white/10 shadow-xl">
+                <span className="text-5xl animate-[bounce_2s_ease-in-out_infinite]">
+                  {new Date().getHours() < 12 ? '☀️' : new Date().getHours() < 20 ? '⚡' : '🌙'}
+                </span>
               </div>
 
-              <h2 className="text-2xl font-black tracking-tight text-white">
-                Hola {String(profile?.full_name ?? '').split(' ')[0]}
+              {/* Greeting */}
+              <p className="text-xs font-black uppercase tracking-[0.4em] text-amber-400">
+                {new Date().getHours() < 12 ? 'Buenos días' : new Date().getHours() < 20 ? 'Buenas tardes' : 'Buenas noches'}
+              </p>
+
+              <h2 className="mt-3 text-4xl font-black tracking-tight text-white">
+                {String(profile?.full_name ?? 'Equipo').split(' ')[0]} 👋
               </h2>
 
-              <p className="mt-4 text-sm leading-7 text-[#A1AAB8]">
-                Qué bueno verte nuevamente.
-                Esperamos que tengas un excelente día de servicio en ARM Merch. 🤗
+              {/* Motivational message - random */}
+              <p className="mt-5 text-base leading-7 text-zinc-400">
+                {(() => {
+                  const messages = [
+                    'Cada venta que haces apoya la misión de ARM. ¡Gracias por estar aquí!',
+                    'Tu servicio hace la diferencia. ¡Vamos con todo hoy!',
+                    'Bienvenido/a de vuelta. ¡Que sea un gran día de bendiciones!',
+                    'ARM Merch funciona gracias a ti. ¡A dar lo mejor!',
+                    'Nuevo día, nuevas oportunidades. ¡Vamos equipo!',
+                  ]
+                  return messages[Math.floor(Math.random() * messages.length)]
+                })()}
               </p>
+
+              {/* Quick stats */}
+              <div className="mt-6 flex justify-center gap-3">
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Día</p>
+                  <p className="mt-0.5 text-sm font-black text-white capitalize">
+                    {new Date().toLocaleDateString('es-CL', { weekday: 'long' })}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Fecha</p>
+                  <p className="mt-0.5 text-sm font-black text-white">
+                    {new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Hora</p>
+                  <p className="mt-0.5 text-sm font-black text-white">
+                    {new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
 
               <button
                 onClick={closeWelcome}
-                className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[#F59E0B] px-5 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.01] hover:bg-[#FDBA2D]"
+                className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-4 text-base font-black text-black shadow-[0_8px_24px_rgba(245,158,11,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_12px_32px_rgba(245,158,11,0.4)]"
               >
-                Vamos 🚀
+                ¡Vamos! 🚀
               </button>
+
+              <p className="mt-4 text-xs text-zinc-600">ARM Merch · Apoyando la misión</p>
             </div>
           </div>
         </div>
