@@ -6,6 +6,7 @@ import { Search, ScanLine, XCircle } from 'lucide-react'
 import { useCart } from '@/lib/hooks/use-cart'
 import { useBarcode } from '@/lib/hooks/use-barcode'
 import ProductVariantModal, { type ProductVariantOption } from './product-variant-modal'
+import MultiVariantModal, { type VariantStep, type MultiVariantResult } from './multi-variant-modal'
 
 interface Product {
   id: string
@@ -81,6 +82,9 @@ export default function ProductGrid({ products, categories }: Props) {
     subtitle: string
     options: ProductVariantOption[]
   } | null>(null)
+  const [multiVariantOpen, setMultiVariantOpen] = useState(false)
+  const [multiVariantProduct, setMultiVariantProduct] = useState<Product | null>(null)
+  const [multiVariantSteps, setMultiVariantSteps] = useState<VariantStep[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -215,10 +219,52 @@ export default function ProductGrid({ products, categories }: Props) {
     return true
   }
 
+  function getMultiVariantSteps(product: Product): VariantStep[] | null {
+    // Detectar productos con múltiples variantes (ej: área + talla)
+    if (!product.variants || product.variants.length === 0) return null
+
+    // Agrupar variantes por tipo
+    const typeMap = new Map<string, { label: string; value: string }[]>()
+    product.variants.forEach((v) => {
+      if (!typeMap.has(v.variant_type)) typeMap.set(v.variant_type, [])
+      typeMap.get(v.variant_type)!.push({ label: v.variant_value, value: v.variant_value })
+    })
+
+    // Si hay más de 1 tipo de variante → multi-step
+    if (typeMap.size < 2) return null
+
+    const steps: VariantStep[] = []
+    typeMap.forEach((options, key) => {
+      steps.push({
+        key,
+        title: `Selecciona ${key}`,
+        subtitle: `Elige el ${key} para este producto`,
+        options,
+      })
+    })
+
+    return steps
+  }
+
+  function openMultiVariantSelector(product: Product): boolean {
+    const steps = getMultiVariantSteps(product)
+    if (!steps) return false
+
+    setMultiVariantProduct(product)
+    setMultiVariantSteps(steps)
+    setMultiVariantOpen(true)
+    return true
+  }
+
   function addProduct(product: Product) {
     if ((product.stock ?? 0) <= 0) {
       setScanError(`Sin stock: ${product.name}`)
       setTimeout(() => setScanError(null), 2500)
+      return
+    }
+
+    // Primero check multi-variant (ej: Polerón Técnica con área + talla)
+    if (openMultiVariantSelector(product)) {
       return
     }
 
@@ -506,6 +552,45 @@ export default function ProductGrid({ products, categories }: Props) {
           playAddSound()
           setVariantOpen(false)
           setSelectedVariantProduct(null)
+        }}
+      />
+      <MultiVariantModal
+        open={multiVariantOpen}
+        productName={multiVariantProduct?.name ?? ''}
+        steps={multiVariantSteps}
+        price={multiVariantProduct?.price}
+        onClose={() => {
+          setMultiVariantOpen(false)
+          setMultiVariantProduct(null)
+        }}
+        onComplete={(selections) => {
+          if (!multiVariantProduct) return
+
+          // Construir la variante como "Área · Talla"
+          const variantValues = Object.values(selections)
+          const variantLabel = variantValues.join(' · ')
+          const talla = selections['talla'] ?? selections['Talla'] ?? null
+
+          addItem(
+            {
+              id: multiVariantProduct.id,
+              name: multiVariantProduct.name,
+              price: multiVariantProduct.price,
+              image_url: multiVariantProduct.image_url,
+              stock: multiVariantProduct.stock ?? 0,
+              sku: multiVariantProduct.sku,
+              category_id: multiVariantProduct.category_id,
+              sale_type: multiVariantProduct.sale_type ?? 'stock',
+            },
+            talla,
+            'multi',
+            variantLabel,
+            multiVariantProduct.price
+          )
+
+          playAddSound()
+          setMultiVariantOpen(false)
+          setMultiVariantProduct(null)
         }}
       />
     </>

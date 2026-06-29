@@ -119,7 +119,9 @@ export default function InventoryPage() {
       return
     }
 
-    const mapped: ProductRow[] = (data ?? []).map((row: any) => {
+    const mapped: ProductRow[] = (data ?? [])
+      .filter((row: any) => row.product?.active !== false)
+      .map((row: any) => {
       const product = row.product ?? {}
 
       return {
