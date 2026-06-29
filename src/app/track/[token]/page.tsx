@@ -30,6 +30,9 @@ type OrderData = {
   production_status: string | null
   status: string | null
   total: number | null
+  amount_paid?: number | null
+  balance_due?: number | null
+  payment_type?: string | null
   created_at: string
   ready_at?: string | null
   delivered_at?: string | null
@@ -224,6 +227,9 @@ export default async function TrackingPage({ params }: PageProps) {
       production_status,
       status,
       total,
+      amount_paid,
+      balance_due,
+      payment_type,
       created_at,
       ready_at,
       delivered_at,
@@ -601,11 +607,38 @@ export default async function TrackingPage({ params }: PageProps) {
                 )}
               </div>
 
-              <div className="mt-5 flex items-center justify-between border-t border-[#D8DDD2] pt-5">
-                <span className="font-black text-[#52604C]">Total pagado</span>
-                <span className="text-3xl font-black text-[#111111]">
-                  {formatCurrency(Number(order.total ?? 0))}
-                </span>
+              <div className="mt-5 flex flex-col gap-2 border-t border-[#D8DDD2] pt-5">
+                {order.payment_type === 'deposit_50' ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#6B6B6B]">Total del pedido</span>
+                      <span className="text-lg font-bold text-[#6B6B6B]">
+                        {formatCurrency(Number(order.total ?? 0))}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-[#52604C]">Pagado (50% abono)</span>
+                      <span className="text-2xl font-black text-[#52604C]">
+                        {formatCurrency(Number(order.amount_paid ?? 0))}
+                      </span>
+                    </div>
+                    {Number(order.balance_due ?? 0) > 0 && (
+                      <div className="flex items-center justify-between rounded-xl bg-[#FEF3C7] px-3 py-2">
+                        <span className="text-sm font-bold text-[#92400E]">Saldo pendiente (al retirar)</span>
+                        <span className="text-lg font-black text-[#92400E]">
+                          {formatCurrency(Number(order.balance_due ?? 0))}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-[#52604C]">Total pagado</span>
+                    <span className="text-3xl font-black text-[#111111]">
+                      {formatCurrency(Number(order.total ?? 0))}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </aside>
