@@ -13,6 +13,9 @@ type OrderRow = {
   seller_id?: string | null
   payment_method: string | null
   total: number
+  amount_paid?: number | null
+  balance_due?: number | null
+  payment_type?: string | null
   discount?: number | null
   created_at: string
   status?: string | null
@@ -141,6 +144,9 @@ export default function OrdersPage() {
           seller_id,
           payment_method,
           total,
+          amount_paid,
+          balance_due,
+          payment_type,
           discount,
           created_at,
           status,
@@ -367,7 +373,14 @@ export default function OrdersPage() {
               </div>
 
               <div className="font-semibold text-amber-400">
-                {formatCurrency(Number(order.total ?? 0))}
+                {order.payment_type === 'deposit_50' ? (
+                  <span className="flex flex-col items-end">
+                    <span>{formatCurrency(Number(order.amount_paid ?? 0))}</span>
+                    <span className="text-[10px] text-zinc-500">de {formatCurrency(Number(order.total ?? 0))}</span>
+                  </span>
+                ) : (
+                  formatCurrency(Number(order.total ?? 0))
+                )}
               </div>
 
               <div>
@@ -429,6 +442,18 @@ export default function OrdersPage() {
                   <p className="mt-1 font-semibold text-amber-400">
                     {formatCurrency(Number(order.total ?? 0))}
                   </p>
+                  {order.payment_type === 'deposit_50' && (
+                    <>
+                      <p className="mt-1 text-[10px] text-green-400">
+                        Pagado: {formatCurrency(Number(order.amount_paid ?? 0))}
+                      </p>
+                      {Number(order.balance_due ?? 0) > 0 && (
+                        <p className="text-[10px] text-amber-300">
+                          Saldo: {formatCurrency(Number(order.balance_due ?? 0))}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="rounded-xl bg-zinc-950/50 px-3 py-2">

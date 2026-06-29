@@ -94,7 +94,7 @@ export default function ReportsClient({
   }, [paidOrders, dateFrom, dateTo, sellerId])
 
   const totalRevenue = filtered.reduce((sum, order) => {
-    return sum + safeNumber(order.total)
+    return sum + safeNumber(order.amount_paid ?? order.total)
   }, 0)
 
   const totalOrders = filtered.length
@@ -106,7 +106,7 @@ export default function ReportsClient({
 
     filtered.forEach((order) => {
       const day = fmtDate(order.created_at)
-      dailyMap[day] = (dailyMap[day] || 0) + safeNumber(order.total)
+      dailyMap[day] = (dailyMap[day] || 0) + safeNumber(order.amount_paid ?? order.total)
     })
 
     return Object.entries(dailyMap)
@@ -134,7 +134,7 @@ export default function ReportsClient({
         }
       }
 
-      sellerMap[id].total += safeNumber(order.total)
+      sellerMap[id].total += safeNumber(order.amount_paid ?? order.total)
       sellerMap[id].count += 1
     })
 
@@ -186,7 +186,7 @@ export default function ReportsClient({
           seller?.full_name ?? '',
           order.payment_method ?? '',
           order.status ?? '',
-          safeNumber(order.total).toString(),
+          safeNumber(order.amount_paid ?? order.total).toString(),
         ]
       }),
     ]
@@ -520,7 +520,7 @@ export default function ReportsClient({
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-sm font-bold text-amber-400">
-                      {fmt(order.total)}
+                      {fmt(order.amount_paid ?? order.total)}
                     </td>
                   </tr>
                 )

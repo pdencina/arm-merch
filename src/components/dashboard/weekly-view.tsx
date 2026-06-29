@@ -38,6 +38,7 @@ interface WeeklyViewProps {
     id: string
     order_number: number | string
     total: number
+    amount_paid?: number | null
     created_at: string
     payment_method: string | null
     campus_id?: string | null
@@ -76,7 +77,7 @@ export default function WeeklyView({ orders, campusMap }: WeeklyViewProps) {
         return d >= dayStart && d <= dayEnd
       })
 
-      const total = dayOrders.reduce((s, o) => s + Number(o.total ?? 0), 0)
+      const total = dayOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
       const isToday = isSameDay(date, today)
 
       return {
@@ -228,7 +229,7 @@ export default function WeeklyView({ orders, campusMap }: WeeklyViewProps) {
                     <Clock3 size={11} />
                     <span>{time}</span>
                   </div>
-                  <span className="text-xs font-bold text-white">{fmt(order.total)}</span>
+                  <span className="text-xs font-bold text-white">{fmt(order.amount_paid ?? order.total)}</span>
                 </div>
               )
             })}

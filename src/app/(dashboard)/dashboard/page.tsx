@@ -190,7 +190,7 @@ export default function DashboardPage() {
 
       let ordersQ = supabase
         .from('orders')
-        .select('id, total, discount, created_at, campus_id, payment_method, seller_id, order_number')
+        .select('id, total, amount_paid, discount, created_at, campus_id, payment_method, seller_id, order_number')
         .eq('status', 'paid')
         .order('created_at', { ascending: false })
 
@@ -263,11 +263,11 @@ export default function DashboardPage() {
       return d >= lastMonthStart && d <= lastMonthEnd
     })
 
-    const totalToday     = todayOrders.reduce((s, o) => s + Number(o.total ?? 0), 0)
-    const totalYesterday = yesterdayOrders.reduce((s, o) => s + Number(o.total ?? 0), 0)
-    const totalWeek      = weekOrders.reduce((s, o) => s + Number(o.total ?? 0), 0)
-    const totalMonth     = monthOrders.reduce((s, o) => s + Number(o.total ?? 0), 0)
-    const totalLastMonth = lastMonthOrders.reduce((s, o) => s + Number(o.total ?? 0), 0)
+    const totalToday     = todayOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
+    const totalYesterday = yesterdayOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
+    const totalWeek      = weekOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
+    const totalMonth     = monthOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
+    const totalLastMonth = lastMonthOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
     const totalDiscounts = monthOrders.reduce((s, o) => s + Number(o.discount ?? 0), 0)
 
     const growth    = totalLastMonth > 0 ? ((totalMonth - totalLastMonth) / totalLastMonth) * 100 : 0
@@ -292,7 +292,7 @@ export default function DashboardPage() {
       const end   = new Date(start); end.setDate(end.getDate() + 1)
       const total = filteredOrders
         .filter(o => { const x = new Date(o.created_at); return x >= start && x < end })
-        .reduce((s, o) => s + Number(o.total ?? 0), 0)
+        .reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
       days.push({
         label: d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
         total,
@@ -312,7 +312,7 @@ export default function DashboardPage() {
       .filter(o => new Date(o.created_at) >= todayStart)
       .forEach(o => {
         const h = new Date(o.created_at).getHours()
-        buckets[h] = (buckets[h] || 0) + Number(o.total ?? 0)
+        buckets[h] = (buckets[h] || 0) + Number(o.amount_paid ?? o.total ?? 0)
       })
     return Array.from({ length: 24 }, (_, h) => ({
       label: `${h}h`,
@@ -341,7 +341,7 @@ export default function DashboardPage() {
       const name = campusMap.get(o.campus_id) || 'Sin campus'
       if (!map.has(o.campus_id)) map.set(o.campus_id, { name, total: 0, count: 0 })
       const cur = map.get(o.campus_id)!
-      cur.total += Number(o.total ?? 0)
+      cur.total += Number(o.amount_paid ?? o.total ?? 0)
       cur.count += 1
     })
     return Array.from(map.values()).sort((a, b) => b.total - a.total)
@@ -352,7 +352,7 @@ export default function DashboardPage() {
     const map = new Map<string, number>()
     filteredOrders.forEach(o => {
       const m = o.payment_method || 'otro'
-      map.set(m, (map.get(m) || 0) + Number(o.total ?? 0))
+      map.set(m, (map.get(m) || 0) + Number(o.amount_paid ?? o.total ?? 0))
     })
     const total = Array.from(map.values()).reduce((s, v) => s + v, 0)
     return Array.from(map.entries())
@@ -373,7 +373,7 @@ export default function DashboardPage() {
         const name = sellerMap.get(o.seller_id) || 'Desconocido'
         if (!map.has(o.seller_id)) map.set(o.seller_id, { name, total: 0, count: 0 })
         const cur = map.get(o.seller_id)!
-        cur.total += Number(o.total ?? 0)
+        cur.total += Number(o.amount_paid ?? o.total ?? 0)
         cur.count += 1
       })
     return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 5)

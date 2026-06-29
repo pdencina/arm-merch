@@ -379,20 +379,28 @@ export async function POST(req: NextRequest) {
     }
 
     // ── WhatsApp: mensaje de agradecimiento post-compra ──
+    let whatsappThanksResult: any = null
+
     if (clientPhone && createdOrder.status === 'paid') {
       try {
         const { sendPurchaseThanks } = await import('@/lib/whatsapp/send-purchase-thanks')
-        await sendPurchaseThanks({
+        whatsappThanksResult = await sendPurchaseThanks({
           phone: clientPhone,
           clientName: clientName || 'Cliente',
           orderNumber: createdOrder.order_number,
           total: Number(createdOrder.total ?? 0),
-          campusName: undefined, // se resuelve por campus_id si se necesita
+          campusName: undefined,
           paymentMethod: createdOrder.payment_method,
         })
-      } catch (e) {
-        // No bloquear la venta si falla WhatsApp
+      } catch (e: any) {
+        whatsappThanksResult = { sent: false, error: e?.message ?? 'Exception' }
         console.error('[WhatsApp Thanks] Error:', e)
+      }
+    } else {
+      whatsappThanksResult = {
+        sent: false,
+        skipped: true,
+        reason: !clientPhone ? 'Sin teléfono' : `Status: ${createdOrder.status}`,
       }
     }
 
@@ -406,6 +414,7 @@ export async function POST(req: NextRequest) {
       balance_due: createdOrder.balance_due,
       payment_type: createdOrder.payment_type,
       email_sent: emailSent,
+      whatsapp_thanks: whatsappThanksResult,
       tracking_token: createdOrder.tracking_token,
       tracking_url: createdOrder.tracking_token ? `${getAppUrl(req)}/track/${createdOrder.tracking_token}` : null,
     })
