@@ -383,6 +383,7 @@ export default function ProductionPage() {
             Authorization: `Bearer ${session?.access_token ?? ''}`,
           },
           body: JSON.stringify({
+            order_id: cashModalOrder.id,
             amount: pendingBalance,
             description: `Saldo orden #${cashModalOrder.order_number}`,
           }),
