@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (order.status === 'paid') {
+    if (order.status === 'paid' && !body?.is_balance_payment) {
       return NextResponse.json(
         { error: 'La orden ya está pagada' },
         { status: 400 },

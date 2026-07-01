@@ -386,6 +386,7 @@ export default function ProductionPage() {
             order_id: cashModalOrder.id,
             amount: pendingBalance,
             description: `Saldo orden #${cashModalOrder.order_number}`,
+            is_balance_payment: true,
           }),
         })
 
