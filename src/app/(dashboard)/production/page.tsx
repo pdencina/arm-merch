@@ -373,7 +373,7 @@ export default function ProductionPage() {
       data: { session },
     } = await supabase.auth.getSession()
 
-    // Si es SumUp SOLO, primero enviar cobro al dispositivo
+    // Si es SumUp SOLO, enviar cobro al dispositivo y esperar confirmación manual
     if (balancePaymentMethod === 'sumup') {
       try {
         const soloRes = await fetch('/api/sumup/solo-checkout', {
@@ -393,10 +393,17 @@ export default function ProductionPage() {
         const soloData = await soloRes.json().catch(() => null)
 
         if (!soloRes.ok) {
-          setCashError(soloData?.error ?? 'Error enviando cobro al SumUp SOLO')
+          setCashError(soloData?.error ?? soloData?.detail?.errors?.detail ?? 'Error enviando cobro al SumUp SOLO')
           setCollectingId(null)
           return
         }
+
+        // Cobro enviado exitosamente — mostrar mensaje y esperar que el vendedor confirme
+        setCashError(null)
+        setCollectingId(null)
+        // Cambiar a un estado que indique "esperando pago en máquina"
+        setCashReceived('SOLO_WAITING')
+        return
       } catch (err: any) {
         setCashError('Error conectando con SumUp SOLO: ' + (err?.message || ''))
         setCollectingId(null)
@@ -1076,14 +1083,25 @@ export default function ProductionPage() {
                 </>
               ) : balancePaymentMethod === 'sumup' ? (
                 <div className="space-y-3">
-                  <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-left">
-                    <p className="text-xs font-black uppercase tracking-widest text-violet-300">
-                      Cobro por SumUp SOLO
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-zinc-300">
-                      Se enviará el cobro de <span className="font-black text-amber-300">{fmt(pendingBalanceToCollect)}</span> al dispositivo SumUp SOLO del campus.
-                    </p>
-                  </div>
+                  {cashReceived === 'SOLO_WAITING' ? (
+                    <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-4 text-left">
+                      <p className="text-xs font-black uppercase tracking-widest text-green-300">
+                        ✅ Cobro enviado a la máquina
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                        Pídele al cliente que acerque su tarjeta al SumUp SOLO. Cuando el pago sea aprobado en la máquina, presiona <span className="font-black text-amber-300">"Confirmar pago"</span>.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-left">
+                      <p className="text-xs font-black uppercase tracking-widest text-violet-300">
+                        Cobro por SumUp SOLO
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                        Se enviará el cobro de <span className="font-black text-amber-300">{fmt(pendingBalanceToCollect)}</span> al dispositivo SumUp SOLO del campus.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : balancePaymentMethod === 'transferencia' ? (
                 <div className="space-y-3">
@@ -1140,7 +1158,7 @@ export default function ProductionPage() {
                 }
                 className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {collectingId === cashModalOrder.id ? 'Registrando...' : balancePaymentMethod === 'efectivo' ? 'Confirmar efectivo' : 'Confirmar pago'}
+                {collectingId === cashModalOrder.id ? 'Registrando...' : balancePaymentMethod === 'efectivo' ? 'Confirmar efectivo' : balancePaymentMethod === 'sumup' && cashReceived !== 'SOLO_WAITING' ? 'Enviar cobro al SOLO' : 'Confirmar pago'}
               </button>
             </div>
           </div>
