@@ -255,19 +255,8 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json().catch(() => null);
 
-    console.log("[WhatsApp Payment Link]", {
-      ok: res.ok,
-      status: res.status,
-      to: phone,
-      templateName,
-      templateLanguage,
-      templateMode,
-      orderNumber,
-      aiMessage,
-      response: data,
-    });
-
     if (!res.ok) {
+      console.error("[WhatsApp Payment Link] Error:", data?.error?.message || res.status);
       return NextResponse.json(
         {
           error:

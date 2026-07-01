@@ -131,15 +131,16 @@ function OrderCard({
           const { data: { session } } = await supabase.auth.getSession()
           if (session?.access_token) {
             const campusObj = Array.isArray(order.campus) ? (order.campus as any)[0] : order.campus
-            const res = await fetch('/api/whatsapp', {
+            const res = await fetch('/api/whatsapp/notify-pickup', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
               body: JSON.stringify({
                 phone:       clientPhone.trim(),
                 client_name: client?.client_name ?? 'Cliente',
                 campus_name: campusObj?.name ?? 'tu campus ARM',
-                order_id:    order.id,
-                items: order.order_items.map(i => ({
+                order_number: order.order_number,
+                balance_due: 0,
+                products: order.order_items.map(i => ({
                   name:     i.product?.name ?? 'Producto',
                   size:     i.size,
                   quantity: i.quantity,

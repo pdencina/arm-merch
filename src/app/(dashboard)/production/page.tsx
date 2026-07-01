@@ -398,12 +398,9 @@ export default function ProductionPage() {
           return
         }
 
-        // Cobro enviado exitosamente — mostrar mensaje y esperar que el vendedor confirme
+        // Cobro enviado — ahora registrar el saldo como cobrado
+        // (El SOLO ya recibió la instrucción de cobro)
         setCashError(null)
-        setCollectingId(null)
-        // Cambiar a un estado que indique "esperando pago en máquina"
-        setCashReceived('SOLO_WAITING')
-        return
       } catch (err: any) {
         setCashError('Error conectando con SumUp SOLO: ' + (err?.message || ''))
         setCollectingId(null)

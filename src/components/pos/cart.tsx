@@ -1287,6 +1287,42 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     }
   }
 
+  /**
+   * Envía agradecimiento por WhatsApp (fire-and-forget).
+   * Solo se envía si el cliente tiene teléfono registrado.
+   */
+  async function sendThanksWhatsApp(orderData: {
+    orderNumber: string | number;
+    total: number;
+    paymentMethod: string;
+  }) {
+    const phone = clientPhone.trim();
+    if (!phone) return; // Sin teléfono, no enviar
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      await fetch("/api/whatsapp/send-thanks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          phone,
+          client_name: clientName.trim() || "Cliente",
+          order_number: orderData.orderNumber,
+          total: orderData.total,
+          campus_name: campusBrandName,
+          payment_method: orderData.paymentMethod,
+        }),
+      });
+    } catch {
+      // Fire-and-forget: no bloquea la venta si falla
+    }
+  }
+
   async function handleConfirmCashSale() {
     const orderTotal = amountToCharge;
 
@@ -1380,6 +1416,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         method: "Efectivo",
         clientName: clientName.trim() || null,
         at: new Date().toISOString(),
+      });
+
+      // Enviar agradecimiento por WhatsApp (no bloquea)
+      sendThanksWhatsApp({
+        orderNumber: data.order_number ?? data.order_id,
+        total: orderTotal,
+        paymentMethod: "efectivo",
       });
 
       setShowCashModal(false);
@@ -1732,6 +1775,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           clientName: clientName.trim() || null,
           at: new Date().toISOString(),
         });
+
+        // Enviar agradecimiento por WhatsApp (no bloquea)
+        sendThanksWhatsApp({
+          orderNumber: data.order_number ?? data.order_id,
+          total: orderTotal,
+          paymentMethod,
+        });
+
         setSuccessOpen(true);
         setClientPhone("");
         clearCart();
