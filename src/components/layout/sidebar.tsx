@@ -122,13 +122,19 @@ export default function Sidebar({
     >
       <div className={clsx('mb-5 flex items-center gap-3 px-2', isCollapsed ? 'justify-center' : 'justify-between')}>
         <div className={clsx('flex items-center gap-2.5', isCollapsed && 'justify-center')}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E8EEF8]">
-            <span className="text-xs font-black text-[#111318]">A</span>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#18181b]">
+            <svg viewBox="0 0 100 50" className="h-5 w-5" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="26" rx="45" ry="17" stroke="#ffffff" strokeWidth="2" transform="rotate(-5 50 26)"/>
+              <text x="18" y="36" fontFamily="Georgia, serif" fontSize="36" fontWeight="bold" fill="#ffffff">M</text>
+              <text x="33" y="14" fontFamily="Georgia, serif" fontSize="14" fontStyle="italic" fill="#ffffff">ar</text>
+              <text x="48" y="36" fontFamily="Georgia, serif" fontSize="28" fontWeight="bold" fill="#ffffff">erch</text>
+              <path d="M82,8 L83.5,12 L88,13 L83.5,14 L82,18 L80.5,14 L76,13 L80.5,12 Z" fill="#ffffff"/>
+            </svg>
           </div>
 
           {!isCollapsed && (
             <div>
-              <p className="text-sm font-bold leading-none text-[#F3F5F7]">ARM Merch</p>
+              <p className="text-sm font-bold leading-none text-[#F3F5F7]">arMerch</p>
               <p className="mt-0.5 text-[10px] text-[#66707F]">Sistema de Merch</p>
             </div>
           )}

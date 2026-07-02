@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { QRCodeCanvas } from 'qrcode.react'
 import {
   CheckCircle2,
   Printer,
@@ -10,6 +11,7 @@ import {
   Plus,
   Mail,
   X,
+  MessageCircle,
 } from 'lucide-react'
 
 function formatCurrency(value: number) {
@@ -91,6 +93,15 @@ export default function SaleSuccessModal({
   useEffect(() => {
     if (open) playSuccessSound()
   }, [open])
+
+  // WhatsApp QR: número de ARM Merch (env var en build time via NEXT_PUBLIC)
+  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''
+  const whatsappMessage = encodeURIComponent(
+    `Hola ARM Merch 👋 Acabo de comprar (Orden #${orderNumber}). Quiero recibir notificaciones por aquí.`
+  )
+  const whatsappLink = whatsappNumber
+    ? `https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${whatsappMessage}`
+    : ''
 
   return (
     <AnimatePresence>
@@ -207,6 +218,35 @@ export default function SaleSuccessModal({
                   </div>
                 )}
               </div>
+
+              {/* WhatsApp QR — para que el cliente escriba y abrir ventana de 24h */}
+              {whatsappNumber && (
+                <div className="mt-5 rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
+                  <div className="flex items-center gap-2 text-green-400">
+                    <MessageCircle size={16} />
+                    <p className="text-xs font-bold uppercase tracking-wider">
+                      WhatsApp ARM Merch
+                    </p>
+                  </div>
+                  <p className="mt-1.5 text-xs text-zinc-400">
+                    Pídele al cliente que escanee este QR para recibir notificaciones por WhatsApp.
+                  </p>
+                  <div className="mt-3 flex justify-center">
+                    <div className="rounded-xl bg-white p-2.5">
+                      <QRCodeCanvas
+                        value={whatsappLink}
+                        size={130}
+                        bgColor="#ffffff"
+                        fgColor="#000000"
+                        level="M"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-center text-[10px] text-zinc-600">
+                    Se abrirá WhatsApp con un saludo a ARM Merch
+                  </p>
+                </div>
+              )}
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <Link

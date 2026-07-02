@@ -73,12 +73,10 @@ body {
   height: 68px;
   border-radius: 22px;
   background: #141414;
-  color: white;
-  font-weight: 900;
-  font-size: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px;
 }
 
 .login-title {

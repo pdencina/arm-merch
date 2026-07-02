@@ -3,6 +3,10 @@
  *
  * Se envía automáticamente después de confirmar una venta
  * cuando el cliente tiene teléfono registrado.
+ *
+ * Modos:
+ * 1. Template aprobado por Meta (si WHATSAPP_TEMPLATE_AGRADECIMIENTO está configurado)
+ * 2. Texto libre (default — funciona dentro de la ventana de 24h)
  */
 
 const GRAPH_API_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v22.0'
@@ -35,7 +39,7 @@ export interface PurchaseThanksParams {
 
 export interface PurchaseThanksResult {
   sent: boolean
-  provider: 'whatsapp_text' | 'skipped'
+  provider: 'whatsapp_template' | 'whatsapp_text' | 'skipped'
   error?: string
 }
 
@@ -58,10 +62,37 @@ export async function sendPurchaseThanks(
   }
 
   const firstName = clientName.split(' ')[0] || 'Cliente'
-  const templateName = process.env.WHATSAPP_TEMPLATE_AGRADECIMIENTO || 'agradecimiento_compra'
+  const templateName = process.env.WHATSAPP_TEMPLATE_AGRADECIMIENTO || ''
+
+  // Si hay template configurado, usar template (funciona fuera de las 24h)
+  if (templateName) {
+    return sendWithTemplate({
+      phone, firstName, orderNumber, total,
+      whatsappToken, phoneNumberId, templateName,
+    })
+  }
+
+  // Default: texto libre (funciona si el cliente escribió en las últimas 24h)
+  return sendAsText({
+    phone, firstName, orderNumber, total, campusName,
+    whatsappToken, phoneNumberId,
+  })
+}
+
+// ─── Template mode ──────────────────────────────────────────────────────────
+
+async function sendWithTemplate(opts: {
+  phone: string
+  firstName: string
+  orderNumber: string | number
+  total: number
+  whatsappToken: string
+  phoneNumberId: string
+  templateName: string
+}): Promise<PurchaseThanksResult> {
+  const { phone, firstName, orderNumber, total, whatsappToken, phoneNumberId, templateName } = opts
   const templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'es_CL'
 
-  // Usar template si está configurado
   const payload = {
     messaging_product: 'whatsapp',
     to: phone,
@@ -99,7 +130,67 @@ export async function sendPurchaseThanks(
     const data = await res.json().catch(() => null)
 
     if (!res.ok) {
-      console.error('[WhatsApp Thanks] Error:', data?.error?.message)
+      console.error('[WhatsApp Thanks Template] Error:', data?.error?.message)
+      return { sent: false, provider: 'whatsapp_template', error: data?.error?.message || `Meta ${res.status}` }
+    }
+
+    return { sent: true, provider: 'whatsapp_template' }
+  } catch (err: any) {
+    return { sent: false, provider: 'whatsapp_template', error: err?.message }
+  }
+}
+
+// ─── Text mode (default) ────────────────────────────────────────────────────
+
+async function sendAsText(opts: {
+  phone: string
+  firstName: string
+  orderNumber: string | number
+  total: number
+  campusName?: string
+  whatsappToken: string
+  phoneNumberId: string
+}): Promise<PurchaseThanksResult> {
+  const { phone, firstName, orderNumber, total, campusName, whatsappToken, phoneNumberId } = opts
+
+  const campus = campusName || 'ARM Merch'
+
+  const message = [
+    `Hola ${firstName} 👋`,
+    ``,
+    `¡Gracias por tu compra en ${campus}! 🙏`,
+    ``,
+    `🧾 Pedido #${orderNumber}`,
+    `💰 Total: ${formatCurrency(total)}`,
+    ``,
+    `Bendiciones y gracias por apoyar ARM ❤️`,
+  ].join('\n')
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: phone,
+    type: 'text',
+    text: { body: message },
+  }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${whatsappToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      }
+    )
+
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok) {
+      console.error('[WhatsApp Thanks Text] Error:', data?.error?.message)
       return { sent: false, provider: 'whatsapp_text', error: data?.error?.message || `Meta ${res.status}` }
     }
 
