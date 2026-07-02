@@ -77,18 +77,13 @@ export default function LoginPage() {
 
           <div className="login-logo-wrap">
             <div className="login-logo-box">
-              <svg viewBox="0 0 100 50" style={{width: '36px', height: '36px'}} fill="none" xmlns="http://www.w3.org/2000/svg">
-                <ellipse cx="50" cy="26" rx="45" ry="17" stroke="#000000" strokeWidth="2" transform="rotate(-5 50 26)"/>
-                <text x="18" y="36" fontFamily="Georgia, serif" fontSize="36" fontWeight="bold" fill="#000000">M</text>
-                <text x="33" y="14" fontFamily="Georgia, serif" fontSize="14" fontStyle="italic" fill="#000000">ar</text>
-                <text x="48" y="36" fontFamily="Georgia, serif" fontSize="28" fontWeight="bold" fill="#000000">erch</text>
-                <path d="M82,8 L83.5,12 L88,13 L83.5,14 L82,18 L80.5,14 L76,13 L80.5,12 Z" fill="#000000"/>
-              </svg>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="ARM Merch" style={{width: '48px', height: 'auto'}} />
             </div>
 
             <div>
               <h1 className="login-title">
-                ar<span>Merch</span>
+                ARM <span>Merch</span>
               </h1>
 
               <p className="login-subtitle">
