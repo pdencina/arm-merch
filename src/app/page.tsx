@@ -19,8 +19,9 @@ export default function HomePage() {
       <header className="relative z-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-black/10 bg-white text-lg font-black text-[#141414] shadow-sm">
-              A
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-black/10 bg-black shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="ARM Merch" className="h-7 w-auto" />
             </div>
 
             <div>
