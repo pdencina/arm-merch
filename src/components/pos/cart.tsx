@@ -767,6 +767,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 clientName: clientName.trim() || null,
                 at: new Date().toISOString(),
               });
+
+              // Enviar agradecimiento por WhatsApp (no bloquea)
+              sendThanksWhatsApp({
+                orderNumber: createdOrder.number,
+                total: createdOrder.total,
+                paymentMethod: "link",
+              });
             }
 
             setSuccessOpen(true);
@@ -959,6 +966,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         clientName: clientName.trim() || null,
         at: new Date().toISOString(),
       });
+
+      // Enviar agradecimiento por WhatsApp (no bloquea)
+      sendThanksWhatsApp({
+        orderNumber: data?.order_number ?? order.number,
+        total: order.total,
+        paymentMethod: "sumup",
+      });
+
       setClientPhone("");
 
       if (soloAutoCloseRef.current) clearTimeout(soloAutoCloseRef.current);

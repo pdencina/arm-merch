@@ -42,7 +42,7 @@ export default function MovementForm({ product, onClose, onSuccess }: Props) {
   async function executeSubmit() {
     setConfirmOpen(false)
 
-    if (!qty || qty < 0) {
+    if (qty === null || qty === undefined || qty < 0) {
       toast.error('Ingresa una cantidad válida')
       return
     }
