@@ -50,7 +50,7 @@ const fmt = (n: number) =>
 
 type SoloStatus = "waiting" | "processing" | "found" | "rejected" | "timeout";
 
-const SOLO_TIMEOUT_SECONDS = 180;
+const SOLO_TIMEOUT_SECONDS = 300;
 
 const soloStatusCopy: Record<
   SoloStatus,
@@ -97,8 +97,8 @@ const soloStatusCopy: Record<
   },
   timeout: {
     icon: "⏱️",
-    title: "Seguimos esperando confirmación",
-    subtitle: "No se recibió respuesta automática en el tiempo esperado. Revisa la máquina antes de entregar el producto.",
+    title: "Tiempo de espera agotado",
+    subtitle: "No se recibió confirmación automática. Si en SumUp aparece como cobrado, usa el botón 'Verificar si SumUp cobró'.",
     badge: "Tiempo agotado",
     badgeClass: "border-zinc-500/20 bg-zinc-500/10 text-zinc-300",
     ringClass: "border-zinc-500/30 bg-zinc-500/10",
@@ -920,7 +920,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     setVerifySuccess("Cobro enviado a la máquina SumUp SOLO. Esperando acción del cliente...");
 
     let attempts = 0;
-    const maxAttempts = 90; // 90 * 2s = 3 minutos
+    const maxAttempts = 150; // 150 * 2s = 5 minutos
 
     const clearSoloPolling = () => {
       if (sumupPollRef.current) {
@@ -2692,6 +2692,90 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400"
                       >
                         Reintentar monitoreo
+                      </button>
+
+                      {/* Verificar pago manualmente contra SumUp */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            setVerifyError(null);
+                            setVerifySuccess("Consultando SumUp...");
+
+                            const {
+                              data: { session },
+                            } = await supabase.auth.getSession();
+
+                            if (!session?.access_token || !sumupSmartOrder?.id) {
+                              setVerifyError("Sesión expirada.");
+                              setVerifySuccess(null);
+                              return;
+                            }
+
+                            const res = await fetch("/api/sumup/check-checkout", {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${session.access_token}`,
+                              },
+                              body: JSON.stringify({
+                                order_id: sumupSmartOrder.id,
+                                checkout_id: sumupSmartOrder.checkoutId,
+                                checkout_reference: sumupSmartOrder.checkoutReference,
+                              }),
+                            });
+
+                            const data = await res.json().catch(() => null);
+                            const status = String(data?.order_status ?? data?.status ?? data?.sumup_status ?? "").toLowerCase();
+
+                            if (["paid", "pagado", "approved", "completed", "success", "successful"].includes(status)) {
+                              setSumupStatus("found");
+                              setVerifySuccess("✅ Pago confirmado en SumUp. Venta registrada.");
+                              setVerifyError(null);
+
+                              if (soundEnabled) playPaymentSuccessSound();
+                              notifyLocalStockDiscount();
+
+                              registerLastSale({
+                                id: sumupSmartOrder.id,
+                                number: data?.order_number ?? sumupSmartOrder.number,
+                                total: sumupSmartOrder.total,
+                                method: "SumUp SOLO",
+                                clientName: clientName.trim() || null,
+                                at: new Date().toISOString(),
+                              });
+
+                              setCreatedOrder({
+                                id: sumupSmartOrder.id,
+                                number: data?.order_number ?? sumupSmartOrder.number,
+                                total: sumupSmartOrder.total,
+                              });
+
+                              setTimeout(() => {
+                                setSumupPolling(false);
+                                setSumupSmartOpen(false);
+                                setSuccessOpen(true);
+                                clearCart();
+                                setClientPhone("");
+                                setTimeout(() => {
+                                  onClose?.();
+                                  focusSkuSearchInput();
+                                }, 250);
+                              }, 1500);
+                            } else if (["cancelled", "canceled", "failed", "declined", "rejected"].includes(status)) {
+                              setVerifyError("❌ SumUp confirma que el pago fue rechazado o cancelado.");
+                              setVerifySuccess(null);
+                            } else {
+                              setVerifyError(`Estado SumUp: "${status || 'sin respuesta'}". Si en SumUp aparece como cobrado, intenta de nuevo en unos segundos.`);
+                              setVerifySuccess(null);
+                            }
+                          } catch (e: any) {
+                            setVerifyError(e?.message || "Error verificando pago.");
+                            setVerifySuccess(null);
+                          }
+                        }}
+                        className="w-full rounded-2xl border border-green-500/30 bg-green-500/10 py-3 text-sm font-bold text-green-300 transition hover:border-green-400 hover:bg-green-500/20"
+                      >
+                        ✓ Verificar si SumUp cobró
                       </button>
 
                       <button
