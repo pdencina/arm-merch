@@ -887,7 +887,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
       if (attempts >= maxAttempts) {
         clearInterval(interval);
-        checkSumUpCheckout(true);
+        // NO forzar cancelación: el pago puede haberse cobrado en SumUp
+        // aunque no se recibió confirmación. Dejar orden como pending.
+        checkSumUpCheckout(false);
         handleStatus("timeout");
         return;
       }
@@ -1014,7 +1016,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       setSumupPolling(false);
       setSumupStatus("timeout");
       setVerifySuccess(null);
-      setVerifyError("No se recibió confirmación automática en 3 minutos. Revisa la máquina antes de entregar el producto.");
+      setVerifyError("No se recibió confirmación automática en 5 minutos. Usa el botón 'Verificar si SumUp cobró' antes de cancelar.");
     };
 
     const checkOrderStatusFromDB = async () => {
@@ -2830,8 +2832,11 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                         }}
                         className="w-full rounded-2xl border border-zinc-700 py-3 text-sm font-bold text-zinc-300 transition hover:bg-zinc-800"
                       >
-                        Cancelar y volver al POS
+                        Cancelar venta (solo si NO se cobró)
                       </button>
+                      <p className="text-center text-[10px] text-red-400/70">
+                        ⚠️ Si SumUp ya cobró y cancelas aquí, deberás regularizar manualmente
+                      </p>
                     </div>
                   )}
 
