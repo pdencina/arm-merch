@@ -375,7 +375,7 @@ export default function ProductionPage() {
       data: { session },
     } = await supabase.auth.getSession()
 
-    // Si es SumUp SOLO, enviar cobro al dispositivo y esperar confirmación manual
+    // Si es SumUp Solo, enviar cobro al dispositivo y esperar confirmación manual
     if (balancePaymentMethod === 'sumup') {
       try {
         const soloRes = await fetch('/api/sumup/solo-checkout', {
@@ -395,7 +395,7 @@ export default function ProductionPage() {
         const soloData = await soloRes.json().catch(() => null)
 
         if (!soloRes.ok) {
-          setCashError(soloData?.error ?? soloData?.detail?.errors?.detail ?? 'Error enviando cobro al SumUp SOLO')
+          setCashError(soloData?.error ?? soloData?.detail?.errors?.detail ?? 'Error enviando cobro al SumUp Solo')
           setCollectingId(null)
           return
         }
@@ -404,7 +404,7 @@ export default function ProductionPage() {
         // (El SOLO ya recibió la instrucción de cobro)
         setCashError(null)
       } catch (err: any) {
-        setCashError('Error conectando con SumUp SOLO: ' + (err?.message || ''))
+        setCashError('Error conectando con SumUp Solo: ' + (err?.message || ''))
         setCollectingId(null)
         return
       }
@@ -984,7 +984,7 @@ export default function ProductionPage() {
                   {[
                     { key: 'efectivo', label: 'Efectivo' },
                     { key: 'transferencia', label: 'Transferencia' },
-                    { key: 'sumup', label: 'SumUp SOLO' },
+                    { key: 'sumup', label: 'SumUp Solo' },
                     { key: 'link', label: 'Link pago' },
                   ].map((method) => (
                     <button
@@ -1092,16 +1092,16 @@ export default function ProductionPage() {
                         ✅ Cobro enviado a la máquina
                       </p>
                       <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        Pídele al cliente que acerque su tarjeta al SumUp SOLO. Cuando el pago sea aprobado en la máquina, presiona <span className="font-black text-amber-300">"Confirmar pago"</span>.
+                        Pídele al cliente que acerque su tarjeta al SumUp Solo. Cuando el pago sea aprobado en la máquina, presiona <span className="font-black text-amber-300">"Confirmar pago"</span>.
                       </p>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-left">
                       <p className="text-xs font-black uppercase tracking-widest text-violet-300">
-                        Cobro por SumUp SOLO
+                        Cobro por SumUp Solo
                       </p>
                       <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        Se enviará el cobro de <span className="font-black text-amber-300">{fmt(pendingBalanceToCollect)}</span> al dispositivo SumUp SOLO del campus.
+                        Se enviará el cobro de <span className="font-black text-amber-300">{fmt(pendingBalanceToCollect)}</span> al dispositivo SumUp Solo del campus.
                       </p>
                     </div>
                   )}

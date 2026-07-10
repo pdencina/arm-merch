@@ -78,7 +78,7 @@ const PM_LABELS: Record<string, string> = {
   transferencia: 'Transferencia',
   debito: 'Débito',
   credito: 'Crédito',
-  solo: 'SumUp SOLO',
+  solo: 'SumUp Solo',
   link: 'Link de pago',
 }
 

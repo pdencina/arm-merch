@@ -383,7 +383,7 @@ export default function ReadersManager() {
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <CreditCard size={20} className="text-amber-400" />
-            Lectores SumUp SOLO
+            Lectores SumUp Solo
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
             Conecta, monitorea y administra dispositivos SOLO por campus.
@@ -598,7 +598,7 @@ export default function ReadersManager() {
         ) : readers.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-700 p-8 text-center">
             <Radio className="mx-auto text-zinc-600" size={34} />
-            <p className="mt-3 text-sm text-zinc-500">Aún no hay lectores SumUp SOLO registrados.</p>
+            <p className="mt-3 text-sm text-zinc-500">Aún no hay lectores SumUp Solo registrados.</p>
             <p className="mt-1 text-xs text-zinc-600">Conecta uno usando el formulario de arriba.</p>
           </div>
         ) : (

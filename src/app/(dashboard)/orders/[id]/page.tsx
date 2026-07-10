@@ -103,7 +103,7 @@ function getPaymentLabel(payment?: string | null) {
     efectivo: 'Efectivo',
     transferencia: 'Transferencia',
     sumup: 'SumUp',
-    solo: 'SumUp SOLO',
+    solo: 'SumUp Solo',
     link: 'Link de pago',
     card: 'Tarjeta',
   }

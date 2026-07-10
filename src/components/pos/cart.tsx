@@ -65,7 +65,7 @@ const soloStatusCopy: Record<
 > = {
   waiting: {
     icon: "💳",
-    title: "Esperando pago en SumUp SOLO",
+    title: "Esperando pago en SumUp Solo",
     subtitle: "Pídele al cliente que acerque, inserte o deslice su tarjeta en la máquina.",
     badge: "Esperando tarjeta",
     badgeClass: "border-amber-500/20 bg-amber-500/10 text-amber-300",
@@ -694,7 +694,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const paymentOptions = [
     { key: "efectivo", label: "Efectivo", icon: Banknote },
     { key: "transferencia", label: "Transfer.", icon: Landmark },
-    { key: "solo", label: "SumUp SOLO", icon: CreditCard },
+    { key: "solo", label: "SumUp Solo", icon: CreditCard },
     { key: "link", label: "Link pago", icon: Link },
   ];
 
@@ -926,7 +926,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     setSumupPolling(true);
     setSumupStatus("waiting");
     setVerifyError(null);
-    setVerifySuccess("Cobro enviado a la máquina SumUp SOLO. Esperando acción del cliente...");
+    setVerifySuccess("Cobro enviado a la máquina SumUp Solo. Esperando acción del cliente...");
 
     let attempts = 0;
     const maxAttempts = 150; // 150 * 2s = 5 minutos
@@ -945,7 +945,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       setSumupStatus("found");
       setSoloCountdown(0);
       setVerifyError(null);
-      setVerifySuccess("Pago aprobado en SumUp SOLO. Venta registrada correctamente.");
+      setVerifySuccess("Pago aprobado en SumUp Solo. Venta registrada correctamente.");
 
       setCreatedOrder({
         id: order.id,
@@ -963,8 +963,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         total: order.total,
         method:
           order.cardType === "credit"
-            ? `SumUp SOLO Crédito ${order.installments ?? 1} cuotas`
-            : "SumUp SOLO Débito",
+            ? `SumUp Solo Crédito ${order.installments ?? 1} cuotas`
+            : "SumUp Solo Débito",
         clientName: clientName.trim() || null,
         at: new Date().toISOString(),
       });
@@ -1088,7 +1088,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         const data = await res.json().catch(() => null);
 
         if (!res.ok) {
-          setVerifyError(data?.error ?? "No se pudo consultar el estado del pago SOLO.");
+          setVerifyError(data?.error ?? "No se pudo consultar el estado del pago SumUp Solo.");
           return;
         }
 
@@ -1131,7 +1131,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           finishAsTimeout();
         }
       } catch (error: any) {
-        setVerifyError(error?.message ?? "Error consultando el pago SOLO.");
+        setVerifyError(error?.message ?? "Error consultando el pago SumUp Solo.");
       }
     };
 
@@ -1489,10 +1489,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         return;
       }
 
-      // ── SumUp SOLO Cloud API: envía el cobro directo a la máquina ──
+      // ── SumUp Solo Cloud API: envía el cobro directo a la máquina ──
       if (paymentMethod === "solo") {
         if (sumupSmartOpen || sumupPolling) {
-          setVerifyError("Ya hay un cobro SOLO en curso. Finaliza o cancela el cobro actual antes de iniciar otro.");
+          setVerifyError("Ya hay un cobro SumUp Solo en curso. Finaliza o cancela el cobro actual antes de iniciar otro.");
           setSubmitting(false);
           return;
         }
@@ -1519,7 +1519,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
             client_name: clientName.trim() || null,
             client_email: clientEmail.trim() || null,
             client_phone: clientPhone.trim() || null,
-            notes: "SumUp SOLO - pago enviado al lector",
+            notes: "SumUp Solo - pago enviado al lector",
             delivery_status: hasProductionItems ? "pending" : null,
           ...paymentPayload,
           }),
@@ -1554,7 +1554,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         const soloData = await soloRes.json().catch(() => null);
 
         if (!soloRes.ok || !soloData?.success) {
-          setVerifyError(soloData?.error ?? "No se pudo enviar el cobro a SumUp SOLO");
+          setVerifyError(soloData?.error ?? "No se pudo enviar el cobro a SumUp Solo");
           setSubmitting(false);
           return;
         }
@@ -1573,7 +1573,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         setTxCode("");
         setVerifyError(null);
         setVerifySuccess(
-          `Cobro enviado a ${soloData?.reader?.name ?? "SumUp SOLO"} · ${
+          `Cobro enviado a ${soloData?.reader?.name ?? "SumUp Solo"} · ${
             cardType === "credit"
               ? `Crédito ${installments} cuotas`
               : "Débito"
@@ -2271,7 +2271,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       </div>
 
                       <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-                        Se enviará a SumUp SOLO el monto total y la cantidad de cuotas.
+                        Se enviará a SumUp Solo el monto total y la cantidad de cuotas.
                         SumUp procesa el resto en el lector.
                       </p>
                     </div>
@@ -2347,7 +2347,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 {sumupSmartOpen || sumupPolling ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                    Cobro SOLO en curso...
+                    Cobro SumUp Solo en curso...
                   </span>
                 ) : submitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -2513,7 +2513,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
         </div>
       )}
 
-      {/* SumUp SOLO — Flujo de pago */}
+      {/* SumUp Solo — Flujo de pago */}
       {sumupSmartOpen && sumupSmartOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
           <motion.div
@@ -2756,7 +2756,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                                 id: sumupSmartOrder.id,
                                 number: data?.order_number ?? sumupSmartOrder.number,
                                 total: sumupSmartOrder.total,
-                                method: "SumUp SOLO",
+                                method: "SumUp Solo",
                                 clientName: clientName.trim() || null,
                                 at: new Date().toISOString(),
                               });

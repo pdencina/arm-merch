@@ -73,7 +73,7 @@ function normalizeItemSubtotal(item: CustomerDisplayItem) {
 
 function paymentLabel(method?: string | null) {
   const value = String(method ?? '').toLowerCase()
-  if (value === 'solo' || value === 'sumup') return 'SumUp SOLO'
+  if (value === 'solo' || value === 'sumup') return 'SumUp Solo'
   if (value === 'link') return 'Link de pago'
   if (value === 'cash' || value === 'efectivo') return 'Efectivo'
   if (value === 'transferencia' || value === 'transfer') return 'Transferencia'
