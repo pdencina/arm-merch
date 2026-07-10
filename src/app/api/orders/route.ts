@@ -56,6 +56,8 @@ export async function POST(req: NextRequest) {
       unit_price: number
       discount_pct?: number
       size?: string | null
+      variant_type?: string | null
+      variant_value?: string | null
       fulfillment_type?: string | null
     }> = Array.isArray(body.items) ? body.items : []
 
@@ -121,6 +123,8 @@ export async function POST(req: NextRequest) {
       unit_price: Number(i.unit_price),
       discount_pct: Number(i.discount_pct ?? 0),
       size: i.size ?? null,
+      variant_type: i.variant_type ?? null,
+      variant_value: i.variant_value ?? null,
       fulfillment_type:
         i.fulfillment_type === 'production'
           ? 'production'
@@ -299,6 +303,8 @@ export async function POST(req: NextRequest) {
       unit_price: item.unit_price,
       fulfillment_type: item.fulfillment_type || 'immediate',
       ...(item.size ? { size: item.size } : {}),
+      ...(item.variant_type ? { variant_type: item.variant_type } : {}),
+      ...(item.variant_value ? { variant_value: item.variant_value } : {}),
     }))
 
     const { error: orderItemsError } = await adminClient

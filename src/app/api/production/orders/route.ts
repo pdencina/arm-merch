@@ -73,6 +73,8 @@ export async function GET(req: NextRequest) {
           quantity,
           unit_price,
           size,
+          variant_type,
+          variant_value,
           fulfillment_type,
           production_started_at,
           ready_pickup_at,

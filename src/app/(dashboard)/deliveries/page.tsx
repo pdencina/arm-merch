@@ -27,6 +27,8 @@ type DeliveryOrder = {
     unit_price: number
     product_id?: string
     size?: string | null
+    variant_type?: string | null
+    variant_value?: string | null
     product: { name: string; sku: string | null } | null
   }[]
 }
@@ -185,9 +187,11 @@ function OrderCard({
             {order.order_items.map((item, i) => (
               <span key={i} className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
                 {item.product?.name ?? '—'}
-                {item.size && (
+                {item.variant_value && item.variant_type === 'multi' ? (
+                  <span className="font-bold text-violet-400">· {item.variant_value}</span>
+                ) : item.size ? (
                   <span className="font-bold text-violet-400">· T:{item.size}</span>
-                )}
+                ) : null}
                 <span className="text-zinc-600">×{item.quantity}</span>
               </span>
             ))}
@@ -219,11 +223,15 @@ function OrderCard({
                     <p className="text-sm text-zinc-200">{item.product?.name ?? '—'}</p>
                     <div className="flex gap-2">
                       {item.product?.sku && <p className="text-[10px] text-zinc-600">{item.product.sku}</p>}
-                      {item.size && (
+                      {item.variant_value && item.variant_type === 'multi' ? (
+                        <span className="rounded-full bg-violet-500/15 px-1.5 text-[10px] font-bold text-violet-400">
+                          {item.variant_value}
+                        </span>
+                      ) : item.size ? (
                         <span className="rounded-full bg-violet-500/15 px-1.5 text-[10px] font-bold text-violet-400">
                           Talla {item.size}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                   <div className="text-right">
@@ -350,7 +358,7 @@ export default function DeliveriesPage() {
         id, order_number, total, delivery_status, created_at,
         payment_method, notes, campus_id,
         order_contacts(client_name, client_email, client_phone),
-        order_items(quantity, unit_price, product_id, size, product:products(name, sku))
+        order_items(quantity, unit_price, product_id, size, variant_type, variant_value, product:products(name, sku))
       `)
       .not('delivery_status', 'is', null)
       .order('created_at', { ascending: false })

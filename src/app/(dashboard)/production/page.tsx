@@ -35,6 +35,8 @@ type OrderRow = {
     quantity?: number
     unit_price?: number
     size?: string | null
+    variant_type?: string | null
+    variant_value?: string | null
     fulfillment_type?: string | null
     production_started_at?: string | null
     ready_pickup_at?: string | null
@@ -822,7 +824,9 @@ export default function ProductionPage() {
                                   <span className="text-zinc-100">
                                     <span className="mr-2 text-violet-300">●</span>
                                     {product?.name ?? 'Producto'}
-                                    {item.size ? ` · Talla ${item.size}` : ''}
+                                    {item.variant_value && item.variant_type === 'multi'
+                                      ? ` · ${item.variant_value}`
+                                      : item.size ? ` · Talla ${item.size}` : ''}
                                   </span>
 
                                   <div className="flex flex-col items-end gap-1">
@@ -874,7 +878,9 @@ export default function ProductionPage() {
                                 >
                                   <span className="text-zinc-400">
                                     {product?.name ?? 'Producto'}
-                                    {item.size ? ` · Talla ${item.size}` : ''}
+                                    {item.variant_value && item.variant_type === 'multi'
+                                      ? ` · ${item.variant_value}`
+                                      : item.size ? ` · Talla ${item.size}` : ''}
                                   </span>
 
                                   <span className="text-xs font-bold text-emerald-300">
