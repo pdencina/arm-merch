@@ -443,6 +443,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [showNotes, setShowNotes] = useState(false);
   const [isPendingDelivery, setIsPendingDelivery] = useState(false);
   const [productionItems, setProductionItems] = useState<Record<string, boolean>>({});
+  const [discountPct, setDiscountPct] = useState(0);
+  const [discountPin, setDiscountPin] = useState("");
+  const [discountAuthorized, setDiscountAuthorized] = useState(false);
+  const [discountAuthorizer, setDiscountAuthorizer] = useState("");
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [discountValidating, setDiscountValidating] = useState(false);
+  const [showDiscountInput, setShowDiscountInput] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<{
@@ -633,10 +640,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     [productionSubtotal, productionDepositAmount],
   );
 
-  const amountToCharge = useMemo(
-    () => (hasProductionItems ? immediateSubtotal + productionDepositAmount : total()),
-    [hasProductionItems, immediateSubtotal, productionDepositAmount, total],
-  );
+  const amountToCharge = useMemo(() => {
+    const baseAmount = hasProductionItems ? immediateSubtotal + productionDepositAmount : total();
+    if (discountAuthorized && discountPct > 0) {
+      return Math.round(baseAmount * (1 - discountPct / 100));
+    }
+    return baseAmount;
+  }, [hasProductionItems, immediateSubtotal, productionDepositAmount, total, discountAuthorized, discountPct]);
 
   const paymentPayload = useMemo(
     () => ({
@@ -680,6 +690,59 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
       [productId]: !current[productId],
     }));
   };
+
+  async function validateDiscountPin() {
+    if (!discountPin.trim() || discountPct <= 0) return;
+
+    setDiscountValidating(true);
+    setDiscountError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setDiscountError("Sesión expirada");
+        setDiscountValidating(false);
+        return;
+      }
+
+      const res = await fetch("/api/discount/validate-pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          pin: discountPin,
+          discount_pct: discountPct,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (data?.authorized) {
+        setDiscountAuthorized(true);
+        setDiscountAuthorizer(data.authorizer_name);
+        setDiscountError(null);
+      } else {
+        setDiscountAuthorized(false);
+        setDiscountAuthorizer("");
+        setDiscountError(data?.error || "PIN incorrecto");
+      }
+    } catch {
+      setDiscountError("Error validando PIN");
+    } finally {
+      setDiscountValidating(false);
+    }
+  }
+
+  function clearDiscount() {
+    setDiscountPct(0);
+    setDiscountPin("");
+    setDiscountAuthorized(false);
+    setDiscountAuthorizer("");
+    setDiscountError(null);
+    setShowDiscountInput(false);
+  }
 
   const canSubmit = useMemo(
     () =>
@@ -1401,7 +1464,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           client_email: clientEmail.trim() || null,
           client_phone: clientPhone.trim() || null,
           payment_method: "efectivo",
-          discount: 0,
+          discount: discountAuthorized ? Math.round(subtotal() * discountPct / 100) : 0,
+          discount_pct: discountAuthorized ? discountPct : 0,
+          discount_authorized_by: discountAuthorized ? discountAuthorizer : null,
           notes: cashNotes || null,
           delivery_status: hasProductionItems ? "pending" : null,
           ...paymentPayload,
@@ -1739,7 +1804,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
           client_email: clientEmail.trim() || null,
           client_phone: clientPhone.trim() || null,
           payment_method: paymentMethod,
-          discount: 0,
+          discount: discountAuthorized ? Math.round(subtotal() * discountPct / 100) : 0,
+          discount_pct: discountAuthorized ? discountPct : 0,
+          discount_authorized_by: discountAuthorized ? discountAuthorizer : null,
           notes:
             paymentMethod === "link" && (window as any).__sumupCheckoutRef
               ? `sumup:${(window as any).__sumupCheckoutRef}`
@@ -1894,6 +1961,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     if (clearSale) {
       setClientPhone("");
       setProductionItems({});
+      clearDiscount();
       clearCart();
       onClose?.();
       setTimeout(() => focusSkuSearchInput(), 250);
@@ -2287,6 +2355,65 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   </span>
                   <span>{fmt(subtotal())}</span>
                 </div>
+
+                {/* Descuento autorizado */}
+                {!showDiscountInput && !discountAuthorized && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDiscountInput(true)}
+                    className="flex items-center gap-1.5 text-[11px] text-zinc-600 hover:text-amber-400 transition"
+                  >
+                    <span>%</span> Aplicar descuento
+                  </button>
+                )}
+
+                {showDiscountInput && !discountAuthorized && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Descuento autorizado</span>
+                      <button onClick={clearDiscount} className="text-zinc-600 hover:text-zinc-300 text-xs">✕</button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        placeholder="% dcto"
+                        value={discountPct || ""}
+                        onChange={(e) => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value))))}
+                        className="w-20 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-center text-sm font-bold text-white placeholder-zinc-600 outline-none focus:border-amber-500/40"
+                      />
+                      <input
+                        type="password"
+                        placeholder="PIN"
+                        value={discountPin}
+                        onChange={(e) => setDiscountPin(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") validateDiscountPin(); }}
+                        className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-center text-sm text-white placeholder-zinc-600 outline-none focus:border-amber-500/40"
+                      />
+                      <button
+                        onClick={validateDiscountPin}
+                        disabled={discountValidating || !discountPin || discountPct <= 0}
+                        className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-black disabled:opacity-40"
+                      >
+                        {discountValidating ? "..." : "OK"}
+                      </button>
+                    </div>
+                    {discountError && (
+                      <p className="text-[10px] text-red-400">{discountError}</p>
+                    )}
+                  </div>
+                )}
+
+                {discountAuthorized && (
+                  <div className="flex items-center justify-between rounded-xl border border-green-500/20 bg-green-500/10 px-3 py-2">
+                    <div>
+                      <p className="text-xs font-bold text-green-300">-{discountPct}% descuento</p>
+                      <p className="text-[10px] text-green-400/70">Autorizado por {discountAuthorizer}</p>
+                    </div>
+                    <button onClick={clearDiscount} className="text-xs text-zinc-500 hover:text-red-400">Quitar</button>
+                  </div>
+                )
 
                 {hasProductionItems && (
                   <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3 text-xs">
@@ -2968,7 +3095,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     client_email: clientEmail?.trim() || "",
                     client_phone: clientPhone?.trim() || null,
                     notes: txCode.trim() ? `Transferencia código: ${txCode.trim()}${notes?.trim() ? ` | ${notes.trim()}` : ""}` : notes?.trim() || null,
-                    discount: 0,
+                    discount: discountAuthorized ? Math.round(subtotal() * discountPct / 100) : 0,
+                    discount_pct: discountAuthorized ? discountPct : 0,
+                    discount_authorized_by: discountAuthorized ? discountAuthorizer : null,
                     delivery_status: hasProductionItems ? "pending" : null,
                     ...paymentPayload,
                   }),

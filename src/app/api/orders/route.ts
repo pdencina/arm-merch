@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
 
     const paymentMethod: string = body.payment_method ?? null
     const discount = Number(body.discount ?? 0)
+    const discountPct = Number(body.discount_pct ?? 0)
+    const discountAuthorizedBy: string | null = body.discount_authorized_by ?? null
     const promoCode: string | null = body.promo_code ?? null
     const deliveryStatus: string | null = body.delivery_status ?? null
     const extraNotes: string | null = body.notes ?? null
@@ -255,6 +257,8 @@ export async function POST(req: NextRequest) {
         seller_id: profile.id,
         payment_method: paymentMethod,
         discount,
+        discount_pct: discountPct || null,
+        discount_authorized_by: discountAuthorizedBy || null,
         total: Math.round(totalCalculado),
         amount_paid: amountPaid,
         balance_due: balanceDue,
