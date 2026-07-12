@@ -2413,7 +2413,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     </div>
                     <button onClick={clearDiscount} className="text-xs text-zinc-500 hover:text-red-400">Quitar</button>
                   </div>
-                )
+                )}
 
                 {hasProductionItems && (
                   <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3 text-xs">
