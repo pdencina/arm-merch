@@ -2361,9 +2361,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   <button
                     type="button"
                     onClick={() => setShowDiscountInput(true)}
-                    className="flex items-center gap-1.5 text-[11px] text-zinc-600 hover:text-amber-400 transition"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700 py-2.5 text-xs font-semibold text-zinc-400 transition hover:border-amber-500/40 hover:text-amber-400"
                   >
-                    <span>%</span> Aplicar descuento
+                    <span className="text-sm">%</span> Aplicar descuento
                   </button>
                 )}
 
