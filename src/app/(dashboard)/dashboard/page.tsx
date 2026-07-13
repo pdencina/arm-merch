@@ -48,8 +48,22 @@ function startOfDay(d: Date) {
 const PM: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   efectivo:      { icon: Banknote,    color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   transferencia: { icon: Landmark,    color: 'text-blue-400',    bg: 'bg-blue-500/10'    },
+  'SumUp Solo':  { icon: CreditCard,  color: 'text-violet-400',  bg: 'bg-violet-500/10'  },
+  link:          { icon: Wallet,      color: 'text-amber-400',   bg: 'bg-amber-500/10'   },
   debito:        { icon: CreditCard,  color: 'text-violet-400',  bg: 'bg-violet-500/10'  },
   credito:       { icon: Wallet,      color: 'text-amber-400',   bg: 'bg-amber-500/10'   },
+}
+
+// Normaliza payment_method de la BD a un label unificado
+function normalizePaymentMethod(method: string): string {
+  const m = (method || 'otro').toLowerCase()
+  if (m === 'solo' || m === 'sumup') return 'SumUp Solo'
+  if (m === 'link') return 'Link de pago'
+  if (m === 'efectivo') return 'Efectivo'
+  if (m === 'transferencia') return 'Transferencia'
+  if (m === 'debito') return 'Débito'
+  if (m === 'credito') return 'Crédito'
+  return method
 }
 
 // Campus colors
@@ -351,7 +365,7 @@ export default function DashboardPage() {
   const paymentStats = useMemo(() => {
     const map = new Map<string, number>()
     filteredOrders.forEach(o => {
-      const m = o.payment_method || 'otro'
+      const m = normalizePaymentMethod(o.payment_method || 'otro')
       map.set(m, (map.get(m) || 0) + Number(o.amount_paid ?? o.total ?? 0))
     })
     const total = Array.from(map.values()).reduce((s, v) => s + v, 0)
