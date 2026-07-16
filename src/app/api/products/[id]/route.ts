@@ -145,3 +145,124 @@ export async function PATCH(
     )
   }
 }
+
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const authHeader = req.headers.get('authorization')
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim()
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+      return NextResponse.json(
+        { error: 'Faltan variables de entorno de Supabase' },
+        { status: 500 }
+      )
+    }
+
+    const authClient = createClient(supabaseUrl, supabaseAnonKey)
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser(token)
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    }
+
+    const { data: profile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('id, role, campus_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: 'No se pudo cargar el perfil del usuario' },
+        { status: 403 }
+      )
+    }
+
+    // Solo super_admin y adm_merch pueden eliminar productos
+    const allowed = await hasModulePermission(token, 'products.delete')
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'No autorizado para eliminar productos' },
+        { status: 403 }
+      )
+    }
+
+    const productId = params.id
+    if (!productId) {
+      return NextResponse.json(
+        { error: 'Producto inválido' },
+        { status: 400 }
+      )
+    }
+
+    // Obtener datos del producto antes de eliminar (para auditoría)
+    const { data: product, error: fetchError } = await adminClient
+      .from('products')
+      .select('id, name, sku')
+      .eq('id', productId)
+      .maybeSingle()
+
+    if (fetchError || !product) {
+      return NextResponse.json(
+        { error: 'Producto no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Eliminar inventario asociado primero
+    await adminClient
+      .from('inventory')
+      .delete()
+      .eq('product_id', productId)
+
+    // Eliminar el producto
+    const { error: deleteError } = await adminClient
+      .from('products')
+      .delete()
+      .eq('id', productId)
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: deleteError.message },
+        { status: 400 }
+      )
+    }
+
+    // Registrar auditoría
+    await adminClient.from('audit_log').insert({
+      actor_id: user.id,
+      action: 'product.deleted',
+      entity_type: 'product',
+      entity_id: productId,
+      campus_id: profile.campus_id ?? null,
+      metadata: { product_name: product.name, sku: product.sku },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message ?? 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}

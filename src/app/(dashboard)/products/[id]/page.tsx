@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AssignCampusForm from '@/components/products/assign-campus-form'
 import EditProductForm from '@/components/products/edit-product-form'
+import { Trash2 } from 'lucide-react'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '—'
@@ -26,6 +27,8 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string>('')
   const [userCampusId, setUserCampusId] = useState<string | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -190,6 +193,34 @@ export default function ProductDetailPage() {
   }
 
   const isSuperAdmin = userRole === 'super_admin'
+  const canDelete = userRole === 'super_admin' || userRole === 'adm_merch'
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Error al eliminar el producto')
+        setDeleting(false)
+        return
+      }
+
+      router.push('/products')
+    } catch (err: any) {
+      alert(err?.message ?? 'Error al eliminar el producto')
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -361,6 +392,66 @@ export default function ProductDetailPage() {
           />
         )}
       </div>
+
+      {/* Zona de eliminación — solo super_admin y adm_merch */}
+      {canDelete && (
+        <div className="rounded-2xl border border-red-900/40 bg-red-950/20 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-red-200">Zona peligrosa</h3>
+              <p className="mt-1 text-xs text-red-300/70">
+                Eliminar este producto es una acción irreversible. Se eliminará también su inventario asociado.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+            >
+              <Trash2 size={16} />
+              Eliminar producto
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-white">¿Eliminar producto?</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              Estás a punto de eliminar <strong className="text-white">{product.name}</strong>. Esta acción no se puede deshacer y se eliminará todo el inventario asociado.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-white transition hover:bg-zinc-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    Sí, eliminar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

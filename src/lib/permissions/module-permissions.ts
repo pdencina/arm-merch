@@ -85,7 +85,6 @@ export const DEFAULT_ROLE_PERMISSION_MAP: Record<string, Record<string, boolean>
 
   adm_merch: {
     ...allTrue,
-    'products.delete': false,
   },
 
   admin: {
