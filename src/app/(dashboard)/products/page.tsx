@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search, Tag } from 'lucide-react'
+import { Plus, Search, Tag, Trash2 } from 'lucide-react'
 
 type ProductRow = {
   id: string
@@ -24,6 +24,9 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<ProductRow[]>([])
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [userRole, setUserRole] = useState<string>('')
+  const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     async function loadProducts() {
@@ -52,6 +55,8 @@ export default function ProductsPage() {
         setLoading(false)
         return
       }
+
+      setUserRole(profile.role ?? '')
 
       const { data, error } = await supabase
         .from('inventory')
@@ -144,6 +149,39 @@ export default function ProductsPage() {
       currency: 'CLP',
       maximumFractionDigits: 0,
     }).format(value)
+  }
+
+  const canDelete = userRole === 'super_admin' || userRole === 'adm_merch'
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const res = await fetch(`/api/products/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Error al eliminar el producto')
+        setDeleting(false)
+        return
+      }
+
+      // Quitar el producto de la lista local
+      setProducts((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+      setDeleteTarget(null)
+      setDeleting(false)
+    } catch (err: any) {
+      alert(err?.message ?? 'Error al eliminar el producto')
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -290,18 +328,66 @@ export default function ProductsPage() {
                 </span>
               </div>
 
-              <div>
+              <div className="flex items-center gap-2">
                 <Link
                   href={`/products/${product.id}`}
                   className="inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-600"
                 >
                   Editar todo
                 </Link>
+                {canDelete && (
+                  <button
+                    onClick={() => setDeleteTarget(product)}
+                    className="inline-flex items-center rounded-xl bg-red-600/20 p-2 text-red-400 transition hover:bg-red-600/40 hover:text-red-300"
+                    title="Eliminar producto"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-white">¿Eliminar producto?</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              Estás a punto de eliminar <strong className="text-white">{deleteTarget.name}</strong>. Esta acción no se puede deshacer y se eliminará todo el inventario asociado.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-xl bg-zinc-800 px-4 py-2 text-sm text-white transition hover:bg-zinc-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    Sí, eliminar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
