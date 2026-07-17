@@ -64,16 +64,18 @@ export default function ProductsPage() {
           id,
           stock,
           campus_id,
-          product:products(
+          product:products!inner(
             id,
             name,
             sku,
             price,
             active,
             image_url,
+            deleted_at,
             category:categories(name)
           )
         `)
+        .is('product.deleted_at', null)
         .order('id', { ascending: false })
 
       if (error) {

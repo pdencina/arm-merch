@@ -229,13 +229,49 @@ export async function DELETE(
       )
     }
 
-    // Eliminar inventario asociado primero
+    // Verificar si el producto tiene órdenes asociadas
+    const { count: orderCount } = await adminClient
+      .from('order_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_id', productId)
+
+    if (orderCount && orderCount > 0) {
+      // Soft delete: desactivar producto y marcar como eliminado
+      const { error: softDeleteError } = await adminClient
+        .from('products')
+        .update({
+          active: false,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', productId)
+
+      if (softDeleteError) {
+        return NextResponse.json(
+          { error: softDeleteError.message },
+          { status: 400 }
+        )
+      }
+
+      // Registrar auditoría
+      await adminClient.from('audit_log').insert({
+        actor_id: user.id,
+        action: 'product.deleted',
+        entity_type: 'product',
+        entity_id: productId,
+        campus_id: profile.campus_id ?? null,
+        metadata: { product_name: product.name, sku: product.sku, soft_delete: true, reason: 'Producto tiene órdenes asociadas' },
+      })
+
+      return NextResponse.json({ success: true, soft_delete: true })
+    }
+
+    // Hard delete: eliminar inventario y producto
     await adminClient
       .from('inventory')
       .delete()
       .eq('product_id', productId)
 
-    // Eliminar el producto
     const { error: deleteError } = await adminClient
       .from('products')
       .delete()
@@ -255,7 +291,7 @@ export async function DELETE(
       entity_type: 'product',
       entity_id: productId,
       campus_id: profile.campus_id ?? null,
-      metadata: { product_name: product.name, sku: product.sku },
+      metadata: { product_name: product.name, sku: product.sku, hard_delete: true },
     })
 
     return NextResponse.json({ success: true })
