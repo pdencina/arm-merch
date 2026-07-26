@@ -393,7 +393,7 @@ export default function ProductGrid({ products, categories }: Props) {
   return (
     <>
       <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-zinc-800 px-5 py-4">
+      <div className="border-b border-zinc-800 px-3 py-3 sm:px-5 sm:py-4">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search
@@ -407,7 +407,7 @@ export default function ProductGrid({ products, categories }: Props) {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Buscar o escanear SKU / código de barra..."
-              className="h-12 w-full rounded-2xl border border-zinc-700 bg-zinc-900 pl-10 pr-4 text-sm text-white outline-none transition focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/5"
+              className="h-11 w-full rounded-2xl border border-zinc-700 bg-zinc-900 pl-10 pr-4 text-sm text-white outline-none transition focus:border-amber-500/50 focus:ring-4 focus:ring-amber-500/5 sm:h-12"
             />
           </div>
 
@@ -425,6 +425,33 @@ export default function ProductGrid({ products, categories }: Props) {
           </select>
         </div>
 
+        {/* Mobile category chips — horizontal scroll */}
+        <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-hide md:hidden">
+          <button
+            onClick={() => setCategory('')}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+              !category
+                ? 'bg-amber-500 text-black'
+                : 'bg-zinc-800 text-zinc-400 active:bg-zinc-700'
+            }`}
+          >
+            Todos
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategory(category === cat.id ? '' : cat.id)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+                category === cat.id
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-zinc-800 text-zinc-400 active:bg-zinc-700'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
         {(scanMessage || scanError) && (
           <div
             className={`mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold ${
@@ -439,14 +466,14 @@ export default function ProductGrid({ products, categories }: Props) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4 2xl:grid-cols-5">
           {filtered.map((product) => (
             <button
               key={product.id}
               onClick={() => addProduct(product)}
               disabled={(product.stock ?? 0) <= 0}
-              className="group relative rounded-3xl border border-white/5 bg-zinc-900/80 p-3 text-left shadow-lg transition hover:-translate-y-0.5 hover:border-amber-500/20 hover:bg-zinc-900 hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="group relative rounded-3xl border border-white/5 bg-zinc-900/80 p-2.5 text-left shadow-lg transition active:scale-[0.97] sm:p-3 sm:hover:-translate-y-0.5 sm:hover:border-amber-500/20 sm:hover:bg-zinc-900 sm:hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {product.stock !== null && (
                 <span

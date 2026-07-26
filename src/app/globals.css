@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Safe Area Insets (notched phones: iPhone X+, Android punch-hole) ─── */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* ─── Touch optimizations ─── */
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
 /* Ocultar spinners de inputs numéricos */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
@@ -26,6 +44,9 @@ body {
   height: 100%;
   background: #0f0f0f;
   color: #f4f4f5;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* Scrollbar custom */
@@ -81,3 +102,23 @@ html.light-mode .border-zinc-700 { border-color: #d4d4d8 !important; }
 html.light-mode .border-zinc-800\/60 { border-color: rgba(212,212,216,0.8) !important; }
 html.light-mode .border-zinc-700\/40 { border-color: rgba(212,212,216,0.6) !important; }
 html.light-mode .rounded-tl-2xl { background-color: #f0f0f1 !important; }
+
+
+/* ─── Safe Area Utility Classes ─── */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+.pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+.mb-safe { margin-bottom: env(safe-area-inset-bottom, 0px); }
+.mt-safe { margin-top: env(safe-area-inset-top, 0px); }
+
+/* Bottom nav spacing — prevents content from being hidden behind fixed bottom nav */
+.has-bottom-nav {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1024px) {
+  .has-bottom-nav {
+    padding-bottom: 0;
+  }
+}

@@ -243,20 +243,20 @@ function CartItemRow({
 
         <button
           onClick={onRemove}
-          className="rounded-lg p-1 text-zinc-600 transition hover:bg-red-500/10 hover:text-red-400"
+          className="rounded-lg p-2 text-zinc-600 transition active:bg-red-500/10 active:text-red-400 sm:p-1 sm:hover:bg-red-500/10 sm:hover:text-red-400"
           aria-label="Quitar"
         >
-          <Trash2 size={13} />
+          <Trash2 size={14} />
         </button>
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 rounded-xl bg-black/30 px-1.5 py-1">
+        <div className="flex items-center gap-1.5 rounded-xl bg-black/30 px-1.5 py-1">
           <button
             onClick={() => onUpdateQty(item.quantity - 1)}
-            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 text-white transition hover:bg-white/10"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white transition active:bg-white/15 sm:h-6 sm:w-6 sm:hover:bg-white/10"
           >
-            <Minus size={11} />
+            <Minus size={12} />
           </button>
           <span className="w-7 text-center text-sm font-bold text-white">
             {item.quantity}
@@ -264,9 +264,9 @@ function CartItemRow({
           <button
             onClick={() => onUpdateQty(item.quantity + 1)}
             disabled={item.quantity >= item.product.stock}
-            className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-30"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white transition active:bg-white/15 disabled:opacity-30 sm:h-6 sm:w-6 sm:hover:bg-white/10"
           >
-            <Plus size={11} />
+            <Plus size={12} />
           </button>
         </div>
         <span className="text-sm font-bold text-white">{fmt(lineTotal)}</span>
@@ -1973,8 +1973,12 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   return (
     <>
       <aside className="flex h-full flex-col bg-[#0e0f14] text-white">
+        {/* Swipe indicator for mobile */}
+        <div className="flex justify-center pt-2 pb-0 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-zinc-700" />
+        </div>
         {/* HEADER */}
-        <div className="flex items-center justify-between border-b border-white/6 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-white/6 px-4 py-3 sm:px-5 sm:py-4">
           <div className="flex items-center gap-2.5">
             <div className="relative">
               <ShoppingCart size={19} className="text-zinc-300" />
@@ -2261,7 +2265,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                   Método de pago
                 </label>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                   {paymentOptions.map((option, i) => (
                     <PaymentPill
                       key={option.key}
@@ -2441,7 +2445,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   </div>
                 )}
 
-                <div className="border-t border-white/6 pt-2 flex items-end justify-between">
+                <div className="sticky bottom-0 border-t border-white/6 bg-[#0e0f14] pt-3 pb-safe flex items-end justify-between">
                   <span className="text-zinc-300 text-sm">
                     {hasProductionItems ? "Abono requerido hoy" : "Total a cobrar"}
                   </span>
@@ -2459,10 +2463,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               {/* BOTÓN CONFIRMAR */}
               <motion.button
                 whileHover={{ scale: canSubmit ? 1.01 : 1 }}
-                whileTap={{ scale: canSubmit ? 0.98 : 1 }}
+                whileTap={{ scale: canSubmit ? 0.97 : 1 }}
                 onClick={handleConfirmSale}
                 disabled={!canSubmit}
-                className="relative w-full overflow-hidden rounded-3xl py-4 text-[17px] font-black text-black transition disabled:cursor-not-allowed disabled:opacity-40"
+                className="relative w-full overflow-hidden rounded-3xl py-4 text-base font-black text-black transition sm:py-4 sm:text-[17px] disabled:cursor-not-allowed disabled:opacity-40"
                 style={{
                   background: canSubmit
                     ? isPendingDelivery
@@ -2499,7 +2503,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 )}
               </motion.button>
 
-              <p className="text-center text-[10px] text-zinc-600">
+              <p className="hidden text-center text-[10px] text-zinc-600 sm:block">
                 Presiona{" "}
                 <kbd className="rounded bg-white/8 px-1 font-mono">Enter</kbd>{" "}
                 para confirmar rápido

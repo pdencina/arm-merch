@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/sidebar'
 import Navbar from '@/components/layout/navbar'
+import MobileBottomNav from '@/components/layout/mobile-bottom-nav'
 import { Toaster } from 'sonner'
 import { mergeRolePermissions } from '@/lib/permissions/module-permissions'
 
@@ -194,11 +195,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Navbar user={profile} onOpenSidebar={() => setSidebarOpen(true)} />
 
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
+        <main className="flex-1 overflow-y-auto p-3 has-bottom-nav sm:p-4 lg:p-5">
           <ConnectionStatus />
           {children}
         </main>
       </div>
+
+      <MobileBottomNav onOpenSidebar={() => setSidebarOpen(true)} />
 
 
       {showWelcome && (
