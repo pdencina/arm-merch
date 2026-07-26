@@ -272,7 +272,7 @@ function CartItemRow({
         <span className="text-sm font-bold text-white">{fmt(lineTotal)}</span>
       </div>
 
-      {item.product.sale_type === 'encargo' && (
+      {(item.product.sale_type === 'encargo' || item.variant_type === 'multi') && (
         <button
           type="button"
           onClick={onToggleProduction}
@@ -680,10 +680,10 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
     productionItems[productId] ? "production" : "immediate";
 
   const toggleProductionItem = (productId: string) => {
-    // Solo permitir producción para productos marcados como 'encargo'
+    // Permitir producción para productos 'encargo' o multi-variant
     const item = items.find((i) => i.product.id === productId)
     if (!item) return
-    if (item.product.sale_type !== 'encargo') return
+    if (item.product.sale_type !== 'encargo' && item.variant_type !== 'multi') return
 
     setProductionItems((current) => ({
       ...current,
