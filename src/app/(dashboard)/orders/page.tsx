@@ -20,6 +20,8 @@ type OrderRow = {
   created_at: string
   status?: string | null
   notes?: string | null
+  client_phone?: string | null
+  order_contacts?: Array<{ client_name?: string | null; client_email?: string | null }> | null
 }
 
 type CampusRow = {
@@ -150,7 +152,9 @@ export default function OrdersPage() {
           discount,
           created_at,
           status,
-          notes
+          notes,
+          client_phone,
+          order_contacts(client_name, client_email)
         `)
         .order('created_at', { ascending: false })
 
@@ -253,12 +257,18 @@ export default function OrdersPage() {
     return campusFiltered.filter((order) => {
       const text = search.toLowerCase().trim()
       const campusName = order.campus_id ? campusMap.get(order.campus_id) ?? '' : ''
+      const clientName = Array.isArray(order.order_contacts)
+        ? order.order_contacts[0]?.client_name ?? ''
+        : ''
+      // También buscar en notes donde puede estar "Cliente: Nombre"
+      const notesClient = (order.notes ?? '').replace('Cliente: ', '')
 
       const matchesSearch =
         !text ||
-        String(order.order_number).toLowerCase().includes(text) ||
+        String(order.order_number).includes(text) ||
+        clientName.toLowerCase().includes(text) ||
+        notesClient.toLowerCase().includes(text) ||
         (order.payment_method ?? '').toLowerCase().includes(text) ||
-        (order.status ?? '').toLowerCase().includes(text) ||
         campusName.toLowerCase().includes(text)
 
       const matchesStatus =
@@ -305,7 +315,7 @@ export default function OrdersPage() {
           />
           <input
             type="text"
-            placeholder="Buscar por número, estado, pago o campus..."
+            placeholder="Buscar por N° orden o nombre del cliente..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-2xl border border-zinc-700 bg-zinc-800 px-12 py-3 text-sm text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
@@ -340,8 +350,9 @@ export default function OrdersPage() {
       </div>
 
       <div className="hidden overflow-hidden rounded-2xl border border-zinc-700/60 bg-zinc-900/50 xl:block">
-        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_180px] gap-4 border-b border-zinc-800 px-6 py-4 text-sm text-zinc-400">
+        <div className="grid grid-cols-[0.8fr_1.2fr_1fr_1fr_1fr_1fr_1fr_150px] gap-4 border-b border-zinc-800 px-6 py-4 text-sm text-zinc-400">
           <div>N° Orden</div>
+          <div>Cliente</div>
           <div>Campus</div>
           <div>Método pago</div>
           <div>Total</div>
@@ -358,10 +369,16 @@ export default function OrdersPage() {
           filteredOrders.map((order) => (
             <div
               key={order.id}
-              className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_180px] gap-4 border-b border-zinc-800/70 px-6 py-4 last:border-b-0"
+              className="grid grid-cols-[0.8fr_1.2fr_1fr_1fr_1fr_1fr_1fr_150px] gap-4 border-b border-zinc-800/70 px-6 py-4 last:border-b-0"
             >
               <div className="font-medium text-white">
                 #{order.order_number}
+              </div>
+
+              <div className="truncate text-zinc-300">
+                {Array.isArray(order.order_contacts) && order.order_contacts[0]?.client_name
+                  ? order.order_contacts[0].client_name
+                  : <span className="text-zinc-600">—</span>}
               </div>
 
               <div className="text-zinc-300">
@@ -418,7 +435,12 @@ export default function OrdersPage() {
               className="rounded-2xl border border-zinc-700/60 bg-zinc-900/50 p-4"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold text-white">#{order.order_number}</p>
+                <div>
+                  <p className="font-semibold text-white">#{order.order_number}</p>
+                  {Array.isArray(order.order_contacts) && order.order_contacts[0]?.client_name && (
+                    <p className="mt-0.5 text-xs text-zinc-400">{order.order_contacts[0].client_name}</p>
+                  )}
+                </div>
                 <span className={`rounded-lg border px-3 py-1 text-xs font-semibold ${getStatusClass(order.status)}`}>
                   {getStatusLabel(order.status)}
                 </span>
