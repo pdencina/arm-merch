@@ -202,20 +202,18 @@ export default function OrdersPage() {
       }
 
       // Cargar nombres de clientes desde order_contacts
-      const orderIds = (ordersData ?? []).map((o: any) => o.id)
       let contactsMap: Record<string, string> = {}
 
-      if (orderIds.length > 0) {
-        const { data: contactsData } = await supabase
-          .from('order_contacts')
-          .select('order_id, client_name')
-          .in('order_id', orderIds)
+      const { data: contactsData } = await supabase
+        .from('order_contacts')
+        .select('order_id, client_name')
+        .not('client_name', 'is', null)
+        .order('created_at', { ascending: false })
 
-        if (contactsData) {
-          for (const c of contactsData) {
-            if (c.client_name) {
-              contactsMap[c.order_id] = c.client_name
-            }
+      if (contactsData) {
+        for (const c of contactsData) {
+          if (c.client_name && !contactsMap[c.order_id]) {
+            contactsMap[c.order_id] = c.client_name
           }
         }
       }
