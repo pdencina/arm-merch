@@ -443,6 +443,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [showNotes, setShowNotes] = useState(false);
   const [isPendingDelivery, setIsPendingDelivery] = useState(false);
   const [productionItems, setProductionItems] = useState<Record<string, boolean>>({});
+  const [productionPayFull, setProductionPayFull] = useState(false);
   const [discountPct, setDiscountPct] = useState(0);
   const [discountPin, setDiscountPin] = useState("");
   const [discountAuthorized, setDiscountAuthorized] = useState(false);
@@ -631,8 +632,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   );
 
   const productionDepositAmount = useMemo(
-    () => Math.round(productionSubtotal * 0.5),
-    [productionSubtotal],
+    () => productionPayFull ? productionSubtotal : Math.round(productionSubtotal * 0.5),
+    [productionSubtotal, productionPayFull],
   );
 
   const productionBalanceDue = useMemo(
@@ -650,13 +651,13 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
   const paymentPayload = useMemo(
     () => ({
-      payment_type: hasProductionItems ? "deposit_50" : "full_payment",
-      deposit_percentage: hasProductionItems ? 50 : 100,
+      payment_type: hasProductionItems ? (productionPayFull ? "full_payment" : "deposit_50") : "full_payment",
+      deposit_percentage: hasProductionItems ? (productionPayFull ? 100 : 50) : 100,
       amount_paid: amountToCharge,
       balance_due: hasProductionItems ? productionBalanceDue : 0,
-      payment_status: hasProductionItems ? "partial" : "paid",
+      payment_status: hasProductionItems && !productionPayFull ? "partial" : "paid",
     }),
-    [hasProductionItems, amountToCharge, productionBalanceDue],
+    [hasProductionItems, amountToCharge, productionBalanceDue, productionPayFull],
   );
 
   const cashReceivedAmount = useMemo(() => {
@@ -2421,6 +2422,34 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                 {hasProductionItems && (
                   <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3 text-xs">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="font-bold text-violet-300">Producción</span>
+                      <div className="flex gap-1 rounded-lg bg-black/30 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setProductionPayFull(false)}
+                          className={`rounded-md px-2 py-1 text-[10px] font-bold transition ${
+                            !productionPayFull
+                              ? 'bg-violet-500 text-white'
+                              : 'text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          Abono 50%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductionPayFull(true)}
+                          className={`rounded-md px-2 py-1 text-[10px] font-bold transition ${
+                            productionPayFull
+                              ? 'bg-violet-500 text-white'
+                              : 'text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          Pago completo
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="mb-1 flex justify-between text-zinc-300">
                       <span>Total productos producción</span>
                       <span className="font-bold">{fmt(productionSubtotal)}</span>
@@ -2433,15 +2462,26 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                       </div>
                     )}
 
-                    <div className="flex justify-between text-violet-300">
-                      <span>Abono hoy 50%</span>
-                      <span className="font-black">{fmt(productionDepositAmount)}</span>
-                    </div>
+                    {!productionPayFull && (
+                      <>
+                        <div className="flex justify-between text-violet-300">
+                          <span>Abono hoy 50%</span>
+                          <span className="font-black">{fmt(productionDepositAmount)}</span>
+                        </div>
 
-                    <div className="mt-1 flex justify-between text-amber-300">
-                      <span>Saldo al retiro</span>
-                      <span className="font-black">{fmt(productionBalanceDue)}</span>
-                    </div>
+                        <div className="mt-1 flex justify-between text-amber-300">
+                          <span>Saldo al retiro</span>
+                          <span className="font-black">{fmt(productionBalanceDue)}</span>
+                        </div>
+                      </>
+                    )}
+
+                    {productionPayFull && (
+                      <div className="flex justify-between text-green-300">
+                        <span>Cobrar total hoy</span>
+                        <span className="font-black">{fmt(productionSubtotal)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
