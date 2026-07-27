@@ -21,7 +21,7 @@ type OrderRow = {
   status?: string | null
   notes?: string | null
   client_phone?: string | null
-  order_contacts?: Array<{ client_name?: string | null; client_email?: string | null }> | null
+  client_name?: string | null
 }
 
 type CampusRow = {
@@ -153,8 +153,7 @@ export default function OrdersPage() {
           created_at,
           status,
           notes,
-          client_phone,
-          order_contacts(client_name, client_email)
+          client_phone
         `)
         .order('created_at', { ascending: false })
 
@@ -202,7 +201,32 @@ export default function OrdersPage() {
         return
       }
 
-      setOrders((ordersData ?? []) as OrderRow[])
+      // Cargar nombres de clientes desde order_contacts
+      const orderIds = (ordersData ?? []).map((o: any) => o.id)
+      let contactsMap: Record<string, string> = {}
+
+      if (orderIds.length > 0) {
+        const { data: contactsData } = await supabase
+          .from('order_contacts')
+          .select('order_id, client_name')
+          .in('order_id', orderIds)
+
+        if (contactsData) {
+          for (const c of contactsData) {
+            if (c.client_name) {
+              contactsMap[c.order_id] = c.client_name
+            }
+          }
+        }
+      }
+
+      // Adjuntar client_name a cada orden
+      const ordersWithClients = (ordersData ?? []).map((o: any) => ({
+        ...o,
+        client_name: contactsMap[o.id] ?? null,
+      }))
+
+      setOrders(ordersWithClients as OrderRow[])
       setCampuses((campusData ?? []) as CampusRow[])
       setLoading(false)
     }
@@ -257,18 +281,13 @@ export default function OrdersPage() {
     return campusFiltered.filter((order) => {
       const text = search.toLowerCase().trim()
       const campusName = order.campus_id ? campusMap.get(order.campus_id) ?? '' : ''
-      const clientName = Array.isArray(order.order_contacts)
-        ? order.order_contacts[0]?.client_name ?? ''
-        : ''
-      // También buscar en notes donde puede estar "Cliente: Nombre"
-      const notesClient = (order.notes ?? '').replace('Cliente: ', '')
+      const clientName = order.client_name ?? ''
 
       const matchesSearch =
         !text ||
         String(order.order_number).includes(text) ||
         clientName.toLowerCase().includes(text) ||
-        notesClient.toLowerCase().includes(text) ||
-        (order.payment_method ?? '').toLowerCase().includes(text) ||
+        (order.notes ?? '').toLowerCase().includes(text) ||
         campusName.toLowerCase().includes(text)
 
       const matchesStatus =
@@ -376,8 +395,8 @@ export default function OrdersPage() {
               </div>
 
               <div className="truncate text-zinc-300">
-                {Array.isArray(order.order_contacts) && order.order_contacts[0]?.client_name
-                  ? order.order_contacts[0].client_name
+                {order.client_name
+                  ? order.client_name
                   : <span className="text-zinc-600">—</span>}
               </div>
 
@@ -437,8 +456,8 @@ export default function OrdersPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-white">#{order.order_number}</p>
-                  {Array.isArray(order.order_contacts) && order.order_contacts[0]?.client_name && (
-                    <p className="mt-0.5 text-xs text-zinc-400">{order.order_contacts[0].client_name}</p>
+                  {order.client_name && (
+                    <p className="mt-0.5 text-xs text-zinc-400">{order.client_name}</p>
                   )}
                 </div>
                 <span className={`rounded-lg border px-3 py-1 text-xs font-semibold ${getStatusClass(order.status)}`}>
