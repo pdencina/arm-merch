@@ -56,6 +56,10 @@ function normalizeBarcode(value: string) {
   return String(value ?? '').replace(/\D/g, '').trim()
 }
 
+function removeAccents(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
 
   function sortProductsByName(list: Product[]) {
     return [...list].sort((a, b) =>
@@ -117,10 +121,14 @@ export default function ProductGrid({ products, categories }: Props) {
 
   const filtered = useMemo(() => {
     const text = normalizeCode(search)
+    const textNoAccent = removeAccents(text)
 
     const filteredProducts = liveProducts.filter((p) => {
+      const nameNoAccent = removeAccents(p.name.toLowerCase())
+
       const matchSearch =
         !text ||
+        nameNoAccent.includes(textNoAccent) ||
         p.name.toLowerCase().includes(text) ||
         (p.sku ?? '').toLowerCase().includes(text) ||
         (p.barcode ?? '').toLowerCase().includes(text)
