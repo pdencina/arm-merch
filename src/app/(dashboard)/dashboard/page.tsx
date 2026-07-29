@@ -284,6 +284,10 @@ export default function DashboardPage() {
     const totalLastMonth = lastMonthOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
     const totalDiscounts = monthOrders.reduce((s, o) => s + Number(o.discount ?? 0), 0)
 
+    // Total histórico (todas las órdenes pagadas desde el inicio)
+    const totalHistorico = filteredOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
+    const totalHistoricoCount = filteredOrders.length
+
     const growth    = totalLastMonth > 0 ? ((totalMonth - totalLastMonth) / totalLastMonth) * 100 : 0
     const dayGrowth = totalYesterday > 0 ? ((totalToday - totalYesterday) / totalYesterday) * 100 : 0
     const avgTicket = monthOrders.length > 0 ? totalMonth / monthOrders.length : 0
@@ -294,6 +298,7 @@ export default function DashboardPage() {
       todayCount: todayOrders.length,
       monthCount: monthOrders.length,
       weekCount: weekOrders.length,
+      totalHistorico, totalHistoricoCount,
     }
   }, [filteredOrders, now])
 
@@ -450,6 +455,29 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── VENTAS TOTALES HISTÓRICAS (solo super_admin y adm_merch) ──────── */}
+      {(role === 'super_admin' || role === 'adm_merch') && (
+        <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-r from-amber-500/5 via-zinc-900 to-zinc-900 p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15">
+                  <TrendingUp size={18} className="text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70">Ventas totales históricas</p>
+                  <p className="text-xs text-zinc-500">Desde el inicio de operaciones</p>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-black tracking-tight text-amber-400">{fmt(metrics.totalHistorico)}</p>
+              <p className="text-xs text-zinc-500">{metrics.totalHistoricoCount.toLocaleString('es-CL')} órdenes completadas</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── STAT CARDS ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
