@@ -128,6 +128,7 @@ export default function OrderDetailPage() {
   const [confirmingTransfer, setConfirmingTransfer] = useState(false)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [showRefundModal, setShowRefundModal] = useState(false)
+  const [payments, setPayments] = useState<any[]>([])
 
   useEffect(() => {
     async function load() {
@@ -165,6 +166,7 @@ export default function OrderDetailPage() {
         { data: orderData, error: orderError },
         { data: itemsData, error: itemsError },
         { data: campusData, error: campusError },
+        { data: paymentsData },
       ] = await Promise.all([
         supabase
           .from('orders')
@@ -202,6 +204,12 @@ export default function OrderDetailPage() {
           .eq('order_id', orderId),
 
         supabase.from('campus').select('id, name'),
+
+        supabase
+          .from('order_payments')
+          .select('id, amount, payment_method, payment_type, notes, created_at, created_by')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true }),
       ])
 
       if (orderError || !orderData) {
@@ -236,6 +244,7 @@ export default function OrderDetailPage() {
       setOrder(orderData as OrderRow)
       setItems((itemsData ?? []) as ItemRow[])
       setCampuses((campusData ?? []) as CampusRow[])
+      setPayments(paymentsData ?? [])
       setLoading(false)
     }
 
@@ -507,6 +516,54 @@ export default function OrderDetailPage() {
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
           <h2 className="mb-2 text-lg font-semibold text-white">Nota</h2>
           <p className="text-zinc-300">{order.notes}</p>
+        </div>
+      )}
+
+      {/* Historial de pagos */}
+      {payments.length > 0 && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+          <h2 className="mb-4 text-lg font-semibold text-white">Historial de pagos</h2>
+          <div className="space-y-3">
+            {payments.map((payment: any) => (
+              <div
+                key={payment.id}
+                className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                      payment.payment_type === 'deposit'
+                        ? 'bg-violet-500/15 text-violet-300'
+                        : payment.payment_type === 'balance'
+                          ? 'bg-amber-500/15 text-amber-300'
+                          : payment.payment_type === 'refund'
+                            ? 'bg-red-500/15 text-red-300'
+                            : 'bg-green-500/15 text-green-300'
+                    }`}>
+                      {payment.payment_type === 'deposit' ? 'Abono'
+                        : payment.payment_type === 'balance' ? 'Saldo'
+                        : payment.payment_type === 'refund' ? 'Devolución'
+                        : 'Pago completo'}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {getPaymentLabel(payment.payment_method)}
+                    </span>
+                  </div>
+                  {payment.notes && (
+                    <p className="mt-1 text-xs text-zinc-500">{payment.notes}</p>
+                  )}
+                  <p className="mt-1 text-[10px] text-zinc-600">
+                    {new Date(payment.created_at).toLocaleString('es-CL')}
+                  </p>
+                </div>
+                <p className={`text-lg font-bold ${
+                  payment.payment_type === 'refund' ? 'text-red-400' : 'text-green-400'
+                }`}>
+                  {payment.payment_type === 'refund' ? '-' : '+'}{formatCurrency(Number(payment.amount))}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

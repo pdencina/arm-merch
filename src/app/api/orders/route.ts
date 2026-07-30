@@ -342,6 +342,20 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // ── Registrar pago inicial en historial de pagos ──
+    if (amountPaid > 0 && initialStatus === 'paid') {
+      await adminClient.from('order_payments').insert({
+        order_id: createdOrder.id,
+        amount: amountPaid,
+        payment_method: paymentMethod,
+        payment_type: orderPaymentStatus === 'partial' ? 'deposit' : 'full_payment',
+        notes: orderPaymentStatus === 'partial'
+          ? `Abono ${depositPercentage}% al crear orden`
+          : 'Pago completo al crear orden',
+        created_by: profile.id,
+      })
+    }
+
     // ── Descontar stock solo en pagos confirmados inmediatos ──
     // Link/QR y Smart POS nacen pending y se descuentan después de confirmar pago.
     if (!isDeferredPayment) {

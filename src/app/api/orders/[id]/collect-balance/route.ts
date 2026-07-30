@@ -126,6 +126,16 @@ export async function POST(
       created_by: profile.id,
     })
 
+    // ── Registrar pago de saldo en historial de pagos ──
+    await adminClient.from('order_payments').insert({
+      order_id: order.id,
+      amount: balanceDue,
+      payment_method: paymentMethod,
+      payment_type: 'balance',
+      notes: `Cobro saldo pendiente — Orden #${order.order_number}`,
+      created_by: profile.id,
+    })
+
     return NextResponse.json({
       success: true,
       order_id: order.id,
