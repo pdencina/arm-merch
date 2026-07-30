@@ -189,143 +189,162 @@ export async function GET(req: NextRequest) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reporte Semanal ARM Merch</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #f4f4f5; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 0 auto; padding: 32px 20px; }
-    .header { text-align: center; margin-bottom: 32px; }
-    .header h1 { font-size: 28px; font-weight: 900; color: #f59e0b; margin: 0; }
-    .header p { color: #71717a; font-size: 14px; margin-top: 8px; }
-    .card { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-    .card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: #71717a; margin: 0 0 14px; font-weight: 700; }
-    .big-number { font-size: 32px; font-weight: 900; color: #ffffff; margin: 0; }
-    .sub { font-size: 13px; color: #71717a; margin-top: 4px; }
-    .growth { font-size: 14px; font-weight: 700; margin-top: 8px; }
-    .growth-up { color: #34d399; }
-    .growth-down { color: #f87171; }
-    .row { padding: 12px 0; border-bottom: 1px solid #27272a; }
-    .row:last-child { border-bottom: none; }
-    .row-flex { display: flex; justify-content: space-between; align-items: center; }
-    .row-name { color: #e4e4e7; font-size: 14px; font-weight: 600; }
-    .row-value { color: #ffffff; font-weight: 800; font-size: 15px; text-align: right; }
-    .row-sub { color: #71717a; font-size: 11px; margin-top: 2px; }
-    .divider { height: 1px; background: #27272a; margin: 24px 0; }
-    .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #f59e0b; font-weight: 800; margin-bottom: 16px; }
-    .grid { display: flex; gap: 12px; }
-    .grid .card { flex: 1; }
-    .footer { text-align: center; margin-top: 32px; color: #52525b; font-size: 11px; }
-    .highlight { background: linear-gradient(135deg, #1c1917 0%, #18181b 100%); border-color: #f59e0b33; }
-    .campus-total { display: flex; justify-content: space-between; padding: 8px 0; }
-    .campus-name { color: #a1a1aa; font-size: 13px; }
-    .campus-amount { color: #f59e0b; font-weight: 800; font-size: 14px; }
-  </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>ARM Merch</h1>
-      <p>Reporte semanal &middot; ${weekLabel}</p>
-    </div>
+<body style="margin:0;padding:0;background:#111111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#111111;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;">
 
-    <!-- Resumen semanal -->
-    <div class="grid">
-      <div class="card">
-        <h3>Esta semana</h3>
-        <div class="big-number">${fmt(thisWeekTotal)}</div>
-        <div class="sub">${thisWeekCount} ordenes</div>
-        <div class="growth ${thisWeekTotal >= prevWeekTotal ? 'growth-up' : 'growth-down'}">
-          ${pct(thisWeekTotal, prevWeekTotal)} vs semana anterior
-        </div>
-      </div>
-      <div class="card">
-        <h3>Semana anterior</h3>
-        <div class="big-number">${fmt(prevWeekTotal)}</div>
-        <div class="sub">${prevWeekCount} ordenes</div>
-      </div>
-    </div>
+        <!-- Header -->
+        <tr><td align="center" style="padding-bottom:32px;">
+          <h1 style="margin:0;font-size:26px;font-weight:900;color:#f59e0b;">ARM Merch</h1>
+          <p style="margin:8px 0 0;font-size:13px;color:#71717a;">Reporte semanal &middot; ${weekLabel}</p>
+        </td></tr>
 
-    <!-- Ticket promedio -->
-    <div class="card">
-      <h3>Ticket promedio esta semana</h3>
-      <div class="big-number">${fmt(avgTicketWeek)}</div>
-      <div class="sub">Monto promedio por venta</div>
-    </div>
+        <!-- Resumen semanal -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td width="48%" style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:20px;vertical-align:top;">
+                <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Esta semana</p>
+                <p style="margin:10px 0 0;font-size:28px;font-weight:900;color:#ffffff;">${fmt(thisWeekTotal)}</p>
+                <p style="margin:4px 0 0;font-size:12px;color:#71717a;">${thisWeekCount} ordenes</p>
+                <p style="margin:8px 0 0;font-size:13px;font-weight:700;color:${thisWeekTotal >= prevWeekTotal ? '#34d399' : '#f87171'};">${pct(thisWeekTotal, prevWeekTotal)} vs semana anterior</p>
+              </td>
+              <td width="4%"></td>
+              <td width="48%" style="background:#18181b;border:1px solid #27272a;border-radius:12px;padding:20px;vertical-align:top;">
+                <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Semana anterior</p>
+                <p style="margin:10px 0 0;font-size:28px;font-weight:900;color:#ffffff;">${fmt(prevWeekTotal)}</p>
+                <p style="margin:4px 0 0;font-size:12px;color:#71717a;">${prevWeekCount} ordenes</p>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
 
-    <!-- Ventas por campus esta semana -->
-    <div class="card">
-      <h3>Ventas por campus esta semana</h3>
-      ${campusRanking.length === 0 ? '<div class="sub">Sin ventas esta semana</div>' : campusRanking.map(c => `
-        <div class="row">
-          <div class="row-flex">
-            <div>
-              <div class="row-name">${c.name}</div>
-              <div class="row-sub">${c.count} ordenes</div>
-            </div>
-            <div class="row-value">${fmt(c.total)}</div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
+        <!-- Ticket promedio -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#18181b;border:1px solid #27272a;border-radius:12px;">
+            <tr><td style="padding:18px 20px;">
+              <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Ticket promedio</p>
+              <p style="margin:8px 0 0;font-size:24px;font-weight:900;color:#ffffff;">${fmt(avgTicketWeek)}</p>
+            </td></tr>
+          </table>
+        </td></tr>
 
-    <div class="divider"></div>
+        <!-- Ventas por campus esta semana -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#18181b;border:1px solid #27272a;border-radius:12px;">
+            <tr><td style="padding:20px;">
+              <p style="margin:0 0 14px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Ventas por campus esta semana</p>
+              ${campusRanking.map(c => `
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #27272a;margin-bottom:8px;padding-bottom:8px;">
+                <tr>
+                  <td style="padding:6px 0;">
+                    <p style="margin:0;font-size:14px;font-weight:600;color:#e4e4e7;">${c.name}</p>
+                    <p style="margin:2px 0 0;font-size:11px;color:#71717a;">${c.count} ordenes</p>
+                  </td>
+                  <td align="right" style="padding:6px 0;">
+                    <p style="margin:0;font-size:16px;font-weight:800;color:#ffffff;">${fmt(c.total)}</p>
+                  </td>
+                </tr>
+              </table>
+              `).join('')}
+            </td></tr>
+          </table>
+        </td></tr>
 
-    <!-- TOTAL HISTORICO -->
-    <div class="section-title">Acumulado historico total</div>
+        <!-- Separador -->
+        <tr><td style="padding:20px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #f59e0b33;"></td></tr></table>
+          <p style="margin:16px 0 0;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#f59e0b;font-weight:800;">Acumulado historico</p>
+        </td></tr>
 
-    <div class="card highlight">
-      <h3>Total desde el inicio de operaciones</h3>
-      <div class="big-number" style="color: #f59e0b;">${fmt(historicTotal)}</div>
-      <div class="sub">${historicCount.toLocaleString('es-CL')} ordenes completadas</div>
-    </div>
+        <!-- Total historico -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1400;border:1px solid #f59e0b33;border-radius:12px;">
+            <tr><td style="padding:24px 20px;">
+              <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Total desde inicio de operaciones</p>
+              <p style="margin:12px 0 0;font-size:34px;font-weight:900;color:#f59e0b;">${fmt(historicTotal)}</p>
+              <p style="margin:6px 0 0;font-size:12px;color:#71717a;">${historicCount.toLocaleString('es-CL')} ordenes completadas</p>
+            </td></tr>
+          </table>
+        </td></tr>
 
-    <div class="card">
-      <h3>Historico por campus</h3>
-      ${historicCampusRanking.map(c => `
-        <div class="campus-total">
-          <span class="campus-name">${c.name}</span>
-          <span class="campus-amount">${fmt(c.total)}</span>
-        </div>
-      `).join('')}
-    </div>
+        <!-- Historico por campus -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#18181b;border:1px solid #27272a;border-radius:12px;">
+            <tr><td style="padding:20px;">
+              <p style="margin:0 0 14px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Total por campus</p>
+              ${historicCampusRanking.map(c => `
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:6px 0;"><p style="margin:0;font-size:13px;color:#a1a1aa;">${c.name}</p></td>
+                  <td align="right" style="padding:6px 0;"><p style="margin:0;font-size:14px;font-weight:800;color:#f59e0b;">${fmt(c.total)}</p></td>
+                </tr>
+              </table>
+              `).join('')}
+            </td></tr>
+          </table>
+        </td></tr>
 
-    <div class="divider"></div>
+        <!-- Separador -->
+        <tr><td style="padding:20px 0;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #27272a;"></td></tr></table>
+        </td></tr>
 
-    <!-- Top productos -->
-    <div class="card">
-      <h3>Top 10 productos de la semana</h3>
-      ${topProducts.length === 0 ? '<div class="sub">Sin datos</div>' : topProducts.map((p, i) => `
-        <div class="row">
-          <div class="row-flex">
-            <div>
-              <div class="row-name">${i + 1}. ${p.name}</div>
-              <div class="row-sub">${p.qty} unidades vendidas</div>
-            </div>
-            <div class="row-value">${fmt(p.revenue)}</div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
+        <!-- Top productos -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#18181b;border:1px solid #27272a;border-radius:12px;">
+            <tr><td style="padding:20px;">
+              <p style="margin:0 0 14px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Top 10 productos de la semana</p>
+              ${topProducts.map((p, i) => `
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #27272a;margin-bottom:6px;padding-bottom:6px;">
+                <tr>
+                  <td style="padding:8px 0;">
+                    <p style="margin:0;font-size:13px;font-weight:600;color:#e4e4e7;">${i + 1}. ${p.name}</p>
+                    <p style="margin:2px 0 0;font-size:10px;color:#71717a;">${p.qty} unidades</p>
+                  </td>
+                  <td align="right" style="padding:8px 0;">
+                    <p style="margin:0;font-size:14px;font-weight:800;color:#ffffff;">${fmt(p.revenue)}</p>
+                  </td>
+                </tr>
+              </table>
+              `).join('')}
+            </td></tr>
+          </table>
+        </td></tr>
 
-    <!-- Top vendedores -->
-    <div class="card">
-      <h3>Top vendedores de la semana</h3>
-      ${topSellers.length === 0 ? '<div class="sub">Sin datos</div>' : topSellers.map((s, i) => `
-        <div class="row">
-          <div class="row-flex">
-            <div>
-              <div class="row-name">${i + 1}. ${s.name}</div>
-              <div class="row-sub">${s.count} ventas realizadas</div>
-            </div>
-            <div class="row-value">${fmt(s.total)}</div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
+        <!-- Top vendedores -->
+        <tr><td style="padding-bottom:12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#18181b;border:1px solid #27272a;border-radius:12px;">
+            <tr><td style="padding:20px;">
+              <p style="margin:0 0 14px;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#71717a;font-weight:700;">Top vendedores de la semana</p>
+              ${topSellers.map((s, i) => `
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #27272a;margin-bottom:6px;padding-bottom:6px;">
+                <tr>
+                  <td style="padding:8px 0;">
+                    <p style="margin:0;font-size:13px;font-weight:600;color:#e4e4e7;">${i + 1}. ${s.name}</p>
+                    <p style="margin:2px 0 0;font-size:10px;color:#71717a;">${s.count} ventas</p>
+                  </td>
+                  <td align="right" style="padding:8px 0;">
+                    <p style="margin:0;font-size:14px;font-weight:800;color:#ffffff;">${fmt(s.total)}</p>
+                  </td>
+                </tr>
+              </table>
+              `).join('')}
+            </td></tr>
+          </table>
+        </td></tr>
 
-    <div class="footer">
-      <p>ARM Merch &middot; Reporte automatico semanal</p>
-      <p>Generado el ${now.toLocaleString('es-CL', { timeZone: 'America/Santiago' })}</p>
-    </div>
-  </div>
+        <!-- Footer -->
+        <tr><td align="center" style="padding-top:32px;">
+          <p style="margin:0;font-size:11px;color:#52525b;">ARM Merch &middot; Reporte automatico semanal</p>
+          <p style="margin:4px 0 0;font-size:10px;color:#3f3f46;">Generado el ${now.toLocaleString('es-CL', { timeZone: 'America/Santiago' })}</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
 </body>
 </html>
     `.trim()
