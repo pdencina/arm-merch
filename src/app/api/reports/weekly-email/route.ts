@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     // Total histórico
     const { data: allOrders } = await supabase
       .from('orders')
-      .select('total, amount_paid')
+      .select('total, amount_paid, campus_id')
       .eq('status', 'paid')
 
     // Campus
@@ -164,115 +164,166 @@ export async function GET(req: NextRequest) {
     const topSellers = Array.from(sellerSales.values()).sort((a, b) => b.total - a.total).slice(0, 5)
     const campusRanking = Array.from(campusSales.values()).sort((a, b) => b.total - a.total)
 
+    // Total histórico por campus
+    const historicByCampus = new Map<string, { name: string; total: number; count: number }>()
+    for (const o of (allOrders ?? [])) {
+      const name = campusMap.get(o.campus_id) ?? 'Sin campus'
+      const existing = historicByCampus.get(o.campus_id) ?? { name, total: 0, count: 0 }
+      existing.total += Number(o.amount_paid ?? o.total ?? 0)
+      existing.count += 1
+      historicByCampus.set(o.campus_id, existing)
+    }
+    const historicCampusRanking = Array.from(historicByCampus.values()).sort((a, b) => b.total - a.total)
+
+    // Ticket promedio de la semana
+    const avgTicketWeek = thisWeekCount > 0 ? thisWeekTotal / thisWeekCount : 0
+
     // Formatear fechas para el email
     const weekLabel = `${lastMonday.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })} — ${new Date(thisMonday.getTime() - 86400000).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}`
 
     // Construir HTML del email
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reporte Semanal ARM Merch</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #f4f4f5; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 0 auto; padding: 32px 24px; }
+    .container { max-width: 600px; margin: 0 auto; padding: 32px 20px; }
     .header { text-align: center; margin-bottom: 32px; }
     .header h1 { font-size: 28px; font-weight: 900; color: #f59e0b; margin: 0; }
     .header p { color: #71717a; font-size: 14px; margin-top: 8px; }
     .card { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-    .card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: #71717a; margin: 0 0 12px; }
-    .big-number { font-size: 32px; font-weight: 900; color: #ffffff; }
+    .card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: #71717a; margin: 0 0 14px; font-weight: 700; }
+    .big-number { font-size: 32px; font-weight: 900; color: #ffffff; margin: 0; }
     .sub { font-size: 13px; color: #71717a; margin-top: 4px; }
     .growth { font-size: 14px; font-weight: 700; margin-top: 8px; }
-    .growth.up { color: #34d399; }
-    .growth.down { color: #f87171; }
-    .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #27272a; }
+    .growth-up { color: #34d399; }
+    .growth-down { color: #f87171; }
+    .row { padding: 12px 0; border-bottom: 1px solid #27272a; }
     .row:last-child { border-bottom: none; }
-    .row-label { color: #a1a1aa; font-size: 14px; }
-    .row-value { color: #ffffff; font-weight: 700; font-size: 14px; }
-    .row-sub { color: #71717a; font-size: 12px; }
-    .badge { display: inline-block; background: #f59e0b22; color: #f59e0b; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
-    .footer { text-align: center; margin-top: 32px; color: #52525b; font-size: 12px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+    .row-flex { display: flex; justify-content: space-between; align-items: center; }
+    .row-name { color: #e4e4e7; font-size: 14px; font-weight: 600; }
+    .row-value { color: #ffffff; font-weight: 800; font-size: 15px; text-align: right; }
+    .row-sub { color: #71717a; font-size: 11px; margin-top: 2px; }
+    .divider { height: 1px; background: #27272a; margin: 24px 0; }
+    .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #f59e0b; font-weight: 800; margin-bottom: 16px; }
+    .grid { display: flex; gap: 12px; }
+    .grid .card { flex: 1; }
+    .footer { text-align: center; margin-top: 32px; color: #52525b; font-size: 11px; }
+    .highlight { background: linear-gradient(135deg, #1c1917 0%, #18181b 100%); border-color: #f59e0b33; }
+    .campus-total { display: flex; justify-content: space-between; padding: 8px 0; }
+    .campus-name { color: #a1a1aa; font-size: 13px; }
+    .campus-amount { color: #f59e0b; font-weight: 800; font-size: 14px; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>ARM Merch</h1>
-      <p>Reporte semanal · ${weekLabel}</p>
+      <p>Reporte semanal &middot; ${weekLabel}</p>
     </div>
 
-    <!-- Resumen principal -->
+    <!-- Resumen semanal -->
     <div class="grid">
       <div class="card">
         <h3>Esta semana</h3>
         <div class="big-number">${fmt(thisWeekTotal)}</div>
-        <div class="sub">${thisWeekCount} órdenes</div>
-        <div class="growth ${thisWeekTotal >= prevWeekTotal ? 'up' : 'down'}">
+        <div class="sub">${thisWeekCount} ordenes</div>
+        <div class="growth ${thisWeekTotal >= prevWeekTotal ? 'growth-up' : 'growth-down'}">
           ${pct(thisWeekTotal, prevWeekTotal)} vs semana anterior
         </div>
       </div>
       <div class="card">
         <h3>Semana anterior</h3>
         <div class="big-number">${fmt(prevWeekTotal)}</div>
-        <div class="sub">${prevWeekCount} órdenes</div>
+        <div class="sub">${prevWeekCount} ordenes</div>
       </div>
     </div>
 
-    <!-- Total histórico -->
+    <!-- Ticket promedio -->
     <div class="card">
-      <h3>Total acumulado histórico</h3>
-      <div class="big-number" style="color: #f59e0b;">${fmt(historicTotal)}</div>
-      <div class="sub">${historicCount.toLocaleString('es-CL')} órdenes desde el inicio</div>
+      <h3>Ticket promedio esta semana</h3>
+      <div class="big-number">${fmt(avgTicketWeek)}</div>
+      <div class="sub">Monto promedio por venta</div>
     </div>
 
-    <!-- Ventas por campus -->
+    <!-- Ventas por campus esta semana -->
     <div class="card">
-      <h3>Ventas por campus</h3>
-      ${campusRanking.length === 0 ? '<div class="sub">Sin datos</div>' : campusRanking.map((c, i) => `
+      <h3>Ventas por campus esta semana</h3>
+      ${campusRanking.length === 0 ? '<div class="sub">Sin ventas esta semana</div>' : campusRanking.map(c => `
         <div class="row">
-          <div>
-            <span class="row-label">${i + 1}. ${c.name}</span>
-            <div class="row-sub">${c.count} órdenes</div>
+          <div class="row-flex">
+            <div>
+              <div class="row-name">${c.name}</div>
+              <div class="row-sub">${c.count} ordenes</div>
+            </div>
+            <div class="row-value">${fmt(c.total)}</div>
           </div>
-          <span class="row-value">${fmt(c.total)}</span>
         </div>
       `).join('')}
     </div>
 
+    <div class="divider"></div>
+
+    <!-- TOTAL HISTORICO -->
+    <div class="section-title">Acumulado historico total</div>
+
+    <div class="card highlight">
+      <h3>Total desde el inicio de operaciones</h3>
+      <div class="big-number" style="color: #f59e0b;">${fmt(historicTotal)}</div>
+      <div class="sub">${historicCount.toLocaleString('es-CL')} ordenes completadas</div>
+    </div>
+
+    <div class="card">
+      <h3>Historico por campus</h3>
+      ${historicCampusRanking.map(c => `
+        <div class="campus-total">
+          <span class="campus-name">${c.name}</span>
+          <span class="campus-amount">${fmt(c.total)}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="divider"></div>
+
     <!-- Top productos -->
     <div class="card">
-      <h3>Top 10 productos</h3>
+      <h3>Top 10 productos de la semana</h3>
       ${topProducts.length === 0 ? '<div class="sub">Sin datos</div>' : topProducts.map((p, i) => `
         <div class="row">
-          <div>
-            <span class="row-label">${i + 1}. ${p.name}</span>
-            <div class="row-sub">${p.qty} unidades</div>
+          <div class="row-flex">
+            <div>
+              <div class="row-name">${i + 1}. ${p.name}</div>
+              <div class="row-sub">${p.qty} unidades vendidas</div>
+            </div>
+            <div class="row-value">${fmt(p.revenue)}</div>
           </div>
-          <span class="row-value">${fmt(p.revenue)}</span>
         </div>
       `).join('')}
     </div>
 
     <!-- Top vendedores -->
     <div class="card">
-      <h3>Top vendedores</h3>
+      <h3>Top vendedores de la semana</h3>
       ${topSellers.length === 0 ? '<div class="sub">Sin datos</div>' : topSellers.map((s, i) => `
         <div class="row">
-          <div>
-            <span class="row-label">${i + 1}. ${s.name}</span>
-            <div class="row-sub">${s.count} ventas</div>
+          <div class="row-flex">
+            <div>
+              <div class="row-name">${i + 1}. ${s.name}</div>
+              <div class="row-sub">${s.count} ventas realizadas</div>
+            </div>
+            <div class="row-value">${fmt(s.total)}</div>
           </div>
-          <span class="row-value">${fmt(s.total)}</span>
         </div>
       `).join('')}
     </div>
 
     <div class="footer">
-      <p>ARM Merch · Reporte automático semanal</p>
-      <p>Generado el ${now.toLocaleString('es-CL')}</p>
+      <p>ARM Merch &middot; Reporte automatico semanal</p>
+      <p>Generado el ${now.toLocaleString('es-CL', { timeZone: 'America/Santiago' })}</p>
     </div>
   </div>
 </body>
