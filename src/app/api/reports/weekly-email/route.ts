@@ -5,7 +5,12 @@ import { Resend } from 'resend'
 // Vercel Cron: cada lunes a las 8AM Chile (UTC-4 = 12:00 UTC)
 // vercel.json: "0 12 * * 1"
 
-const REPORT_TO = 'pencina@armglobal.org'
+const REPORT_TO = [
+  'pencina@armglobal.org',
+  'pburgos@armglobal.org',
+  'fburgos@armglobal.org',
+  'pbpburgos2@gmail.com',
+]
 const CRON_SECRET = 'arm-merch-cron-2026'
 
 function fmt(n: number) {
@@ -96,6 +101,9 @@ export async function GET(req: NextRequest) {
       .select('id, name')
       .eq('active', true)
 
+    // Campus excluidos del reporte (aún no operan)
+    const EXCLUDED_CAMPUS_NAMES = ['ARM Punta Arenas']
+
     // Vendedores
     const { data: sellers } = await supabase
       .from('profiles')
@@ -162,7 +170,9 @@ export async function GET(req: NextRequest) {
     }
 
     const topSellers = Array.from(sellerSales.values()).sort((a, b) => b.total - a.total).slice(0, 5)
-    const campusRanking = Array.from(campusSales.values()).sort((a, b) => b.total - a.total)
+    const campusRanking = Array.from(campusSales.values())
+      .filter(c => !EXCLUDED_CAMPUS_NAMES.includes(c.name))
+      .sort((a, b) => b.total - a.total)
 
     // Total histórico por campus
     const historicByCampus = new Map<string, { name: string; total: number; count: number }>()
@@ -173,7 +183,9 @@ export async function GET(req: NextRequest) {
       existing.count += 1
       historicByCampus.set(o.campus_id, existing)
     }
-    const historicCampusRanking = Array.from(historicByCampus.values()).sort((a, b) => b.total - a.total)
+    const historicCampusRanking = Array.from(historicByCampus.values())
+      .filter(c => !EXCLUDED_CAMPUS_NAMES.includes(c.name))
+      .sort((a, b) => b.total - a.total)
 
     // Ticket promedio de la semana
     const avgTicketWeek = thisWeekCount > 0 ? thisWeekTotal / thisWeekCount : 0
