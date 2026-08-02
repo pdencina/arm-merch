@@ -76,14 +76,16 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Buscar órdenes SumUp Solo pendientes (últimas 2 horas)
+    // Buscar órdenes SumUp Solo pendientes O canceladas (últimas 2 horas)
+    // Incluye canceladas porque el timeout del frontend puede cancelarlas
+    // antes de que SumUp confirme el pago.
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
 
     const { data: pendingOrders, error: ordersError } = await supabase
       .from('orders')
       .select('id, order_number, total, notes, campus_id, status, created_at, order_items(product_id, quantity, unit_price, size, fulfillment_type)')
-      .eq('status', 'pending')
       .eq('payment_method', 'solo')
+      .in('status', ['pending', 'cancelled'])
       .gte('created_at', twoHoursAgo)
       .order('created_at', { ascending: false })
       .limit(20)

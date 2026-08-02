@@ -200,6 +200,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Obtener nombre del campus para el voucher de SumUp
+    const { data: campusData } = await adminClient
+      .from('campus')
+      .select('name')
+      .eq('id', campusId)
+      .maybeSingle()
+
+    const campusPrefixMap: Record<string, string> = {
+      'ARM Santiago': 'ARM MERCH CS',
+      'ARM Puente Alto': 'ARM MERCH CPA',
+      'ARM Punta Arenas': 'ARM MERCH PUQ',
+    }
+    const campusPrefix = campusPrefixMap[campusData?.name ?? ''] ?? 'ARM MERCH'
+
     const {
       data: reader,
       error: readerError,
@@ -244,7 +258,7 @@ export async function POST(req: NextRequest) {
 
       checkout_reference: checkoutReference,
 
-      description: `ARM Merch Orden #${order.order_number}`,
+      description: `${campusPrefix} Orden #${order.order_number}`,
 
       card_type: cardType,
 

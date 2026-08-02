@@ -46,7 +46,7 @@ export async function POST(
 
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, status, payment_status, seller_id, campus_id')
+      .select('id, status, payment_method, payment_status, seller_id, campus_id')
       .eq('id', params.id)
       .single()
 
@@ -70,6 +70,13 @@ export async function POST(
 
     if (!isPending) {
       return NextResponse.json({ success: true, skipped: true })
+    }
+
+    // SEGURIDAD: Si es pago SumUp Solo, NO cancelar.
+    // La reconciliación automática se encargará de verificar si fue pagado.
+    // Esto evita que el timeout del frontend cancele órdenes que SumUp sí cobró.
+    if (order.payment_method === 'solo') {
+      return NextResponse.json({ success: true, skipped: true, reason: 'solo_orders_reconciled_by_cron' })
     }
 
     const { error: updateError } = await adminClient
