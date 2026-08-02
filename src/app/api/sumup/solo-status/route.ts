@@ -500,8 +500,8 @@ export async function POST(req: NextRequest) {
       const secondsDiff = txTimestamp > 0 ? Math.abs(now - txTimestamp) / 1000 : Number.POSITIVE_INFINITY
 
       // Para evitar tomar transacciones históricas antiguas, solo aceptamos ventas recientes.
-      // Subimos a 5 minutos por latencia de SumUp/Vercel.
-      const recentEnough = secondsDiff <= 300
+      // Ampliado a 15 minutos por latencia de SumUp/Vercel.
+      const recentEnough = secondsDiff <= 900
 
       const referenceMatches =
         Boolean(reference && txReference.includes(reference)) ||
