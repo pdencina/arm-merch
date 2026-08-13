@@ -516,7 +516,8 @@ export async function POST(req: NextRequest) {
       const statusIsFinal =
         PAID_STATUSES.includes(status) || FAILED_STATUSES.includes(status)
 
-      return statusIsFinal && recentEnough && (referenceMatches || amountMatches)
+      // Match estricto: requiere referencia Y monto (no solo monto)
+      return statusIsFinal && recentEnough && referenceMatches && amountMatches
     })
 
     if (match) {

@@ -113,27 +113,41 @@ export async function GET(req: NextRequest) {
 
     let reconciled = 0
     const results: any[] = []
+    const usedTransactions = new Set<string>() // Evitar que una TX matchee múltiples órdenes
 
     for (const order of pendingOrders) {
       const expectedAmount = Math.round(Number(order.total ?? 0))
 
+      // Extraer referencia de la orden desde notes
+      const orderRef = String(order.notes ?? '')
+      const refMatch = orderRef.match(/arm-merch-order-\d+-\d+/)
+      const orderReference = refMatch?.[0] ?? null
+
       // Buscar transacción que coincida con esta orden
       const match = transactions.find((tx) => {
+        const txId = String(tx?.transaction_code ?? tx?.id ?? tx?.client_transaction_id ?? '')
+        if (usedTransactions.has(txId)) return false // Ya usada para otra orden
+
         const status = getTxStatus(tx)
         const txReference = getTxReference(tx)
         const txAmount = getTxAmount(tx)
 
+        // Match ESTRICTO por referencia (incluye número de orden en la ref)
         const referenceMatches =
-          txReference.includes(String(order.order_number)) ||
-          String(tx?.product_summary ?? '').includes(`#${order.order_number}`) ||
-          String(tx?.description ?? '').includes(String(order.order_number))
+          (orderReference && txReference.includes(orderReference)) ||
+          txReference.includes(`order-${order.order_number}-`) ||
+          String(tx?.description ?? '').includes(`#${order.order_number}`)
 
+        // Match por monto SOLO si la referencia coincide
+        // NO hacer match solo por monto — evita falsos positivos con duplicados
         const amountMatches = expectedAmount > 0 && Math.abs(txAmount - expectedAmount) <= 1
 
-        return PAID_STATUSES.includes(status) && (referenceMatches || amountMatches)
+        return PAID_STATUSES.includes(status) && referenceMatches && amountMatches
       })
 
       if (match) {
+        const txId = String(match?.transaction_code ?? match?.id ?? match?.client_transaction_id ?? '')
+        usedTransactions.add(txId)
         const transactionCode = match?.transaction_code ?? match?.id ?? null
 
         // Marcar como pagada
