@@ -89,11 +89,12 @@ export async function GET(req: NextRequest) {
       .gte('created_at', prevWeekStart)
       .lt('created_at', prevWeekEnd)
 
-    // Total histórico
+    // Total histórico — limit alto para evitar el default de 1000
     const { data: allOrders } = await supabase
       .from('orders')
       .select('total, amount_paid, campus_id')
       .eq('status', 'paid')
+      .limit(10000)
 
     // Campus
     const { data: campuses } = await supabase
