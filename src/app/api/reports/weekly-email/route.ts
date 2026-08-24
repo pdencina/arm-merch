@@ -89,12 +89,11 @@ export async function GET(req: NextRequest) {
       .gte('created_at', prevWeekStart)
       .lt('created_at', prevWeekEnd)
 
-    // Total histórico — limit alto para evitar el default de 1000
-    const { data: allOrders } = await supabase
-      .from('orders')
-      .select('total, amount_paid, campus_id')
-      .eq('status', 'paid')
-      .limit(10000)
+    // Total histórico — usar RPC para evitar límite de 1000 filas de Supabase
+    const { data: salesSummary } = await supabase.rpc('get_sales_summary')
+
+    const historicTotal = (salesSummary ?? []).reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0)
+    const historicCount = (salesSummary ?? []).reduce((s: number, r: any) => s + Number(r.total_count ?? 0), 0)
 
     // Campus
     const { data: campuses } = await supabase
@@ -147,8 +146,6 @@ export async function GET(req: NextRequest) {
     const thisWeekCount = (thisWeekOrders ?? []).length
     const prevWeekTotal = (prevWeekOrders ?? []).reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
     const prevWeekCount = (prevWeekOrders ?? []).length
-    const historicTotal = (allOrders ?? []).reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
-    const historicCount = (allOrders ?? []).length
 
     // Ventas por campus
     const campusSales = new Map<string, { name: string; total: number; count: number }>()
@@ -175,14 +172,15 @@ export async function GET(req: NextRequest) {
       .filter(c => !EXCLUDED_CAMPUS_NAMES.includes(c.name))
       .sort((a, b) => b.total - a.total)
 
-    // Total histórico por campus
+    // Total histórico por campus (desde RPC)
     const historicByCampus = new Map<string, { name: string; total: number; count: number }>()
-    for (const o of (allOrders ?? [])) {
-      const name = campusMap.get(o.campus_id) ?? 'Sin campus'
-      const existing = historicByCampus.get(o.campus_id) ?? { name, total: 0, count: 0 }
-      existing.total += Number(o.amount_paid ?? o.total ?? 0)
-      existing.count += 1
-      historicByCampus.set(o.campus_id, existing)
+    for (const row of (salesSummary ?? [])) {
+      const name = campusMap.get(row.campus_id) ?? 'Sin campus'
+      historicByCampus.set(row.campus_id, {
+        name,
+        total: Number(row.total_amount ?? 0),
+        count: Number(row.total_count ?? 0),
+      })
     }
     const historicCampusRanking = Array.from(historicByCampus.values())
       .filter(c => !EXCLUDED_CAMPUS_NAMES.includes(c.name))
