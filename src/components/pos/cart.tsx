@@ -209,7 +209,11 @@ function CartItemRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, x: 30, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="rounded-2xl border border-white/6 bg-white/[0.025] p-3"
+      className={`rounded-2xl border p-3 ${
+        isProduction
+          ? 'border-violet-500/40 bg-violet-500/[0.06]'
+          : 'border-white/6 bg-white/[0.025]'
+      }`}
     >
       <div className="flex items-start gap-2">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-xl">
@@ -2500,18 +2504,33 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                 </div>
               </div>
 
+              {/* RECORDATORIO DE PRODUCCIÓN */}
+              {hasProductionItems && (
+                <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-3 text-center">
+                  <div className="flex items-center justify-center gap-2 text-violet-300">
+                    <Clock size={16} />
+                    <span className="text-sm font-bold">PEDIDO VA A PRODUCCIÓN</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-violet-300/70">
+                    Recuerda confirmar con el cliente los datos del pedido (talla, área/ministerio) antes de confirmar la venta.
+                  </p>
+                </div>
+              )}
+
               {/* BOTÓN CONFIRMAR */}
               <motion.button
                 whileHover={{ scale: canSubmit ? 1.01 : 1 }}
                 whileTap={{ scale: canSubmit ? 0.97 : 1 }}
                 onClick={handleConfirmSale}
                 disabled={!canSubmit}
-                className="relative w-full overflow-hidden rounded-3xl py-4 text-base font-black text-black transition sm:py-4 sm:text-[17px] disabled:cursor-not-allowed disabled:opacity-40"
+                className={`relative w-full overflow-hidden rounded-3xl py-4 text-base font-black transition sm:py-4 sm:text-[17px] disabled:cursor-not-allowed disabled:opacity-40 ${hasProductionItems ? 'text-white' : 'text-black'}`}
                 style={{
                   background: canSubmit
-                    ? isPendingDelivery
+                    ? hasProductionItems
                       ? "#7c3aed"
-                      : "#d97706"
+                      : isPendingDelivery
+                        ? "#7c3aed"
+                        : "#d97706"
                     : "#555",
                 }}
               >
