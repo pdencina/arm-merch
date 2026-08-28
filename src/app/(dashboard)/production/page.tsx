@@ -192,50 +192,64 @@ export default function ProductionPage() {
     setLoading(true)
     setError(null)
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-    if (!session) {
-      setError('No autenticado')
+      if (!session) {
+        setError('No autenticado')
+        return
+      }
+
+      const res = await fetch('/api/production/orders', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        setError(data?.error ?? 'No se pudieron cargar los pedidos de producción')
+        return
+      }
+
+      setRole(data?.profile?.role ?? '')
+      setCampusId(data?.profile?.campus_id ?? null)
+      // De-duplicar por id para evitar duplicados por race conditions del realtime
+      const uniqueOrders = Array.from(
+        new Map(((data?.orders ?? []) as OrderRow[]).map((o) => [o.id, o])).values()
+      )
+      setOrders(uniqueOrders)
+      setCampuses((data?.campuses ?? []) as CampusRow[])
+    } catch (err: any) {
+      setError(err?.message ?? 'Error de conexión al cargar pedidos')
+    } finally {
       setLoading(false)
-      return
     }
-
-    const res = await fetch('/api/production/orders', {
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    })
-
-    const data = await res.json().catch(() => null)
-
-    if (!res.ok) {
-      setError(data?.error ?? 'No se pudieron cargar los pedidos de producción')
-      setLoading(false)
-      return
-    }
-
-    setRole(data?.profile?.role ?? '')
-    setCampusId(data?.profile?.campus_id ?? null)
-    setOrders((data?.orders ?? []) as OrderRow[])
-    setCampuses((data?.campuses ?? []) as CampusRow[])
-    setLoading(false)
   }
 
   useEffect(() => {
     load()
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     const channel = supabase
       .channel('production-orders')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        () => load()
+        () => {
+          // Debounce: evita múltiples load() simultáneos que causan duplicados transitorios
+          if (debounceTimer) clearTimeout(debounceTimer)
+          debounceTimer = setTimeout(() => load(), 800)
+        }
       )
       .subscribe()
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
   }, [])
@@ -410,30 +424,34 @@ export default function ProductionPage() {
       }
     }
 
-    const res = await fetch(`/api/orders/${cashModalOrder.id}/collect-balance`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session?.access_token ?? ''}`,
-      },
-      body: JSON.stringify({
-        payment_method: balancePaymentMethod,
-        amount_received: balancePaymentMethod === 'efectivo' ? cashReceivedAmount : pendingBalance,
-      }),
-    })
+    try {
+      const res = await fetch(`/api/orders/${cashModalOrder.id}/collect-balance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({
+          payment_method: balancePaymentMethod,
+          amount_received: balancePaymentMethod === 'efectivo' ? cashReceivedAmount : pendingBalance,
+        }),
+      })
 
-    const data = await res.json().catch(() => null)
+      const data = await res.json().catch(() => null)
 
-    if (!res.ok) {
-      setCashError(data?.error ?? 'No se pudo cobrar el saldo pendiente.')
+      if (!res.ok) {
+        setCashError(data?.error ?? 'No se pudo cobrar el saldo pendiente.')
+        return
+      }
+
+      setCashModalOrder(null)
+      setCashReceived('')
+      await load()
+    } catch (err: any) {
+      setCashError(err?.message ?? 'Error de conexión al cobrar el saldo.')
+    } finally {
       setCollectingId(null)
-      return
     }
-
-    setCashModalOrder(null)
-    setCashReceived('')
-    setCollectingId(null)
-    await load()
   }
 
   async function updateStatus(order: OrderRow) {
@@ -446,36 +464,41 @@ export default function ProductionPage() {
     setError(null)
     setWhatsappNotice(null)
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-    const res = await fetch(`/api/orders/${order.id}/fulfillment`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session?.access_token ?? ''}`,
-      },
-      body: JSON.stringify({ status: next }),
-    })
+      const res = await fetch(`/api/orders/${order.id}/fulfillment`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ status: next }),
+      })
 
-    const data = await res.json().catch(() => null)
+      const data = await res.json().catch(() => null)
 
-    if (!res.ok) {
-      setError(data?.error ?? 'No se pudo actualizar el estado')
-    } else {
-      // Feedback de WhatsApp cuando se marca listo para retiro
-      if (next === 'ready_pickup' && data?.whatsapp_sent) {
-        setWhatsappNotice(`✅ WhatsApp enviado al cliente (Orden #${order.order_number})`)
-        setTimeout(() => setWhatsappNotice(null), 6000)
-      } else if (next === 'ready_pickup' && data?.whatsapp_result?.error) {
-        setWhatsappNotice(`⚠️ No se pudo enviar WhatsApp: ${data.whatsapp_result.error}`)
-        setTimeout(() => setWhatsappNotice(null), 8000)
+      if (!res.ok) {
+        setError(data?.error ?? 'No se pudo actualizar el estado')
+      } else {
+        // Feedback de WhatsApp cuando se marca listo para retiro
+        if (next === 'ready_pickup' && data?.whatsapp_sent) {
+          setWhatsappNotice(`✅ WhatsApp enviado al cliente (Orden #${order.order_number})`)
+          setTimeout(() => setWhatsappNotice(null), 6000)
+        } else if (next === 'ready_pickup' && data?.whatsapp_result?.error) {
+          setWhatsappNotice(`⚠️ No se pudo enviar WhatsApp: ${data.whatsapp_result.error}`)
+          setTimeout(() => setWhatsappNotice(null), 8000)
+        }
       }
-    }
 
-    await load()
-    setUpdatingId(null)
+      await load()
+    } catch (err: any) {
+      setError(err?.message ?? 'Error de conexión al actualizar el estado')
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   if (loading) {
