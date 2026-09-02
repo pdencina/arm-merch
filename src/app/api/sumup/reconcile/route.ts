@@ -105,8 +105,11 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Obtener transacciones recientes de SumUp
-    const historyUrl = `${sumupApiBase}/v0.1/me/transactions/history?limit=50&order=descending`
+    // Obtener transacciones recientes de SumUp.
+    // En recuperaciones manuales (ventana amplia) pedimos más historial,
+    // porque las transacciones antiguas quedan fuera de las últimas 50.
+    const historyLimit = windowHours > 2 ? 500 : 50
+    const historyUrl = `${sumupApiBase}/v0.1/me/transactions/history?limit=${historyLimit}&order=descending`
     const historyRes = await fetch(historyUrl, {
       headers: { Authorization: `Bearer ${sumupApiKey}`, 'Content-Type': 'application/json' },
       cache: 'no-store',
