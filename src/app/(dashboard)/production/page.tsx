@@ -886,7 +886,7 @@ export default function ProductionPage() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-4">
+                    <div className="mt-4 grid gap-3 grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                       <Info
                         label="Cliente"
                         value={contact?.client_name ?? 'Sin cliente'}
@@ -1048,7 +1048,7 @@ export default function ProductionPage() {
                     </p>
                   </div>
 
-                  <div className="flex min-w-[220px] flex-col gap-3">
+                  <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[240px]">
                     {order.tracking_token && (
                       <Link
                         href={`/track/${order.tracking_token}`}
