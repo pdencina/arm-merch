@@ -76,19 +76,26 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Buscar órdenes SumUp Solo pendientes O canceladas (últimas 2 horas)
+    // Buscar órdenes SumUp Solo pendientes O canceladas.
     // Incluye canceladas porque el timeout del frontend puede cancelarlas
     // antes de que SumUp confirme el pago.
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    // Ventana por defecto 2h (cron). Se puede ampliar con ?hours=N para
+    // recuperar manualmente órdenes que quedaron trabadas.
+    const requestedHours = Number(req.nextUrl.searchParams.get('hours') ?? 2)
+    const windowHours = Math.min(Math.max(requestedHours || 2, 1), 720)
+
+    const twoHoursAgo = new Date(
+      Date.now() - windowHours * 60 * 60 * 1000,
+    ).toISOString()
 
     const { data: pendingOrders, error: ordersError } = await supabase
       .from('orders')
-      .select('id, order_number, total, notes, campus_id, status, created_at, order_items(product_id, quantity, unit_price, size, fulfillment_type)')
+      .select('id, order_number, total, amount_paid, balance_due, payment_status, notes, campus_id, status, created_at, order_items(product_id, quantity, unit_price, size, fulfillment_type)')
       .eq('payment_method', 'solo')
       .in('status', ['pending', 'cancelled'])
       .gte('created_at', twoHoursAgo)
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(windowHours > 2 ? 100 : 20)
 
     if (ordersError || !pendingOrders || pendingOrders.length === 0) {
       return NextResponse.json({
@@ -116,7 +123,15 @@ export async function GET(req: NextRequest) {
     const usedTransactions = new Set<string>() // Evitar que una TX matchee múltiples órdenes
 
     for (const order of pendingOrders) {
-      const expectedAmount = Math.round(Number(order.total ?? 0))
+      // El lector puede haber cobrado el total o solo el abono (50%).
+      const orderTotal = Math.round(Number(order.total ?? 0))
+      const orderAmountPaid = Math.round(Number(order.amount_paid ?? 0))
+
+      const expectedAmounts = Array.from(
+        new Set([orderTotal, orderAmountPaid].filter((v) => v > 0)),
+      )
+
+      const expectedAmount = orderAmountPaid > 0 ? orderAmountPaid : orderTotal
 
       // Extraer referencia de la orden desde notes
       const orderRef = String(order.notes ?? '')
@@ -132,7 +147,7 @@ export async function GET(req: NextRequest) {
         if (!PAID_STATUSES.includes(status)) return false
 
         const txAmount = getTxAmount(tx)
-        return expectedAmount > 0 && Math.abs(txAmount - expectedAmount) <= 1
+        return expectedAmounts.some((expected) => Math.abs(txAmount - expected) <= 1)
       })
 
       // Pasada 1: match por referencia (confiable).
@@ -205,12 +220,14 @@ export async function GET(req: NextRequest) {
           })
         }
 
-        // Registrar pago
+        // Registrar pago (abono si la orden tiene saldo pendiente)
+        const isDeposit = Number(order.balance_due ?? 0) > 0
+
         await supabase.from('order_payments').insert({
           order_id: order.id,
           amount: expectedAmount,
           payment_method: 'solo',
-          payment_type: 'full_payment',
+          payment_type: isDeposit ? 'deposit' : 'full_payment',
           notes: `Reconciliado automáticamente — TX: ${transactionCode ?? 'N/A'}`,
         })
 
@@ -230,6 +247,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      window_hours: windowHours,
       checked: pendingOrders.length,
       reconciled,
       results,

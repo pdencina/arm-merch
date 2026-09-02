@@ -436,6 +436,7 @@ export async function POST(req: NextRequest) {
         campus_id,
         status,
         total,
+        amount_paid,
         notes,
         sumup_checkout_id,
         order_items(product_id, quantity, unit_price, size, fulfillment_type)
@@ -479,7 +480,18 @@ export async function POST(req: NextRequest) {
     }
 
     const reference = extractReferenceFromNotes(order.notes)
-    const expectedAmount = Math.round(Number(order.total ?? 0))
+
+    // El monto cobrado en el lector NO siempre es el total de la orden:
+    // en pedidos de producción con abono se cobra solo el 50% (amount_paid).
+    // Aceptamos cualquiera de los dos para no dejar el pago sin confirmar.
+    const orderTotal = Math.round(Number(order.total ?? 0))
+    const orderAmountPaid = Math.round(Number(order.amount_paid ?? 0))
+
+    const expectedAmounts = Array.from(
+      new Set([orderTotal, orderAmountPaid].filter((v) => v > 0)),
+    )
+
+    const expectedAmount = orderAmountPaid > 0 ? orderAmountPaid : orderTotal
 
     // 2) Fallback SOLO: si SumUp no entrega checkout_id, buscamos en transacciones recientes.
     const transactions = await fetchRecentSumUpTransactions(sumupApiBase, sumupApiKey)
@@ -529,10 +541,7 @@ export async function POST(req: NextRequest) {
 
       const txAmount = getTxAmount(tx)
 
-      return (
-        expectedAmount > 0 &&
-        (txAmount === expectedAmount || Math.abs(txAmount - expectedAmount) <= 1)
-      )
+      return expectedAmounts.some((expected) => Math.abs(txAmount - expected) <= 1)
     })
 
     // Pasada 1: match por referencia (el más confiable).
