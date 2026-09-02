@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -61,6 +61,8 @@ const NEXT_STATUS: Record<string, string | null> = {
   ready_pickup: 'delivered',
   delivered: null,
 }
+
+const SOLO_BALANCE_TIMEOUT_SECONDS = 300
 
 const NEXT_LABEL: Record<string, string> = {
   pending_production: 'Marcar en producción',
@@ -188,6 +190,22 @@ export default function ProductionPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [whatsappNotice, setWhatsappNotice] = useState<string | null>(null)
+
+  // Cobro de saldo con SumUp Solo: se espera confirmación real del lector
+  const [soloBalanceStatus, setSoloBalanceStatus] = useState<
+    'idle' | 'waiting' | 'verifying' | 'rejected' | 'timeout'
+  >('idle')
+  const [soloCountdown, setSoloCountdown] = useState(SOLO_BALANCE_TIMEOUT_SECONDS)
+  const soloPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function clearSoloPolling() {
+    if (soloPollRef.current) {
+      clearInterval(soloPollRef.current)
+      soloPollRef.current = null
+    }
+  }
+
+  useEffect(() => clearSoloPolling, [])
 
   async function load() {
     setLoading(true)
@@ -362,10 +380,113 @@ export default function ProductionPage() {
   const cashMissing = Math.max(0, pendingBalanceToCollect - cashReceivedAmount)
 
   function openCollectBalanceModal(order: OrderRow) {
+    clearSoloPolling()
+    setSoloBalanceStatus('idle')
+    setSoloCountdown(SOLO_BALANCE_TIMEOUT_SECONDS)
     setCashModalOrder(order)
     setCashReceived('')
     setCashError(null)
     setBalancePaymentMethod('efectivo')
+  }
+
+  /**
+   * Consulta a SumUp si el cobro del saldo fue realmente pagado.
+   * El backend solo aplica el cobro cuando la transacción está confirmada.
+   */
+  async function verifyBalancePayment(orderId: string) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    const res = await fetch('/api/sumup/balance-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    })
+
+    return (await res.json().catch(() => null)) as any
+  }
+
+  function startBalancePolling(orderId: string) {
+    clearSoloPolling()
+
+    setSoloBalanceStatus('waiting')
+    setSoloCountdown(SOLO_BALANCE_TIMEOUT_SECONDS)
+
+    let elapsed = 0
+
+    soloPollRef.current = setInterval(async () => {
+      elapsed += 3
+      setSoloCountdown(Math.max(0, SOLO_BALANCE_TIMEOUT_SECONDS - elapsed))
+
+      if (elapsed >= SOLO_BALANCE_TIMEOUT_SECONDS) {
+        clearSoloPolling()
+        setSoloBalanceStatus('timeout')
+        return
+      }
+
+      try {
+        const data = await verifyBalancePayment(orderId)
+
+        if (data?.paid === true) {
+          clearSoloPolling()
+          setSoloBalanceStatus('idle')
+          setCashModalOrder(null)
+          setCashReceived('')
+          setCashError(null)
+          await load()
+          return
+        }
+
+        if (data?.rejected === true) {
+          clearSoloPolling()
+          setSoloBalanceStatus('rejected')
+          setCashError(
+            data?.message ?? 'El pago fue rechazado. El saldo no se cobró.',
+          )
+        }
+      } catch {
+        // Errores de red transitorios no cortan el polling.
+      }
+    }, 3000)
+  }
+
+  /** Verificación manual, por si el polling automático se agotó. */
+  async function manualVerifyBalance() {
+    if (!cashModalOrder) return
+
+    setSoloBalanceStatus('verifying')
+    setCashError(null)
+
+    try {
+      const data = await verifyBalancePayment(cashModalOrder.id)
+
+      if (data?.paid === true) {
+        clearSoloPolling()
+        setSoloBalanceStatus('idle')
+        setCashModalOrder(null)
+        setCashReceived('')
+        await load()
+        return
+      }
+
+      if (data?.rejected === true) {
+        setSoloBalanceStatus('rejected')
+        setCashError(data?.message ?? 'El pago fue rechazado. El saldo no se cobró.')
+        return
+      }
+
+      setSoloBalanceStatus('timeout')
+      setCashError(
+        'SumUp aún no reporta este cobro. Si el cliente ya pagó, espera unos segundos y vuelve a verificar.',
+      )
+    } catch (err: any) {
+      setSoloBalanceStatus('timeout')
+      setCashError(err?.message ?? 'No se pudo verificar el pago.')
+    }
   }
 
   async function collectBalance() {
@@ -390,7 +511,9 @@ export default function ProductionPage() {
       data: { session },
     } = await supabase.auth.getSession()
 
-    // Si es SumUp Solo, enviar cobro al dispositivo y esperar confirmación manual
+    // SumUp Solo: se envía el cobro al lector y NO se registra el saldo aún.
+    // El saldo solo se cobra cuando SumUp confirma la transacción, para no dar
+    // por pagado un cobro que la tarjeta rechazó.
     if (balancePaymentMethod === 'sumup') {
       try {
         const soloRes = await fetch('/api/sumup/solo-checkout', {
@@ -415,9 +538,11 @@ export default function ProductionPage() {
           return
         }
 
-        // Cobro enviado — ahora registrar el saldo como cobrado
-        // (El SOLO ya recibió la instrucción de cobro)
         setCashError(null)
+        setCashReceived('SOLO_WAITING')
+        setCollectingId(null)
+        startBalancePolling(cashModalOrder.id)
+        return
       } catch (err: any) {
         setCashError('Error conectando con SumUp Solo: ' + (err?.message || ''))
         setCollectingId(null)
@@ -1024,6 +1149,9 @@ export default function ProductionPage() {
                       key={method.key}
                       type="button"
                       onClick={() => {
+                        clearSoloPolling()
+                        setSoloBalanceStatus('idle')
+                        setCashReceived('')
                         setBalancePaymentMethod(method.key)
                         setCashError(null)
                       }}
@@ -1120,14 +1248,50 @@ export default function ProductionPage() {
               ) : balancePaymentMethod === 'sumup' ? (
                 <div className="space-y-3">
                   {cashReceived === 'SOLO_WAITING' ? (
-                    <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-4 text-left">
-                      <p className="text-xs font-black uppercase tracking-widest text-green-300">
-                        ✅ Cobro enviado a la máquina
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        Pídele al cliente que acerque su tarjeta al SumUp Solo. Cuando el pago sea aprobado en la máquina, presiona <span className="font-black text-amber-300">"Confirmar pago"</span>.
-                      </p>
-                    </div>
+                    soloBalanceStatus === 'rejected' ? (
+                      <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-left">
+                        <p className="text-xs font-black uppercase tracking-widest text-red-300">
+                          Pago rechazado
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-300">
+                          La tarjeta fue rechazada o el cobro se canceló. El saldo
+                          NO se registró como pagado. Puedes reintentar con otro
+                          medio de pago.
+                        </p>
+                      </div>
+                    ) : soloBalanceStatus === 'timeout' ? (
+                      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-left">
+                        <p className="text-xs font-black uppercase tracking-widest text-amber-300">
+                          Sin confirmación automática
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-300">
+                          No recibimos la confirmación de SumUp. Si el cliente ya
+                          pagó en la máquina, presiona{' '}
+                          <span className="font-black text-amber-300">
+                            &quot;Verificar pago&quot;
+                          </span>
+                          . El saldo solo se registra si SumUp confirma el cobro.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-violet-500/25 bg-violet-500/10 p-4 text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="h-3 w-3 animate-spin rounded-full border-2 border-violet-300/40 border-t-violet-300" />
+                          <p className="text-xs font-black uppercase tracking-widest text-violet-300">
+                            Esperando pago en el lector
+                          </p>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-zinc-300">
+                          Pídele al cliente que acerque su tarjeta al SumUp Solo.
+                          El saldo se registra automáticamente cuando SumUp
+                          confirme el cobro.
+                        </p>
+                        <p className="mt-2 text-xs font-bold text-zinc-500">
+                          Verificando... {Math.floor(soloCountdown / 60)}:
+                          {String(soloCountdown % 60).padStart(2, '0')}
+                        </p>
+                      </div>
+                    )
                   ) : (
                     <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-left">
                       <p className="text-xs font-black uppercase tracking-widest text-violet-300">
@@ -1176,26 +1340,48 @@ export default function ProductionPage() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => {
+                  clearSoloPolling()
+                  setSoloBalanceStatus('idle')
                   setCashModalOrder(null)
                   setCashReceived('')
                   setCashError(null)
                 }}
                 className="rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.08]"
               >
-                Cancelar
+                {balancePaymentMethod === 'sumup' && cashReceived === 'SOLO_WAITING'
+                  ? 'Cerrar'
+                  : 'Cancelar'}
               </button>
 
-              <button
-                onClick={collectBalance}
-                disabled={
-                  collectingId === cashModalOrder.id ||
-                  (balancePaymentMethod === 'efectivo' &&
-                    cashReceivedAmount < pendingBalanceToCollect)
-                }
-                className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {collectingId === cashModalOrder.id ? 'Registrando...' : balancePaymentMethod === 'efectivo' ? 'Confirmar efectivo' : balancePaymentMethod === 'sumup' && cashReceived !== 'SOLO_WAITING' ? 'Enviar cobro al SOLO' : 'Confirmar pago'}
-              </button>
+              {balancePaymentMethod === 'sumup' && cashReceived === 'SOLO_WAITING' ? (
+                <button
+                  onClick={manualVerifyBalance}
+                  disabled={soloBalanceStatus === 'verifying'}
+                  className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {soloBalanceStatus === 'verifying'
+                    ? 'Verificando...'
+                    : 'Verificar pago'}
+                </button>
+              ) : (
+                <button
+                  onClick={collectBalance}
+                  disabled={
+                    collectingId === cashModalOrder.id ||
+                    (balancePaymentMethod === 'efectivo' &&
+                      cashReceivedAmount < pendingBalanceToCollect)
+                  }
+                  className="rounded-2xl bg-amber-500 py-3 text-sm font-black text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {collectingId === cashModalOrder.id
+                    ? 'Registrando...'
+                    : balancePaymentMethod === 'efectivo'
+                      ? 'Confirmar efectivo'
+                      : balancePaymentMethod === 'sumup'
+                        ? 'Enviar cobro al SOLO'
+                        : 'Confirmar pago'}
+                </button>
+              )}
             </div>
           </div>
         </div>
