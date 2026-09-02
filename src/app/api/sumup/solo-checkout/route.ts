@@ -361,26 +361,36 @@ export async function POST(req: NextRequest) {
       sumupCheckout?.data?.checkout?.checkout_reference ??
       checkoutReference
 
+    const isBalancePayment = Boolean(body?.is_balance_payment)
+
+    // Para cobros de saldo NO se toca el status de la orden:
+    // la orden ya está pagada (abono) y marcarla 'pending' rompería
+    // producción, entregas y reportes.
+    const orderUpdatePayload: Record<string, any> = {
+      sumup_checkout_id: checkoutId,
+      notes: [
+        order.notes ?? '',
+        isBalancePayment ? `SumUp SOLO (cobro saldo)` : `SumUp SOLO`,
+        `Reader: ${reader.reader_id}`,
+        `Ref: ${finalCheckoutReference}`,
+        `Checkout: ${checkoutId}`,
+        `Return URL: ${webhookUrl}`,
+        `Monto: ${amount}`,
+      ]
+        .filter(Boolean)
+        .join(' | '),
+      updated_at: new Date().toISOString(),
+    }
+
+    if (!isBalancePayment) {
+      orderUpdatePayload.status = 'pending'
+      orderUpdatePayload.payment_method = 'solo'
+    }
+
     const { error: updateOrderError } =
       await adminClient
         .from('orders')
-        .update({
-          status: 'pending',
-          payment_method: 'solo',
-          sumup_checkout_id: checkoutId,
-          notes: [
-            order.notes ?? '',
-            `SumUp SOLO`,
-            `Reader: ${reader.reader_id}`,
-            `Ref: ${finalCheckoutReference}`,
-            `Checkout: ${checkoutId}`,
-            `Return URL: ${webhookUrl}`,
-            `Monto: ${amount}`,
-          ]
-            .filter(Boolean)
-            .join(' | '),
-          updated_at: new Date().toISOString(),
-        })
+        .update(orderUpdatePayload)
         .eq('id', order.id)
 
     if (updateOrderError) {

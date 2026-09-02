@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
         balance_due,
         payment_status,
         payment_type,
+        status,
         created_at,
         production_status,
         tracking_token,

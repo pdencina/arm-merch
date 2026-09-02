@@ -26,6 +26,7 @@ type OrderRow = {
   balance_due?: number | null
   payment_status?: string | null
   payment_type?: string | null
+  status?: string | null
   created_at: string
   production_status?: string | null
   tracking_token?: string | null
@@ -950,16 +951,25 @@ export default function ProductionPage() {
                       </div>
                     )}
 
-                    {next && canMove && (
-                      <button
-                        onClick={() => updateStatus(order)}
-                        disabled={updatingId === order.id}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-black text-black hover:bg-amber-400 disabled:opacity-50"
-                      >
-                        {updatingId === order.id
-                          ? 'Actualizando...'
-                          : NEXT_LABEL[workflowStatus]}
-                      </button>
+                    {order.status && order.status !== 'paid' ? (
+                      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold leading-5 text-amber-200">
+                        Pago no confirmado en el sistema. No se puede avanzar
+                        producción hasta que quede registrado. El sistema
+                        reintenta la confirmación automáticamente cada 2
+                        minutos.
+                      </div>
+                    ) : (
+                      next && canMove && (
+                        <button
+                          onClick={() => updateStatus(order)}
+                          disabled={updatingId === order.id}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-black text-black hover:bg-amber-400 disabled:opacity-50"
+                        >
+                          {updatingId === order.id
+                            ? 'Actualizando...'
+                            : NEXT_LABEL[workflowStatus]}
+                        </button>
+                      )
                     )}
 
                     {workflowStatus === 'delivered' && (

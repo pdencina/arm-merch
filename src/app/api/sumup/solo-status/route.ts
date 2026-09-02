@@ -486,10 +486,34 @@ export async function POST(req: NextRequest) {
 
     const now = Date.now()
 
-    const match = transactions.find((tx) => {
-      const status = getTxStatus(tx)
+    const getTxCode = (tx: any) =>
+      String(
+        tx?.transaction_code ??
+          tx?.transaction_id ??
+          tx?.client_transaction_id ??
+          tx?.id ??
+          '',
+      ).trim()
+
+    const isReferenceMatch = (tx: any) => {
       const txReference = getTxReference(tx)
-      const txAmount = getTxAmount(tx)
+
+      return (
+        Boolean(reference && txReference.includes(reference)) ||
+        txReference.includes(String(order.order_number)) ||
+        String(tx?.product_summary ?? '').includes(`Orden #${order.order_number}`) ||
+        String(tx?.description ?? '').includes(String(order.order_number))
+      )
+    }
+
+    // Candidatos: transacciones finales, recientes y con el monto esperado.
+    const candidates = transactions.filter((tx) => {
+      const status = getTxStatus(tx)
+
+      const statusIsFinal =
+        PAID_STATUSES.includes(status) || FAILED_STATUSES.includes(status)
+
+      if (!statusIsFinal) return false
 
       const txTimestamp = tx?.timestamp
         ? new Date(tx.timestamp).getTime()
@@ -497,28 +521,45 @@ export async function POST(req: NextRequest) {
           ? new Date(tx.date).getTime()
           : 0
 
-      const secondsDiff = txTimestamp > 0 ? Math.abs(now - txTimestamp) / 1000 : Number.POSITIVE_INFINITY
+      const secondsDiff =
+        txTimestamp > 0 ? Math.abs(now - txTimestamp) / 1000 : Number.POSITIVE_INFINITY
 
-      // Para evitar tomar transacciones históricas antiguas, solo aceptamos ventas recientes.
-      // Ampliado a 15 minutos por latencia de SumUp/Vercel.
-      const recentEnough = secondsDiff <= 900
+      // Solo ventas recientes (15 min) para no tomar transacciones históricas.
+      if (secondsDiff > 900) return false
 
-      const referenceMatches =
-        Boolean(reference && txReference.includes(reference)) ||
-        txReference.includes(String(order.order_number)) ||
-        String(tx?.product_summary ?? '').includes(`Orden #${order.order_number}`) ||
-        String(tx?.description ?? '').includes(String(order.order_number))
+      const txAmount = getTxAmount(tx)
 
-      const amountMatches =
+      return (
         expectedAmount > 0 &&
         (txAmount === expectedAmount || Math.abs(txAmount - expectedAmount) <= 1)
-
-      const statusIsFinal =
-        PAID_STATUSES.includes(status) || FAILED_STATUSES.includes(status)
-
-      // Match estricto: requiere referencia Y monto (no solo monto)
-      return statusIsFinal && recentEnough && referenceMatches && amountMatches
+      )
     })
+
+    // Pasada 1: match por referencia (el más confiable).
+    let match = candidates.find((tx) => isReferenceMatch(tx))
+
+    // Pasada 2 (fallback): SumUp no siempre devuelve la referencia en su historial.
+    // Aceptamos match por monto + recencia, pero solo si esa transacción no fue
+    // ya usada por otra orden. Esto evita duplicados cuando hay varios intentos
+    // del mismo monto.
+    if (!match) {
+      for (const tx of candidates) {
+        const txCode = getTxCode(tx)
+        if (!txCode) continue
+
+        const { data: alreadyUsed } = await adminClient
+          .from('orders')
+          .select('id')
+          .ilike('notes', `%TX: ${txCode}%`)
+          .neq('id', order.id)
+          .limit(1)
+
+        if (!alreadyUsed || alreadyUsed.length === 0) {
+          match = tx
+          break
+        }
+      }
+    }
 
     if (match) {
       const status = getTxStatus(match)

@@ -123,27 +123,49 @@ export async function GET(req: NextRequest) {
       const refMatch = orderRef.match(/arm-merch-order-\d+-\d+/)
       const orderReference = refMatch?.[0] ?? null
 
-      // Buscar transacción que coincida con esta orden
-      const match = transactions.find((tx) => {
+      // Candidatos: transacciones pagadas con el monto esperado y no usadas aún.
+      const candidates = transactions.filter((tx) => {
         const txId = String(tx?.transaction_code ?? tx?.id ?? tx?.client_transaction_id ?? '')
         if (usedTransactions.has(txId)) return false // Ya usada para otra orden
 
         const status = getTxStatus(tx)
-        const txReference = getTxReference(tx)
-        const txAmount = getTxAmount(tx)
+        if (!PAID_STATUSES.includes(status)) return false
 
-        // Match ESTRICTO por referencia (incluye número de orden en la ref)
-        const referenceMatches =
+        const txAmount = getTxAmount(tx)
+        return expectedAmount > 0 && Math.abs(txAmount - expectedAmount) <= 1
+      })
+
+      // Pasada 1: match por referencia (confiable).
+      let match = candidates.find((tx) => {
+        const txReference = getTxReference(tx)
+
+        return (
           (orderReference && txReference.includes(orderReference)) ||
           txReference.includes(`order-${order.order_number}-`) ||
           String(tx?.description ?? '').includes(`#${order.order_number}`)
-
-        // Match por monto SOLO si la referencia coincide
-        // NO hacer match solo por monto — evita falsos positivos con duplicados
-        const amountMatches = expectedAmount > 0 && Math.abs(txAmount - expectedAmount) <= 1
-
-        return PAID_STATUSES.includes(status) && referenceMatches && amountMatches
+        )
       })
+
+      // Pasada 2 (fallback): SumUp no siempre expone la referencia en el historial.
+      // Aceptamos match por monto solo si esa TX no está ya asociada a otra orden pagada.
+      if (!match) {
+        for (const tx of candidates) {
+          const txId = String(tx?.transaction_code ?? tx?.id ?? tx?.client_transaction_id ?? '')
+          if (!txId) continue
+
+          const { data: alreadyUsed } = await supabase
+            .from('orders')
+            .select('id')
+            .ilike('notes', `%TX: ${txId}%`)
+            .neq('id', order.id)
+            .limit(1)
+
+          if (!alreadyUsed || alreadyUsed.length === 0) {
+            match = tx
+            break
+          }
+        }
+      }
 
       if (match) {
         const txId = String(match?.transaction_code ?? match?.id ?? match?.client_transaction_id ?? '')
