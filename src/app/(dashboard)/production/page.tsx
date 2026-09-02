@@ -1048,7 +1048,7 @@ export default function ProductionPage() {
                     </p>
                   </div>
 
-                  <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[240px]">
+                  <div className="flex w-full shrink-0 flex-col gap-3 xl:w-[280px]">
                     {order.tracking_token && (
                       <Link
                         href={`/track/${order.tracking_token}`}
@@ -1078,10 +1078,8 @@ export default function ProductionPage() {
 
                     {order.status && order.status !== 'paid' ? (
                       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold leading-5 text-amber-200">
-                        Pago no confirmado en el sistema. No se puede avanzar
-                        producción hasta que quede registrado. El sistema
-                        reintenta la confirmación automáticamente cada 2
-                        minutos.
+                        Pago no confirmado. No se puede avanzar producción
+                        todavía. El sistema reintenta cada 2 minutos.
                       </div>
                     ) : (
                       next && canMove && (
@@ -1437,13 +1435,13 @@ function Info({
   highlight?: boolean
 }) {
   return (
-    <div className="rounded-2xl bg-zinc-950/60 px-4 py-3">
+    <div className="min-w-0 rounded-2xl bg-zinc-950/60 px-4 py-3">
       <p className="text-[11px] uppercase tracking-widest text-zinc-500">
         {label}
       </p>
 
       <p
-        className={`mt-1 truncate text-sm font-semibold ${
+        className={`mt-1 break-words text-sm font-semibold ${
           highlight ? 'text-amber-400' : 'text-white'
         }`}
       >
