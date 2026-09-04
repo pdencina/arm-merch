@@ -114,7 +114,7 @@ export async function PATCH(
 
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, order_number, campus_id, pickup_campus_id, tracking_token, production_status, status')
+      .select('id, order_number, campus_id, pickup_campus_id, tracking_token, production_status, status, amount_paid, payment_status')
       .eq('id', params.id)
       .single()
 
@@ -122,9 +122,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
     }
 
-    if (order.status !== 'paid') {
+    // Se permite avanzar producción si la orden está pagada, o si tiene un
+    // abono confirmado (pedidos 50/50). Esto evita que un status corrupto
+    // bloquee producción cuando el abono ya se cobró.
+    const isPaid = order.status === 'paid'
+    const hasConfirmedDeposit =
+      Number(order.amount_paid ?? 0) > 0 || order.payment_status === 'partial'
+
+    if (!isPaid && !hasConfirmedDeposit) {
       return NextResponse.json(
-        { error: 'Solo se puede avanzar producción de órdenes pagadas' },
+        { error: 'Solo se puede avanzar producción de órdenes con pago o abono confirmado' },
         { status: 400 }
       )
     }

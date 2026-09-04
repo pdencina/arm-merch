@@ -843,6 +843,13 @@ export default function ProductionPage() {
             const hasPendingBalance =
               Number(order.balance_due ?? 0) > 0
 
+            // El aviso de "pago no confirmado" solo aplica a órdenes que
+            // NUNCA recibieron un pago (ni abono). Si ya hay amount_paid,
+            // el pago/abono está confirmado y solo falta cobrar el saldo.
+            const paymentUnconfirmed =
+              Boolean(order.status && order.status !== 'paid') &&
+              Number(order.amount_paid ?? 0) <= 0
+
             const canDeliver =
               !hasPendingBalance &&
               (
@@ -1059,16 +1066,17 @@ export default function ProductionPage() {
                       </Link>
                     )}
 
-                    {workflowStatus === 'ready_pickup' &&
-                      Number(order.balance_due ?? 0) > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => openCollectBalanceModal(order)}
-                          className="inline-flex items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-300 hover:bg-amber-500/15"
-                        >
-                          Cobrar saldo pendiente · {fmt(Number(order.balance_due ?? 0))}
-                        </button>
-                      )}
+                    {/* Cobrar saldo: disponible siempre que haya saldo pendiente,
+                        sin importar el estado de producción. */}
+                    {Number(order.balance_due ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openCollectBalanceModal(order)}
+                        className="inline-flex items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-300 hover:bg-amber-500/15"
+                      >
+                        Cobrar saldo pendiente · {fmt(Number(order.balance_due ?? 0))}
+                      </button>
+                    )}
 
                     {next && !canMove && next === 'delivered' && Number(order.balance_due ?? 0) > 0 && (
                       <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200">
@@ -1076,7 +1084,7 @@ export default function ProductionPage() {
                       </div>
                     )}
 
-                    {order.status && order.status !== 'paid' ? (
+                    {paymentUnconfirmed ? (
                       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold leading-5 text-amber-200">
                         Pago no confirmado. No se puede avanzar producción
                         todavía. El sistema reintenta cada 2 minutos.
