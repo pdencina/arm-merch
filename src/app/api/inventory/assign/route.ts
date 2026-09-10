@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('id, role')
+      .select('id, role, campus_id')
       .eq('id', user.id)
       .single()
 
@@ -55,7 +55,12 @@ export async function POST(req: Request) {
       )
     }
 
-    if (profile.role !== 'super_admin' && profile.role !== 'adm_merch') {
+    const isGlobalRole =
+      profile.role === 'super_admin' || profile.role === 'adm_merch'
+
+    // Los admin de campus pueden sumar productos del catálogo a su propia
+    // sede. Los roles globales pueden asignar a cualquier campus.
+    if (!isGlobalRole && profile.role !== 'admin') {
       return NextResponse.json(
         { error: 'No autorizado para asignar productos a campus' },
         { status: 403 }
@@ -69,6 +74,26 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: 'Producto o campus inválido' },
         { status: 400 }
+      )
+    }
+
+    // Un admin de campus solo puede asignar a su propio campus
+    if (!isGlobalRole && campus_id !== profile.campus_id) {
+      return NextResponse.json(
+        { error: 'Solo puedes asignar productos a tu propio campus' },
+        { status: 403 }
+      )
+    }
+
+    // Un admin de campus no puede inventar stock inicial: el producto se
+    // agrega en 0 y el stock entra por transferencia o ajuste auditado.
+    if (!isGlobalRole && Number(stock ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          error:
+            'El producto se agrega con stock 0. El stock debe ingresar por transferencia o ajuste de inventario.',
+        },
+        { status: 403 }
       )
     }
 

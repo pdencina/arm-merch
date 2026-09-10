@@ -14,6 +14,8 @@ type ProductRow = {
   image_url: string | null
   category_name: string
   stock: number
+  /** Si el producto tiene inventario en el campus del usuario */
+  assigned: boolean
 }
 
 export default function ProductsPage() {
@@ -25,8 +27,11 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [userRole, setUserRole] = useState<string>('')
+  const [userCampusId, setUserCampusId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [onlyUnassigned, setOnlyUnassigned] = useState(false)
 
   useEffect(() => {
     async function loadProducts() {
@@ -57,70 +62,79 @@ export default function ProductsPage() {
       }
 
       setUserRole(profile.role ?? '')
+      setUserCampusId(profile.campus_id ?? null)
 
-      const { data, error } = await supabase
-        .from('inventory')
-        .select(`
-          id,
-          stock,
-          campus_id,
-          product:products!inner(
-            id,
-            name,
-            sku,
-            price,
-            active,
-            image_url,
-            deleted_at,
-            category:categories(name)
-          )
-        `)
-        .is('product.deleted_at', null)
-        .order('id', { ascending: false })
+      const isGlobalRole =
+        profile.role === 'super_admin' || profile.role === 'adm_merch'
 
-      if (error) {
-        setError(error.message)
+      // El catálogo se lee desde products (no desde inventory), para que
+      // todos los campus vean el catálogo completo y puedan asignarse los
+      // productos que aún no tienen en su sede.
+      const [
+        { data: catalogData, error: catalogError },
+        { data: inventoryData, error: inventoryError },
+      ] = await Promise.all([
+        supabase
+          .from('products')
+          .select('id, name, sku, price, active, image_url, category:categories(name)')
+          .is('deleted_at', null)
+          .order('name')
+          .limit(5000),
+        supabase
+          .from('inventory')
+          .select('product_id, stock, campus_id')
+          .limit(20000),
+      ])
+
+      if (catalogError) {
+        setError(catalogError.message)
         setLoading(false)
         return
       }
 
-      const inventoryRows = (data ?? []) as any[]
+      if (inventoryError) {
+        setError(inventoryError.message)
+        setLoading(false)
+        return
+      }
 
-      const filteredInventory =
-        profile.role === 'super_admin' || profile.role === 'adm_merch'
-          ? inventoryRows
-          : inventoryRows.filter((row) => row.campus_id === profile.campus_id)
+      // Para roles globales se suma el stock de todos los campus.
+      // Para un campus se considera solo el inventario de su sede.
+      const relevantInventory = (inventoryData ?? []).filter((row: any) =>
+        isGlobalRole ? true : row.campus_id === profile.campus_id,
+      )
 
-      const grouped = new Map<string, ProductRow>()
+      const stockByProduct = new Map<string, number>()
+      const assignedProducts = new Set<string>()
 
-      for (const row of filteredInventory) {
-        const product = Array.isArray(row.product) ? row.product[0] : row.product
-        if (!product?.id) continue
+      for (const row of relevantInventory) {
+        assignedProducts.add(row.product_id)
+        stockByProduct.set(
+          row.product_id,
+          (stockByProduct.get(row.product_id) ?? 0) + Number(row.stock ?? 0),
+        )
+      }
 
+      const rows: ProductRow[] = (catalogData ?? []).map((product: any) => {
         const categoryRaw = product.category
         const categoryName = Array.isArray(categoryRaw)
           ? categoryRaw[0]?.name ?? 'Sin categoría'
           : categoryRaw?.name ?? 'Sin categoría'
 
-        const existing = grouped.get(product.id)
-
-        if (existing) {
-          existing.stock += Number(row.stock ?? 0)
-        } else {
-          grouped.set(product.id, {
-            id: product.id,
-            name: product.name ?? 'Sin nombre',
-            sku: product.sku ?? null,
-            price: Number(product.price ?? 0),
-            active: Boolean(product.active),
-            image_url: product.image_url ?? null,
-            category_name: categoryName,
-            stock: Number(row.stock ?? 0),
-          })
+        return {
+          id: product.id,
+          name: product.name ?? 'Sin nombre',
+          sku: product.sku ?? null,
+          price: Number(product.price ?? 0),
+          active: Boolean(product.active),
+          image_url: product.image_url ?? null,
+          category_name: categoryName,
+          stock: stockByProduct.get(product.id) ?? 0,
+          assigned: assignedProducts.has(product.id),
         }
-      }
+      })
 
-      setProducts(Array.from(grouped.values()))
+      setProducts(rows)
       setLoading(false)
     }
 
@@ -141,9 +155,11 @@ export default function ProductsPage() {
       const matchCategory =
         !categoryFilter || product.category_name === categoryFilter
 
-      return matchSearch && matchCategory
+      const matchAssigned = !onlyUnassigned || !product.assigned
+
+      return matchSearch && matchCategory && matchAssigned
     })
-  }, [products, search, categoryFilter])
+  }, [products, search, categoryFilter, onlyUnassigned])
 
   function formatCurrency(value: number) {
     return new Intl.NumberFormat('es-CL', {
@@ -154,6 +170,59 @@ export default function ProductsPage() {
   }
 
   const canDelete = userRole === 'super_admin' || userRole === 'adm_merch'
+
+  // Un admin de campus puede sumar a su sede productos del catálogo
+  const canAssignToOwnCampus = userRole === 'admin' && Boolean(userCampusId)
+
+  const unassignedCount = useMemo(
+    () => products.filter((p) => !p.assigned).length,
+    [products],
+  )
+
+  /** Agrega el producto al inventario del campus del usuario con stock 0. */
+  async function assignToMyCampus(product: ProductRow) {
+    if (!userCampusId) return
+
+    setAssigningId(product.id)
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const res = await fetch('/api/inventory/assign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({
+          product_id: product.id,
+          campus_id: userCampusId,
+          stock: 0,
+          low_stock_alert: 5,
+        }),
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        alert(data?.error ?? 'No se pudo agregar el producto a tu campus')
+        return
+      }
+
+      // Reflejar el cambio sin recargar toda la página
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id ? { ...p, assigned: true, stock: 0 } : p,
+        ),
+      )
+    } catch (err: any) {
+      alert(err?.message ?? 'Error agregando el producto a tu campus')
+    } finally {
+      setAssigningId(null)
+    }
+  }
 
   async function handleDelete() {
     if (!deleteTarget) return
@@ -256,6 +325,20 @@ export default function ProductsPage() {
             </option>
           ))}
         </select>
+
+        {canAssignToOwnCampus && unassignedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setOnlyUnassigned((v) => !v)}
+            className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+              onlyUnassigned
+                ? 'border-amber-500/60 bg-amber-500/15 text-amber-300'
+                : 'border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-amber-500/30'
+            }`}
+          >
+            Sin asignar ({unassignedCount})
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-700/60 bg-zinc-900/50">
@@ -313,9 +396,21 @@ export default function ProductsPage() {
               </div>
 
               <div>
-                <span className="rounded-lg bg-green-500/10 px-3 py-1 text-sm font-semibold text-green-300">
-                  {product.stock}
-                </span>
+                {product.assigned ? (
+                  <span
+                    className={`rounded-lg px-3 py-1 text-sm font-semibold ${
+                      product.stock > 0
+                        ? 'bg-green-500/10 text-green-300'
+                        : 'bg-zinc-700/40 text-zinc-400'
+                    }`}
+                  >
+                    {product.stock}
+                  </span>
+                ) : (
+                  <span className="rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-300">
+                    No asignado
+                  </span>
+                )}
               </div>
 
               <div>
@@ -331,12 +426,24 @@ export default function ProductsPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Link
-                  href={`/products/${product.id}`}
-                  className="inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-600"
-                >
-                  Editar todo
-                </Link>
+                {canAssignToOwnCampus && !product.assigned ? (
+                  <button
+                    onClick={() => assignToMyCampus(product)}
+                    disabled={assigningId === product.id}
+                    className="inline-flex rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-black transition hover:bg-amber-400 disabled:opacity-50"
+                  >
+                    {assigningId === product.id
+                      ? 'Agregando...'
+                      : 'Agregar a mi campus'}
+                  </button>
+                ) : (
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="inline-flex rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-600"
+                  >
+                    Editar todo
+                  </Link>
+                )}
                 {canDelete && (
                   <button
                     onClick={() => setDeleteTarget(product)}
