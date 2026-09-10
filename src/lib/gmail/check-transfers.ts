@@ -329,45 +329,83 @@ export async function checkGmailTransfers(): Promise<{
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
+  // Evita que un mismo email confirme varias órdenes en la misma corrida
+  const usedOperations = new Set<string>()
+
   for (const transfer of transfers) {
-    // Buscar órdenes de transferencia con el mismo monto que no tengan operación confirmada
+    if (usedOperations.has(transfer.operationNumber)) continue
+
+    // Buscar órdenes de transferencia por monto: primero las pendientes de
+    // confirmar, luego las ya pagadas (para dejar la nota de verificación).
     const { data: orders } = await adminClient
       .from('orders')
-      .select('id, order_number, total, notes')
+      .select('id, order_number, total, notes, status, campus_id, order_items(product_id, quantity, fulfillment_type)')
       .eq('payment_method', 'transferencia')
-      .eq('status', 'paid')
+      .in('status', ['pending_transfer', 'paid'])
       .eq('total', transfer.amount)
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(10)
 
     if (!orders || orders.length === 0) continue
 
-    // Buscar una orden que NO tenga ya este número de operación en notas
-    const matchingOrder = orders.find((o: any) => {
-      const notes = String(o.notes ?? '')
-      // Ya fue verificada con este número
-      if (notes.includes(transfer.operationNumber)) return false
-      // Ya tiene otro número de operación verificado
-      if (notes.includes('✅ Verificado')) return false
-      return true
-    })
+    // Buscar una orden que NO tenga ya este número de operación registrado
+    // ni otra operación verificada. Se prioriza pending_transfer.
+    const candidate =
+      orders.find((o: any) => {
+        const notes = String(o.notes ?? '')
+        if (o.status !== 'pending_transfer') return false
+        if (notes.includes(transfer.operationNumber)) return false
+        return true
+      }) ||
+      orders.find((o: any) => {
+        const notes = String(o.notes ?? '')
+        if (notes.includes(transfer.operationNumber)) return false
+        if (notes.includes('✅ Verificado')) return false
+        return true
+      })
 
-    if (!matchingOrder) continue
+    if (!candidate) continue
 
-    // Actualizar la orden con la verificación
-    const updatedNotes = [
-      matchingOrder.notes || '',
-      `✅ Verificado · Op: ${transfer.operationNumber} · ${transfer.clientName} · ${transfer.date} ${transfer.time}`,
-    ].filter(Boolean).join(' | ')
+    const verificationNote = `✅ Verificado · Op: ${transfer.operationNumber} · ${transfer.clientName} · ${transfer.date} ${transfer.time}`
+    const updatedNotes = [candidate.notes || '', verificationNote]
+      .filter(Boolean)
+      .join(' | ')
 
-    await adminClient
-      .from('orders')
-      .update({ notes: updatedNotes })
-      .eq('id', matchingOrder.id)
+    const updatePayload: Record<string, any> = { notes: updatedNotes }
+
+    // Si estaba pendiente de confirmación, ahora sí se marca como pagada
+    // y se descuenta el stock (no se había descontado al crearla).
+    if (candidate.status === 'pending_transfer') {
+      updatePayload.status = 'paid'
+      updatePayload.payment_status = 'paid'
+
+      for (const item of candidate.order_items ?? []) {
+        if (item.fulfillment_type === 'production') continue
+
+        await adminClient.from('inventory_movements').insert({
+          product_id: item.product_id,
+          campus_id: candidate.campus_id,
+          type: 'salida',
+          quantity: item.quantity,
+          notes: `Transferencia verificada Gmail - Orden #${candidate.order_number} - Op ${transfer.operationNumber}`,
+        })
+      }
+
+      await adminClient.from('order_status_history').insert({
+        order_id: candidate.id,
+        status: 'payment_confirmed',
+        title: 'Transferencia confirmada',
+        message: `Transferencia verificada automáticamente por Gmail. Operación ${transfer.operationNumber}.`,
+      })
+    }
+
+    await adminClient.from('orders').update(updatePayload).eq('id', candidate.id)
+
+    usedOperations.add(transfer.operationNumber)
 
     matched.push({
-      orderId: matchingOrder.id,
-      orderNumber: matchingOrder.order_number,
+      orderId: candidate.id,
+      orderNumber: candidate.order_number,
       amount: transfer.amount,
       operationNumber: transfer.operationNumber,
       clientName: transfer.clientName,

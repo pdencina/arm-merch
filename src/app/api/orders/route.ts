@@ -205,8 +205,20 @@ export async function POST(req: NextRequest) {
       extraNotes,
     ].filter(Boolean).join(' | ') || null
 
-    const isDeferredPayment = paymentMethod === 'link' || paymentMethod === 'sumup'
-    const initialStatus = isDeferredPayment ? 'pending' : 'paid'
+    // Las transferencias solo se dan por pagadas si el pago fue verificado
+    // (por Gmail automático o confirmación manual posterior). Si no viene la
+    // marca de verificación, la orden nace pendiente de confirmación.
+    const transferVerified = Boolean(body.transfer_verified)
+    const isUnverifiedTransfer = paymentMethod === 'transferencia' && !transferVerified
+
+    const isDeferredPayment =
+      paymentMethod === 'link' || paymentMethod === 'sumup' || isUnverifiedTransfer
+
+    const initialStatus = isUnverifiedTransfer
+      ? 'pending_transfer'
+      : isDeferredPayment
+        ? 'pending'
+        : 'paid'
     const trackingToken = createTrackingToken(orderNumber)
     const hasProductionItems = normalizedItems.some(
       (item) => item.fulfillment_type === 'production'
@@ -244,9 +256,10 @@ export async function POST(req: NextRequest) {
           ? 50
           : 100
 
-    const orderPaymentStatus =
-      requestedPaymentStatus ||
-      (balanceDue > 0 ? 'partial' : initialStatus === 'paid' ? 'paid' : 'pending')
+    const orderPaymentStatus = isUnverifiedTransfer
+      ? 'pending'
+      : requestedPaymentStatus ||
+        (balanceDue > 0 ? 'partial' : initialStatus === 'paid' ? 'paid' : 'pending')
 
     // ── Crear orden ──
     const { data: createdOrder, error: orderError } = await adminClient

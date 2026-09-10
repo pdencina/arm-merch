@@ -79,12 +79,9 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   const cronSecret = req.headers.get('x-cron-secret') || req.nextUrl.searchParams.get('secret')
-  const expectedSecret = process.env.CRON_SECRET
-
-  // Si no hay CRON_SECRET configurado, deshabilitar cron público
-  if (!expectedSecret) {
-    return NextResponse.json({ error: 'CRON_SECRET no configurado' }, { status: 500 })
-  }
+  // Acepta el CRON_SECRET del entorno o el secret compartido de los crons
+  // (mismo que usan los otros jobs en vercel.json).
+  const expectedSecret = process.env.CRON_SECRET || 'arm-merch-cron-2026'
 
   if (cronSecret !== expectedSecret) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

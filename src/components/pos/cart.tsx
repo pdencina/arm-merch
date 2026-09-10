@@ -434,6 +434,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [verifySuccess, setVerifySuccess] = useState<string | null>(null);
   const [recentTxList, setRecentTxList] = useState<any[]>([]);
   const [txCode, setTxCode] = useState("");
+  const [transferVerifiedByGmail, setTransferVerifiedByGmail] = useState(false);
   const [showTransferQR, setShowTransferQR] = useState(false);
   const [transferTotal, setTransferTotal] = useState(0);
   const [showCashModal, setShowCashModal] = useState(false);
@@ -3108,28 +3109,34 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               </div>
             </div>
 
-            {/* Campo código de transferencia */}
+            {/* Estado de verificación */}
             <div className="mb-4">
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                Código de operación <span className="text-zinc-600">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Se completa automático o ingresa manual"
-                value={txCode}
-                onChange={(e) => setTxCode(e.target.value)}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
-              />
-              <p className="mt-1 text-[11px] text-zinc-600">
-                Usa "Verificar con Gmail" o déjalo vacío si hay urgencia
-              </p>
+              {transferVerifiedByGmail ? (
+                <div className="rounded-xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-left">
+                  <p className="text-xs font-black uppercase tracking-widest text-green-300">
+                    ✅ Transferencia verificada
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-300">
+                    Operación: <span className="font-mono">{txCode}</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-left">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-300">
+                    Sin verificar
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-zinc-400">
+                    Usa &quot;Verificar con Gmail&quot; para confirmar el pago.
+                    Si registras sin verificar, la orden quedará como
+                    <span className="font-bold text-amber-300"> pendiente de transferencia</span> hasta
+                    que el pago se confirme automáticamente.
+                  </p>
+                </div>
+              )}
             </div>
 
             <button
               onClick={async () => {
-                if (!txCode.trim()) {
-                  return; // No confirmar sin código
-                }
                 setShowTransferQR(false);
                 setSubmitting(true);
                 const effectiveCampus = await getEffectiveOrderCampusId();
@@ -3158,6 +3165,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     client_email: clientEmail?.trim() || "",
                     client_phone: clientPhone?.trim() || null,
                     notes: txCode.trim() ? `Transferencia código: ${txCode.trim()}${notes?.trim() ? ` | ${notes.trim()}` : ""}` : notes?.trim() || null,
+                    transfer_verified: transferVerifiedByGmail,
                     discount: discountAuthorized ? Math.round(subtotal() * discountPct / 100) : 0,
                     discount_pct: discountAuthorized ? discountPct : 0,
                     discount_authorized_by: discountAuthorized ? discountAuthorizer : null,
@@ -3174,28 +3182,33 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     emailSent: data.email_sent,
                   });
                   if (soundEnabled) playPaymentSuccessSound();
-                  notifyLocalStockDiscount();
+                  if (transferVerifiedByGmail) notifyLocalStockDiscount();
                   registerLastSale({
                     id: data.order_id,
                     number: data.order_number ?? data.order_id,
                     total: transferTotal,
-                    method: "Transferencia",
+                    method: transferVerifiedByGmail
+                      ? "Transferencia"
+                      : "Transferencia (pendiente)",
                     clientName: clientName.trim() || null,
                     at: new Date().toISOString(),
                   });
                   setSuccessOpen(true);
                   setClientPhone("");
                   setTxCode("");
+                  setTransferVerifiedByGmail(false);
                   setProductionItems({});
                   clearCart();
                   focusSkuSearchInput();
                 }
                 setSubmitting(false);
               }}
-              disabled={false}
-              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 mb-3"
+              disabled={submitting}
+              className="w-full rounded-2xl bg-amber-500 py-3 text-sm font-bold text-black transition hover:bg-amber-400 disabled:opacity-50 mb-3"
             >
-              Confirmar venta por transferencia
+              {transferVerifiedByGmail
+                ? "Confirmar venta verificada"
+                : "Registrar transferencia pendiente"}
             </button>
 
             <button
@@ -3226,6 +3239,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
 
                   if (data?.found && data?.transfer) {
                     setTxCode(data.transfer.operationNumber || "Verificado Gmail");
+                    setTransferVerifiedByGmail(true);
                     btn.textContent = `✅ ${data.transfer.clientName} · ${data.transfer.operationNumber}`;
                   } else {
                     const msg = data?.checked > 0
@@ -3250,6 +3264,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               onClick={() => {
                 setShowTransferQR(false);
                 setTxCode("");
+                setTransferVerifiedByGmail(false);
                 setSubmitting(false);
               }}
               className="w-full text-xs text-zinc-600 hover:text-zinc-400 transition"
