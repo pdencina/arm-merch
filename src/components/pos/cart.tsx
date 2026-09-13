@@ -3109,27 +3109,45 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               </div>
             </div>
 
+            {/* Número de operación */}
+            <div className="mb-4">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+                Número de operación
+              </label>
+              <input
+                type="text"
+                placeholder="Ingresa el número del comprobante"
+                value={txCode}
+                onChange={(e) => {
+                  setTxCode(e.target.value);
+                  // Editar el código a mano invalida la verificación de Gmail
+                  if (transferVerifiedByGmail) setTransferVerifiedByGmail(false);
+                }}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
             {/* Estado de verificación */}
             <div className="mb-4">
               {transferVerifiedByGmail ? (
                 <div className="rounded-xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-left">
                   <p className="text-xs font-black uppercase tracking-widest text-green-300">
-                    ✅ Transferencia verificada
+                    ✅ Pago verificado en Gmail
                   </p>
-                  <p className="mt-1 text-xs text-zinc-300">
-                    Operación: <span className="font-mono">{txCode}</span>
+                  <p className="mt-1 text-[11px] leading-4 text-zinc-300">
+                    La venta se registrará como pagada.
                   </p>
                 </div>
               ) : (
                 <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-left">
                   <p className="text-xs font-black uppercase tracking-widest text-amber-300">
-                    Sin verificar
+                    Pago no verificado
                   </p>
                   <p className="mt-1 text-[11px] leading-4 text-zinc-400">
-                    Usa &quot;Verificar con Gmail&quot; para confirmar el pago.
-                    Si registras sin verificar, la orden quedará como
-                    <span className="font-bold text-amber-300"> pendiente de transferencia</span> hasta
-                    que el pago se confirme automáticamente.
+                    El número queda guardado, pero la orden se registrará como
+                    <span className="font-bold text-amber-300"> pendiente de transferencia</span>.
+                    Se confirma sola cuando el comprobante llegue al correo, o
+                    puedes usar &quot;Verificar con Gmail&quot; si ya llegó.
                   </p>
                 </div>
               )}

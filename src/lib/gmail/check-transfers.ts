@@ -335,34 +335,61 @@ export async function checkGmailTransfers(): Promise<{
   for (const transfer of transfers) {
     if (usedOperations.has(transfer.operationNumber)) continue
 
-    // Buscar órdenes de transferencia por monto: primero las pendientes de
-    // confirmar, luego las ya pagadas (para dejar la nota de verificación).
-    const { data: orders } = await adminClient
+    const selectColumns =
+      'id, order_number, total, notes, status, campus_id, order_items(product_id, quantity, fulfillment_type)'
+
+    // ── 1) Match por número de operación ──
+    // Es el más confiable: el vendedor registró el número del comprobante
+    // que le dio el cliente, así que identifica la orden sin ambigüedad
+    // aunque haya varias del mismo monto.
+    const { data: byOperation } = await adminClient
       .from('orders')
-      .select('id, order_number, total, notes, status, campus_id, order_items(product_id, quantity, fulfillment_type)')
+      .select(selectColumns)
       .eq('payment_method', 'transferencia')
       .in('status', ['pending_transfer', 'paid'])
-      .eq('total', transfer.amount)
+      .ilike('notes', `%${transfer.operationNumber}%`)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(5)
 
-    if (!orders || orders.length === 0) continue
+    // Si ya quedó verificada con esta misma operación, no hay nada que hacer.
+    const alreadyVerified = (byOperation ?? []).find((o: any) =>
+      String(o.notes ?? '').includes('✅ Verificado'),
+    )
 
-    // Buscar una orden que NO tenga ya este número de operación registrado
-    // ni otra operación verificada. Se prioriza pending_transfer.
-    const candidate =
-      orders.find((o: any) => {
-        const notes = String(o.notes ?? '')
-        if (o.status !== 'pending_transfer') return false
-        if (notes.includes(transfer.operationNumber)) return false
-        return true
-      }) ||
-      orders.find((o: any) => {
-        const notes = String(o.notes ?? '')
-        if (notes.includes(transfer.operationNumber)) return false
-        if (notes.includes('✅ Verificado')) return false
-        return true
-      })
+    if (alreadyVerified) continue
+
+    let candidate: any =
+      (byOperation ?? []).find((o: any) => o.status === 'pending_transfer') ??
+      (byOperation ?? [])[0] ??
+      null
+
+    // ── 2) Fallback por monto ──
+    // Cubre el caso en que el vendedor no alcanzó a registrar el número.
+    if (!candidate) {
+      const { data: byAmount } = await adminClient
+        .from('orders')
+        .select(selectColumns)
+        .eq('payment_method', 'transferencia')
+        .in('status', ['pending_transfer', 'paid'])
+        .eq('total', transfer.amount)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (!byAmount || byAmount.length === 0) continue
+
+      candidate =
+        byAmount.find((o: any) => {
+          const notes = String(o.notes ?? '')
+          if (o.status !== 'pending_transfer') return false
+          if (notes.includes('✅ Verificado')) return false
+          return true
+        }) ||
+        byAmount.find((o: any) => {
+          const notes = String(o.notes ?? '')
+          if (notes.includes('✅ Verificado')) return false
+          return true
+        })
+    }
 
     if (!candidate) continue
 
