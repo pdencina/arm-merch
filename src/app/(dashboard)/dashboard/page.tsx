@@ -148,6 +148,10 @@ export default function DashboardPage() {
   const [orderItems, setOrderItems] = useState<any[]>([])
   const [campuses, setCampuses] = useState<any[]>([])
   const [sellers, setSellers] = useState<any[]>([])
+  // Totales históricos por campus, calculados en la BD (sin límite de 1000 filas)
+  const [historicByCampus, setHistoricByCampus] = useState<
+    Array<{ campus_id: string | null; total_amount: number; total_count: number }>
+  >([])
   const [role, setRole] = useState('')
   const [userName, setUserName] = useState('')
   const [userCampusId, setUserCampusId] = useState<string | null>(null)
@@ -221,11 +225,13 @@ export default function DashboardPage() {
         { data: itemsData },
         { data: campusData },
         { data: sellersData },
+        { data: salesSummary },
       ] = await Promise.all([
         ordersQ,
         itemsQ,
         supabase.from('campus').select('id, name').eq('active', true).order('name'),
         supabase.from('profiles').select('id, full_name').eq('active', true),
+        supabase.rpc('get_sales_summary'),
       ])
 
       const safeItems = (itemsData ?? []).filter((item: any) => {
@@ -239,6 +245,7 @@ export default function DashboardPage() {
       setOrderItems(safeItems)
       setCampuses(campusData ?? [])
       setSellers(sellersData ?? [])
+      setHistoricByCampus((salesSummary ?? []) as any[])
       setLoading(false)
     }
     load()
@@ -284,9 +291,6 @@ export default function DashboardPage() {
     const totalLastMonth = lastMonthOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
     const totalDiscounts = monthOrders.reduce((s, o) => s + Number(o.discount ?? 0), 0)
 
-    // Total histórico (todas las órdenes pagadas desde el inicio)
-    const totalHistorico = filteredOrders.reduce((s, o) => s + Number(o.amount_paid ?? o.total ?? 0), 0)
-    const totalHistoricoCount = filteredOrders.length
 
     const growth    = totalLastMonth > 0 ? ((totalMonth - totalLastMonth) / totalLastMonth) * 100 : 0
     const dayGrowth = totalYesterday > 0 ? ((totalToday - totalYesterday) / totalYesterday) * 100 : 0
@@ -298,9 +302,25 @@ export default function DashboardPage() {
       todayCount: todayOrders.length,
       monthCount: monthOrders.length,
       weekCount: weekOrders.length,
-      totalHistorico, totalHistoricoCount,
     }
   }, [filteredOrders, now])
+
+  // Total histórico calculado en la BD (sin el límite de 1000 filas del cliente).
+  // Respeta el campus seleccionado para roles globales.
+  const historicMetrics = useMemo(() => {
+    const isGlobalRole = role === 'super_admin' || role === 'adm_merch'
+
+    const rows = historicByCampus.filter((r) => {
+      if (!isGlobalRole) return r.campus_id === userCampusId
+      if (!selectedCampusId) return true
+      return r.campus_id === selectedCampusId
+    })
+
+    return {
+      totalHistorico: rows.reduce((s, r) => s + Number(r.total_amount ?? 0), 0),
+      totalHistoricoCount: rows.reduce((s, r) => s + Number(r.total_count ?? 0), 0),
+    }
+  }, [historicByCampus, role, selectedCampusId, userCampusId])
 
   // 30-day daily chart
   const dailyChart = useMemo(() => {
@@ -472,8 +492,8 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-black tracking-tight text-amber-400">{fmt(metrics.totalHistorico)}</p>
-              <p className="text-xs text-zinc-500">{metrics.totalHistoricoCount.toLocaleString('es-CL')} órdenes completadas</p>
+              <p className="text-3xl font-black tracking-tight text-amber-400">{fmt(historicMetrics.totalHistorico)}</p>
+              <p className="text-xs text-zinc-500">{historicMetrics.totalHistoricoCount.toLocaleString('es-CL')} órdenes completadas</p>
             </div>
           </div>
         </div>
