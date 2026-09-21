@@ -24,6 +24,11 @@ interface Props {
   products: any[]
   sellers: any[]
   campusName?: string | null
+  dateFrom: string
+  dateTo: string
+  onDateFromChange: (value: string) => void
+  onDateToChange: (value: string) => void
+  loadingOrders?: boolean
 }
 
 const fmt = (n: number) =>
@@ -58,18 +63,17 @@ function safeNumber(value: any) {
   return Number.isFinite(n) ? n : 0
 }
 
-function normalizeDateOnly(value: string) {
-  return new Date(`${value}T00:00:00`)
-}
-
 export default function ReportsClient({
   orders,
   products,
   sellers,
   campusName,
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
+  loadingOrders,
 }: Props) {
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
   const [sellerId, setSellerId] = useState('')
   const [exporting, setExporting] = useState(false)
 
@@ -81,17 +85,14 @@ export default function ReportsClient({
     )
   }, [orders])
 
+  // El rango de fechas ya viene filtrado desde la consulta a la BD.
+  // Aquí solo se filtra por vendedor (filtro local).
   const filtered = useMemo(() => {
     return paidOrders.filter((o) => {
-      const d = new Date(o.created_at)
-
-      if (dateFrom && d < normalizeDateOnly(dateFrom)) return false
-      if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false
       if (sellerId && o.seller_id !== sellerId) return false
-
       return true
     })
-  }, [paidOrders, dateFrom, dateTo, sellerId])
+  }, [paidOrders, sellerId])
 
   const totalRevenue = filtered.reduce((sum, order) => {
     return sum + safeNumber(order.amount_paid ?? order.total)
@@ -255,7 +256,8 @@ export default function ReportsClient({
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            max={dateTo || undefined}
+            onChange={(e) => onDateFromChange(e.target.value)}
             className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 transition focus:border-amber-500 focus:outline-none"
           />
         </div>
@@ -265,10 +267,18 @@ export default function ReportsClient({
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            min={dateFrom || undefined}
+            onChange={(e) => onDateToChange(e.target.value)}
             className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 transition focus:border-amber-500 focus:outline-none"
           />
         </div>
+
+        {loadingOrders && (
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <Loader2 size={14} className="animate-spin" />
+            Cargando...
+          </div>
+        )}
 
         <select
           value={sellerId}
@@ -283,16 +293,12 @@ export default function ReportsClient({
           ))}
         </select>
 
-        {(dateFrom || dateTo || sellerId) && (
+        {sellerId && (
           <button
-            onClick={() => {
-              setDateFrom('')
-              setDateTo('')
-              setSellerId('')
-            }}
+            onClick={() => setSellerId('')}
             className="text-xs text-zinc-500 transition hover:text-white"
           >
-            Limpiar filtros
+            Limpiar filtro
           </button>
         )}
       </div>

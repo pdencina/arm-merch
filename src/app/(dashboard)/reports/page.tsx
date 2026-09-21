@@ -9,12 +9,22 @@ export default function ReportsPage() {
   const [products, setProducts] = useState<any[]>([])
   const [sellers, setSellers] = useState<any[]>([])
   const [campusName, setCampusName] = useState<string | null>(null)
+  const [loadingOrders, setLoadingOrders] = useState(true)
+
+  // Rango de fechas: por defecto, últimos 30 días
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
     const supabase = createClient()
 
     async function load() {
       try {
+        setLoadingOrders(true)
         const {
           data: { session },
         } = await supabase.auth.getSession()
@@ -45,12 +55,16 @@ export default function ReportsPage() {
         }
 
         // ── ÓRDENES ──
+        // El filtro de fechas se aplica en la consulta (no en el cliente),
+        // para no depender del límite de filas y traer solo el rango pedido.
         let ordersQuery = supabase
           .from('orders')
-          .select('id, order_number, campus_id, seller_id, payment_method, total, discount, created_at, status, notes')
+          .select('id, order_number, campus_id, seller_id, payment_method, total, amount_paid, discount, created_at, status, notes')
           .eq('status', 'paid')
+          .gte('created_at', `${dateFrom}T00:00:00`)
+          .lte('created_at', `${dateTo}T23:59:59`)
           .order('created_at', { ascending: false })
-          .limit(500)
+          .limit(5000)
 
         if (role === 'voluntario') {
           ordersQuery = ordersQuery.eq('seller_id', session.user.id)
@@ -162,11 +176,13 @@ export default function ReportsPage() {
 
       } catch (err: any) {
         console.error('[Reports] Error loading:', err?.message)
+      } finally {
+        setLoadingOrders(false)
       }
     }
 
     load()
-  }, [])
+  }, [dateFrom, dateTo])
 
   return (
     <ReportsClient
@@ -174,6 +190,11 @@ export default function ReportsPage() {
       products={products}
       sellers={sellers}
       campusName={campusName}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      onDateFromChange={setDateFrom}
+      onDateToChange={setDateTo}
+      loadingOrders={loadingOrders}
     />
   )
 }
