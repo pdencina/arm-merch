@@ -23,6 +23,8 @@ interface Props {
   orders: any[]
   products: any[]
   sellers: any[]
+  campuses?: { id: string; name: string }[]
+  isGlobal?: boolean
   campusName?: string | null
   dateFrom: string
   dateTo: string
@@ -67,6 +69,8 @@ export default function ReportsClient({
   orders,
   products,
   sellers,
+  campuses = [],
+  isGlobal = false,
   campusName,
   dateFrom,
   dateTo,
@@ -75,24 +79,26 @@ export default function ReportsClient({
   loadingOrders,
 }: Props) {
   const [sellerId, setSellerId] = useState('')
+  const [campusFilter, setCampusFilter] = useState('')
   const [exporting, setExporting] = useState(false)
 
+  // Mismo criterio que el reporte por correo (RPC get_sales_summary):
+  // solo órdenes con status 'paid'. Así los totales cuadran entre ambos.
   const paidOrders = useMemo(() => {
-    return (orders ?? []).filter((o) =>
-      ['paid', 'completed', 'delivered', 'completada', 'entregada'].includes(
-        String(o.status ?? '').toLowerCase()
-      )
+    return (orders ?? []).filter(
+      (o) => String(o.status ?? '').toLowerCase() === 'paid',
     )
   }, [orders])
 
-  // El rango de fechas ya viene filtrado desde la consulta a la BD.
-  // Aquí solo se filtra por vendedor (filtro local).
+  // El rango de fechas ya viene filtrado desde la BD.
+  // Aquí se filtra por vendedor y por campus (filtros locales).
   const filtered = useMemo(() => {
     return paidOrders.filter((o) => {
       if (sellerId && o.seller_id !== sellerId) return false
+      if (campusFilter && o.campus_id !== campusFilter) return false
       return true
     })
-  }, [paidOrders, sellerId])
+  }, [paidOrders, sellerId, campusFilter])
 
   const totalRevenue = filtered.reduce((sum, order) => {
     return sum + safeNumber(order.amount_paid ?? order.total)
@@ -280,6 +286,21 @@ export default function ReportsClient({
           </div>
         )}
 
+        {isGlobal && (
+          <select
+            value={campusFilter}
+            onChange={(e) => setCampusFilter(e.target.value)}
+            className="rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 transition focus:border-amber-500 focus:outline-none"
+          >
+            <option value="">Todos los campus</option>
+            {campuses.map((campus) => (
+              <option key={campus.id} value={campus.id}>
+                {campus.name}
+              </option>
+            ))}
+          </select>
+        )}
+
         <select
           value={sellerId}
           onChange={(e) => setSellerId(e.target.value)}
@@ -293,12 +314,15 @@ export default function ReportsClient({
           ))}
         </select>
 
-        {sellerId && (
+        {(sellerId || campusFilter) && (
           <button
-            onClick={() => setSellerId('')}
+            onClick={() => {
+              setSellerId('')
+              setCampusFilter('')
+            }}
             className="text-xs text-zinc-500 transition hover:text-white"
           >
-            Limpiar filtro
+            Limpiar filtros
           </button>
         )}
       </div>

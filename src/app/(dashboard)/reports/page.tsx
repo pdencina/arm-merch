@@ -8,6 +8,8 @@ export default function ReportsPage() {
   const [orders, setOrders] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [sellers, setSellers] = useState<any[]>([])
+  const [campuses, setCampuses] = useState<any[]>([])
+  const [isGlobal, setIsGlobal] = useState(false)
   const [campusName, setCampusName] = useState<string | null>(null)
   const [loadingOrders, setLoadingOrders] = useState(true)
 
@@ -174,6 +176,17 @@ export default function ReportsPage() {
         const { data: sellersData } = await sellersQuery
         setSellers(sellersData ?? [])
 
+        // ── CAMPUS (para filtro, solo roles globales) ──
+        setIsGlobal(hasGlobalAccess)
+        if (hasGlobalAccess) {
+          const { data: campusData } = await supabase
+            .from('campus')
+            .select('id, name')
+            .eq('active', true)
+            .order('name')
+          setCampuses(campusData ?? [])
+        }
+
       } catch (err: any) {
         console.error('[Reports] Error loading:', err?.message)
       } finally {
@@ -189,6 +202,8 @@ export default function ReportsPage() {
       orders={orders}
       products={products}
       sellers={sellers}
+      campuses={campuses}
+      isGlobal={isGlobal}
       campusName={campusName}
       dateFrom={dateFrom}
       dateTo={dateTo}
