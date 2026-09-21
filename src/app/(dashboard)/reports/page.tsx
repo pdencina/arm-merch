@@ -59,23 +59,46 @@ export default function ReportsPage() {
         // ── ÓRDENES ──
         // El filtro de fechas se aplica en la consulta (no en el cliente),
         // para no depender del límite de filas y traer solo el rango pedido.
-        let ordersQuery = supabase
-          .from('orders')
-          .select('id, order_number, campus_id, seller_id, payment_method, total, amount_paid, discount, created_at, status, notes')
-          .eq('status', 'paid')
-          .gte('created_at', `${dateFrom}T00:00:00`)
-          .lte('created_at', `${dateTo}T23:59:59`)
-          .order('created_at', { ascending: false })
-          .limit(5000)
+        // Se pagina con .range() porque Supabase tiene un tope de servidor
+        // (~1000 filas) que .limit() no siempre sobrepasa.
+        const buildOrdersQuery = (from: number, to: number) => {
+          let q = supabase
+            .from('orders')
+            .select('id, order_number, campus_id, seller_id, payment_method, total, amount_paid, discount, created_at, status, notes')
+            .eq('status', 'paid')
+            .gte('created_at', `${dateFrom}T00:00:00`)
+            .lte('created_at', `${dateTo}T23:59:59`)
+            .order('created_at', { ascending: false })
+            .range(from, to)
 
-        if (role === 'voluntario') {
-          ordersQuery = ordersQuery.eq('seller_id', session.user.id)
-        } else if (role === 'admin' && campusId) {
-          ordersQuery = ordersQuery.eq('campus_id', campusId)
+          if (role === 'voluntario') {
+            q = q.eq('seller_id', session.user.id)
+          } else if (role === 'admin' && campusId) {
+            q = q.eq('campus_id', campusId)
+          }
+          // adm_merch y super_admin ven todo (sin filtro)
+          return q
         }
-        // adm_merch y super_admin ven todo (sin filtro)
 
-        const { data: ordersData, error: ordersError } = await ordersQuery
+        const PAGE_SIZE = 1000
+        let ordersData: any[] = []
+        let ordersError: any = null
+
+        for (let page = 0; page < 50; page++) {
+          const from = page * PAGE_SIZE
+          const to = from + PAGE_SIZE - 1
+          const { data: batch, error: batchError } = await buildOrdersQuery(from, to)
+
+          if (batchError) {
+            ordersError = batchError
+            break
+          }
+
+          ordersData = ordersData.concat(batch ?? [])
+
+          // Si el lote vino incompleto, ya no hay más páginas.
+          if (!batch || batch.length < PAGE_SIZE) break
+        }
 
         if (ordersError) {
           console.error('[Reports] Orders error:', ordersError.message)
