@@ -106,6 +106,41 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('paid')
   const [paymentFilter, setPaymentFilter] = useState('')
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+
+  async function confirmTransfer(order: OrderRow) {
+    const ok = window.confirm(
+      `¿Ya viste la transferencia de ${formatCurrency(Number(order.total ?? 0))} en el banco?\n\nOrden #${order.order_number} pasará a pagada y se descontará el stock.`,
+    )
+    if (!ok) return
+
+    setConfirmingId(order.id)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const res = await fetch(`/api/orders/${order.id}/confirm-transfer`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      })
+      const result = await res.json().catch(() => ({}))
+
+      if (!res.ok) throw new Error(result?.error || 'No se pudo confirmar')
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? { ...o, status: 'paid', notes: result?.notes ?? o.notes }
+            : o,
+        ),
+      )
+    } catch (err: any) {
+      window.alert(err?.message || 'No se pudo confirmar la transferencia.')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -427,7 +462,17 @@ export default function OrdersPage() {
                 {formatDate(order.created_at)}
               </div>
 
-              <div>
+              <div className="flex flex-col gap-2">
+                {order.status === 'pending_transfer' && (
+                  <button
+                    type="button"
+                    onClick={() => confirmTransfer(order)}
+                    disabled={confirmingId === order.id}
+                    className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 disabled:opacity-50"
+                  >
+                    {confirmingId === order.id ? 'Confirmando...' : 'Confirmar pago'}
+                  </button>
+                )}
                 <Link
                   href={`/orders/${order.id}`}
                   className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
@@ -501,7 +546,17 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 flex flex-col gap-2">
+                {order.status === 'pending_transfer' && (
+                  <button
+                    type="button"
+                    onClick={() => confirmTransfer(order)}
+                    disabled={confirmingId === order.id}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-500 disabled:opacity-50"
+                  >
+                    {confirmingId === order.id ? 'Confirmando...' : 'Confirmar pago'}
+                  </button>
+                )}
                 <Link
                   href={`/orders/${order.id}`}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"

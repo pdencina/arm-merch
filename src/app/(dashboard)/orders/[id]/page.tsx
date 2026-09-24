@@ -302,27 +302,24 @@ export default function OrderDetailPage() {
     setActionMessage(null)
 
     try {
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          status: 'paid',
-          notes: order.notes
-            ? `${order.notes} | Transferencia confirmada manualmente`
-            : 'Transferencia confirmada manualmente',
-        })
-        .eq('id', order.id)
-        .eq('status', 'pending_transfer')
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      if (updateError) {
-        throw new Error(updateError.message)
+      const res = await fetch(`/api/orders/${order.id}/confirm-transfer`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      })
+      const result = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(result?.error || 'No se pudo confirmar la transferencia.')
       }
 
       setOrder({
         ...order,
         status: 'paid',
-        notes: order.notes
-          ? `${order.notes} | Transferencia confirmada manualmente`
-          : 'Transferencia confirmada manualmente',
+        notes: result?.notes ?? order.notes,
       })
 
       setActionMessage('Transferencia confirmada correctamente.')

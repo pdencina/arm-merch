@@ -57,6 +57,13 @@ async function getAccessToken(): Promise<{ token: string | null; error?: string 
 
     if (!res.ok || !data.access_token) {
       console.error('[Gmail] Error obteniendo access token:', data)
+      if (data?.error === 'invalid_grant') {
+        return {
+          token: null,
+          error:
+            'Gmail: el refresh token venció o fue revocado (invalid_grant). Hay que generar uno nuevo y actualizar GMAIL_REFRESH_TOKEN en Vercel.',
+        }
+      }
       return { token: null, error: `Google respondió ${res.status}: ${data?.error ?? data?.error_description ?? JSON.stringify(data)}` }
     }
 

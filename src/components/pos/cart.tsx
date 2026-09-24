@@ -435,6 +435,8 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
   const [recentTxList, setRecentTxList] = useState<any[]>([]);
   const [txCode, setTxCode] = useState("");
   const [transferVerifiedByGmail, setTransferVerifiedByGmail] = useState(false);
+  // El voluntario vio el pago en el banco y lo confirma sin esperar a Gmail.
+  const [transferVerifiedManually, setTransferVerifiedManually] = useState(false);
   const [showTransferQR, setShowTransferQR] = useState(false);
   const [transferTotal, setTransferTotal] = useState(0);
   const [showCashModal, setShowCashModal] = useState(false);
@@ -3122,6 +3124,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   setTxCode(e.target.value);
                   // Editar el código a mano invalida la verificación de Gmail
                   if (transferVerifiedByGmail) setTransferVerifiedByGmail(false);
+                  if (transferVerifiedManually) setTransferVerifiedManually(false);
                 }}
                 className="w-full rounded-xl border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
               />
@@ -3132,7 +3135,9 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               {transferVerifiedByGmail ? (
                 <div className="rounded-xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-left">
                   <p className="text-xs font-black uppercase tracking-widest text-green-300">
-                    ✅ Pago verificado en Gmail
+                    {transferVerifiedManually
+                      ? "✅ Pago confirmado manualmente"
+                      : "✅ Pago verificado en Gmail"}
                   </p>
                   <p className="mt-1 text-[11px] leading-4 text-zinc-300">
                     La venta se registrará como pagada.
@@ -3182,7 +3187,14 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                     client_name: clientName.trim(),
                     client_email: clientEmail?.trim() || "",
                     client_phone: clientPhone?.trim() || null,
-                    notes: txCode.trim() ? `Transferencia código: ${txCode.trim()}${notes?.trim() ? ` | ${notes.trim()}` : ""}` : notes?.trim() || null,
+                    notes:
+                      [
+                        txCode.trim() ? `Transferencia código: ${txCode.trim()}` : "",
+                        transferVerifiedManually ? "✅ Confirmada manualmente en POS" : "",
+                        notes?.trim() || "",
+                      ]
+                        .filter(Boolean)
+                        .join(" | ") || null,
                     transfer_verified: transferVerifiedByGmail,
                     discount: discountAuthorized ? Math.round(subtotal() * discountPct / 100) : 0,
                     discount_pct: discountAuthorized ? discountPct : 0,
@@ -3215,6 +3227,7 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
                   setClientPhone("");
                   setTxCode("");
                   setTransferVerifiedByGmail(false);
+                  setTransferVerifiedManually(false);
                   setProductionItems({});
                   clearCart();
                   focusSkuSearchInput();
@@ -3278,11 +3291,24 @@ export default function Cart({ onClose }: { onClose?: () => void }) {
               🔍 Verificar automático con Gmail
             </button>
 
+            {!transferVerifiedByGmail && (
+              <button
+                onClick={() => {
+                  setTransferVerifiedByGmail(true);
+                  setTransferVerifiedManually(true);
+                }}
+                className="w-full rounded-2xl border border-green-500/30 bg-green-500/10 py-3 text-sm font-semibold text-green-300 transition hover:bg-green-500/20 mb-3"
+              >
+                ✅ Ya vi el pago en el banco — confirmar
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setShowTransferQR(false);
                 setTxCode("");
                 setTransferVerifiedByGmail(false);
+                setTransferVerifiedManually(false);
                 setSubmitting(false);
               }}
               className="w-full text-xs text-zinc-600 hover:text-zinc-400 transition"
